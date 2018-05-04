@@ -12,7 +12,7 @@ def pytest_addoption(parser):
                      help='IP of the test database host')
     parser.addoption('--db-port', action='store', default=27017, type=int,
                      help='Port that the test database listens on')
-    parser.addoption('--db-user', action='store', default='',
+    parser.addoption('--db-user', action='store',
                      help='User to log into the test database as')
     parser.addoption('--db-pwd', action='store_true',
                      help='Pass this flag to input database password on start')
@@ -31,7 +31,8 @@ def connect(request):
     conf = request.config
     client = pymongo.MongoClient(host=conf.getoption('db_host'),
                                  port=conf.getoption('db_port'),
-                                 user=conf.getoption('db_user'),
+                                 username=conf.getoption('db_user',
+                                                         default=None),
                                  password=conf.getoption('db_passwd',
                                                          default=None))
     return client[conf.getoption('db_name')]
