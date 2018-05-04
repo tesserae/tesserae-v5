@@ -3,11 +3,13 @@ from setuptools import setup
 setup(
     name='tesserae',
     version='0.1a1',
-    description='Fast image segmentation without needing to learn a thing.',
+    description='Fast multi-text n-gram matching for intertext studies.',
     url='https://github.com/tesserae/tesserae-v5',
     author='Jeff Kinnison',
     author_email='jkinniso@nd.edu',
-    packages=['tesserae', ],
+    packages=['tesserae',
+              'tesserae.db',
+              'tesserae.text_access'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Research',
