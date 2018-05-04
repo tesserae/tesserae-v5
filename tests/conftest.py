@@ -16,7 +16,7 @@ def pytest_addoption(parser):
                      help='User to log into the test database as')
     parser.addoption('--db-pwd', action='store_true',
                      help='Pass this flag to input database password on start')
-    parser.addoption('--db-name', action='store', default='tess_test'
+    parser.addoption('--db-name', action='store', default='tess_test',
                      help='Name of the test database to use.')
 
 
