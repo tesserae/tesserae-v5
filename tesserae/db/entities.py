@@ -46,8 +46,8 @@ def convert_to_entity(func, entity_class):
     objects are created to prevent duplicate code in other parts fo the
     Tesserae package.
     """
-    if not isinstance(entity_class, Entity):
-        raise ValueError(
+    if not issubclass(entity_class, Entity) or entity_class is Entity:
+        raise TypeError(
             'Entity class must be one of: {}, {}, {}, {}, or {}. Supplied {}'
             .format(Text.__name__, Unit.__name__, Token.__name__,
                     NGram.__name__, Match.__name__,
@@ -59,9 +59,12 @@ def convert_to_entity(func, entity_class):
         if isinstance(results, list):
             converted = []
             for r in results:
-                converted.append(entity_class().from_json(r))
+                c = entity_class()
+                c.json_decode(r)
+                converted.append(c)
         else:
-            converted = entity_class().from_json(results)
+            converted = entity_class()
+            converted.json_decode(results)
 
         return converted
 
@@ -77,6 +80,9 @@ class Entity(object):
 
     def __init__(self):
         self._attributes = {}
+
+    def __eq__(self, other):
+        return self._attributes == other._attributes
 
     def json_encode(self, exclude: typing.Optional[typing.List[str]]=None):
         """Encode this entity as a valid JSON object.
@@ -236,20 +242,56 @@ class Text(Entity):
 
 
 class Unit(Entity):
-    def __init__(self):
-        pass
+    def __init__(self, id=None):
+        super(Unit, self).__init__()
+        self.id = id
+
+    @property
+    def id(self) -> typing.Optional[str]:
+        return self._attributes['id']
+
+    @id.setter
+    def id(self, val: typing.Optional[str]):
+        self._attributes['id'] = val
 
 
 class Token(Entity):
-    def __init__(self):
-        pass
+    def __init__(self, id=None):
+        super(Token, self).__init__()
+        self.id = id
+
+    @property
+    def id(self) -> typing.Optional[str]:
+        return self._attributes['id']
+
+    @id.setter
+    def id(self, val: typing.Optional[str]):
+        self._attributes['id'] = val
 
 
 class NGram(Entity):
-    def __init__(self):
-        pass
+    def __init__(self, id=None):
+        super(NGram, self).__init__()
+        self.id = id
+
+    @property
+    def id(self) -> typing.Optional[str]:
+        return self._attributes['id']
+
+    @id.setter
+    def id(self, val: typing.Optional[str]):
+        self._attributes['id'] = val
 
 
 class Match(Entity):
-    def __init__(self):
-        pass
+    def __init__(self, id=None):
+        super(Match, self).__init__()
+        self.id = id
+
+    @property
+    def id(self) -> typing.Optional[str]:
+        return self._attributes['id']
+
+    @id.setter
+    def id(self, val: typing.Optional[str]):
+        self._attributes['id'] = val
