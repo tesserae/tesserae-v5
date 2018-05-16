@@ -2,7 +2,10 @@
 """
 import pytest
 
+import datetime
 import getpass
+import json
+import os
 
 import pymongo
 
@@ -27,7 +30,7 @@ def pytest_configure(config):
 
 
 @pytest.fixture(scope='session')
-def connect(request):
+def connection(request):
     conf = request.config
     client = pymongo.MongoClient(host=conf.getoption('db_host'),
                                  port=conf.getoption('db_port'),
@@ -36,3 +39,25 @@ def connect(request):
                                  password=conf.getoption('db_passwd',
                                                          default=None))
     return client[conf.getoption('db_name')]
+
+
+@pytest.fixture(scope='session')
+def populate(connection):
+    # Load in test entries from tests/test_db_entries.json
+    directory = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(directory, 'test_db_entries.json'), 'r') as f:
+        test_entries = json.load(f)
+
+    # Perform any conversions to get the data in the right format
+    for doc in test_entries['texts']:
+        doc['year'] = datetime.datetime(doc['year'], 1, 1)
+
+    # Insert all of the docs
+    for collection, docs in test_entries.items():
+        connection[collection].insert_many(docs)
+
+    yield True
+
+    # Clean up the test database for a clean slate next time
+    for collection in test_entries:
+        del connection[collection]
