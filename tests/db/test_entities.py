@@ -19,25 +19,25 @@ def test_convert_to_entity():
         p = c.__entity_class__(**c.__test_kwargs__)
 
         # Test converting one non-parameterized instance
-        r = convert_to_entity(create_instances, c.__entity_class__)()
+        r = convert_to_entity(c.__entity_class__)(create_instances)()
         assert isinstance(r, c.__entity_class__)
         assert r == n
 
         # Test converting one parameterized instance
-        r = convert_to_entity(create_instances, c.__entity_class__)(
+        r = convert_to_entity(c.__entity_class__)(create_instances)(
             **c.__test_kwargs__)
         assert isinstance(r, c.__entity_class__)
         assert r == p
 
         # Test converting one non-parameterized instance
-        r = convert_to_entity(create_instances, c.__entity_class__)(count=100)
+        r = convert_to_entity(c.__entity_class__)(create_instances)(count=100)
         assert len(r) == 100
         for o in r:
             assert isinstance(o, c.__entity_class__)
             assert o == n
 
         # Test converting one parameterized instance
-        r = convert_to_entity(create_instances, c.__entity_class__)(
+        r = convert_to_entity(c.__entity_class__)(create_instances)(
             count=100, **c.__test_kwargs__)
         assert len(r) == 100
         for o in r:
@@ -49,7 +49,7 @@ def test_convert_to_entity():
     for i in invalids:
         with pytest.raises(TypeError):
             print(i)
-            convert_to_entity(create_instances, i)
+            convert_to_entity(i)(create_instances)()
 
 
 class TestEntity(object):
