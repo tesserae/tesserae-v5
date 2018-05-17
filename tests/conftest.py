@@ -54,10 +54,11 @@ def populate(connection):
 
     # Insert all of the docs
     for collection, docs in test_entries.items():
-        connection[collection].insert_many(docs)
+        if len(docs) > 0:
+            connection[collection].insert_many(docs)
 
-    yield True
+    yield test_entries
 
     # Clean up the test database for a clean slate next time
     for collection in test_entries:
-        del connection[collection]
+        connection[collection].delete_many({})
