@@ -70,11 +70,19 @@ def test_create_filter():
 
     # Test with a single argument in list form
     f = create_filter(foo_not=['bar'])
-    assert f == {'foo': {'$in': ['bar'], '$exists': True}}
+    assert f == {'foo': {'$nin': ['bar'], '$exists': True}}
+
+    # Test with a single argument in list form
+    f = create_filter(foo=['bar', 'baz'])
+    assert f == {'foo': {'$in': ['bar', 'baz'], '$exists': True}}
 
     # Test with a single argument in list form
     f = create_filter(foo_not=['bar', 'baz'])
     assert f == {'foo': {'$nin': ['bar', 'baz'], '$exists': True}}
+
+    # Test with a single argument in list form
+    f = create_filter(foo=['bar'], foo_not=['baz'])
+    assert f == {'foo': {'$in': ['bar'], '$nin': ['baz'], '$exists': True}}
 
     # Test with a single integer argument
     f = create_filter(foo=1)
@@ -109,7 +117,7 @@ def test_create_filter():
     assert f == {'foo': {'$gte': 1, '$lte': 10, '$exists': True}}
 
     # Test with a single negated integer argument
-    f = create_filter(foo_not=1)
+    f = create_filter(foo_not=(1, 10))
     assert f == {'foo': {'$lt': 1, '$gt': 10, '$exists': True}}
 
     # Test with a single float argument
