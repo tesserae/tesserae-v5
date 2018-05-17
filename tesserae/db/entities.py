@@ -16,13 +16,16 @@ Notes
 Python type hints are used here as a means of controlling database entries.
 MongoDB does not impose any restrictions on the data type of each field in a
 document, but we like to know what to expect.
+
 """
 
 import copy
 import typing
 
+from bson.objectid import ObjectId
 
-def convert_to_entity(func, entity_class):
+
+def convert_to_entity(entity_class):
     """Convert the JSON-esque output of a function to an entity.
 
     Parameters
@@ -53,22 +56,24 @@ def convert_to_entity(func, entity_class):
                     NGram.__name__, Match.__name__,
                     entity_class.__class__.__name__))
 
-    def wrapper(*args, **kwargs):
-        results = func(*args, **kwargs)
+    def outerwrapper(func):
+        def wrapper(*args, **kwargs):
+            results = func(*args, **kwargs)
 
-        if isinstance(results, list):
-            converted = []
-            for r in results:
-                c = entity_class()
-                c.json_decode(r)
-                converted.append(c)
-        else:
-            converted = entity_class()
-            converted.json_decode(results)
+            if isinstance(results, list):
+                converted = []
+                for r in results:
+                    c = entity_class()
+                    c.json_decode(r)
+                    converted.append(c)
+            else:
+                converted = entity_class()
+                converted.json_decode(results)
 
-        return converted
+            return converted
 
-    return wrapper
+        return wrapper
+    return outerwrapper
 
 
 class Entity(object):
@@ -83,6 +88,14 @@ class Entity(object):
 
     def __eq__(self, other):
         return self._attributes == other._attributes
+
+    @property
+    def id(self) -> typing.Union[str, ObjectId, None]:
+        return self._attributes['_id']
+
+    @id.setter
+    def id(self, val: typing.Union[str, ObjectId, None]):
+        self._attributes['_id'] = val
 
     def json_encode(self, exclude: typing.Optional[typing.List[str]]=None):
         """Encode this entity as a valid JSON object.
@@ -178,14 +191,6 @@ class Text(Entity):
         self.author = author
         self.year = year
         self.unit_types = unit_types if unit_types is not None else []
-
-    @property
-    def id(self) -> typing.Optional[str]:
-        return self._attributes['id']
-
-    @id.setter
-    def id(self, val: typing.Optional[str]):
-        self._attributes['id'] = val
 
     @property
     def cts_urn(self) -> typing.Optional[str]:
