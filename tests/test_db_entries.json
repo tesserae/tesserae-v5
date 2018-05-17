@@ -2,51 +2,27 @@
     "texts": [
         {
             "cts_urn": "urn:cts:latinLit:phi0690.phi002",
-            "title": "Aeneid",
-            "author": "Vergil",
+            "title": "aeneid",
+            "author": "vergil",
             "language": "latin",
             "year": 19,
             "unit_types": ["line", "phrase"]
         },
         {
             "cts_urn": "urn:cts:latinLit:phi0690.phi001",
-            "title": "Eclogues",
-            "author": "Vergil",
+            "title": "eclogues",
+            "author": "vergil",
             "language": "latin",
             "year": 38,
             "unit_types": ["line", "phrase"]
         },
         {
             "cts_urn": "urn:cts:latinLit:phi0917.phi001",
-            "title": "Bellum Civile",
-            "author": "Lucan",
+            "title": "bellum civile",
+            "author": "lucan",
             "language": "latin",
             "year": 65,
             "unit_types": ["line", "phrase"]
-        },
-        {
-            "cts_urn": "",
-            "title": "",
-            "author": "",
-            "language": "",
-            "year": 0,
-            "unit_types": []
-        },
-        {
-            "cts_urn": "",
-            "title": "",
-            "author": "",
-            "language": "",
-            "year": 0,
-            "unit_types": []
-        },
-        {
-            "cts_urn": "",
-            "title": "",
-            "author": "",
-            "language": "",
-            "year": 0,
-            "unit_types": []
         }
     ],
     "units": [
