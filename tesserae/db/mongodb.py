@@ -1,6 +1,29 @@
 """Functions for interacting with MongoDB.
 
+The functions defined in this module are utilities that standardize
+interactions with MongoDB, including connecting, creating query filters, and
+santizing data.
+
+Routine Listings
+----------------
+get_connection
+    Connect to a Tesserae MongoDB instance.
+create_filter
+    Create a filter for querying a MongoDB collection.
+to_query_list
+    Convert a sequence to a list for a query filter.
+to_query_range
+    Prepare a pair of numeric values for range-based queries.
+
+Notes
+-----
+All functions defined in this module that directly interact with the database
+use the `pymongo`_ library.
+
+.. _pymongo: https://api.mongodb.com/python/current/
+
 """
+
 import datetime
 from typing import Iterable
 try:
@@ -112,35 +135,36 @@ def create_filter(**kwargs):
 
     # Convert the values to a standard form.
     for k, v in kwargs.items():
-        exclude = False
-        if k.find('_not') >= 0:
-            k = k.split('_')[0]
-            exclude = True
+        if v is not None:
+            exclude = False
+            if k.find('_not') >= 0:
+                k = k.split('_')[0]
+                exclude = True
 
-        if k not in f:
-            f[k] = {'$exists': True}
+            if k not in f:
+                f[k] = {'$exists': True}
 
-        q = {}
+            q = {}
 
-        if isinstance(v, (int, float, datetime.datetime)):
-            v = to_query_range(v, v)
-            if not exclude:
-                q = {'$gte': v[0], '$lte': v[1]}
+            if isinstance(v, (int, float, datetime.datetime)):
+                v = to_query_range(v, v)
+                if not exclude:
+                    q = {'$gte': v[0], '$lte': v[1]}
+                else:
+                    q = {'$lt': v[0], '$gt': v[1]}
+            elif isinstance(v, tuple) and len(v) == 2:
+                v = to_query_range(*v)
+                if not exclude:
+                    q = {'$gte': v[0], '$lte': v[1]}
+                else:
+                    q = {'$lt': v[0], '$gt': v[1]}
             else:
-                q = {'$lt': v[0], '$gt': v[1]}
-        elif isinstance(v, tuple) and len(v) == 2:
-            v = to_query_range(*v)
-            if not exclude:
-                q = {'$gte': v[0], '$lte': v[1]}
-            else:
-                q = {'$lt': v[0], '$gt': v[1]}
-        else:
-            v = to_query_list(v)
-            if not exclude:
-                q = {'$in': v}
-            else:
-                q = {'$nin': v}
-        f[k].update(q)
+                v = to_query_list(v)
+                if not exclude:
+                    q = {'$in': v}
+                else:
+                    q = {'$nin': v}
+            f[k].update(q)
 
     if len(f) > 1:
         f = {'$and': [{k: v} for k in f]}
