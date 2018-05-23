@@ -63,12 +63,10 @@ def convert_to_entity(entity_class):
             if isinstance(results, list):
                 converted = []
                 for r in results:
-                    c = entity_class()
-                    c.json_decode(r)
+                    c = entity_class.json_decode(r)
                     converted.append(c)
             else:
-                converted = entity_class()
-                converted.json_decode(results)
+                converted = entity_class.json_decode(results)
 
             return converted
 
@@ -121,18 +119,30 @@ class Entity(object):
                             self.__class__.__name__, k))
         return obj
 
-    def json_decode(self, obj: typing.Dict[str, typing.Any]):
+    @classmethod
+    def json_decode(cls, obj: typing.Dict[str, typing.Any]):
         """Decode a JSON object to create an entity.
 
+        Parameters
+        ----------
+        obj : dict
+            Dictionary with key/value pairs corersponding to Entity object
+            attributes.
 
+        Returns
+        -------
+        entity : `tesserae.db.entities.Entity`
+            Entity created from ``obj``.
+
+        Raises
+        ------
+        AttributeError
+            If ``obj`` contains
         """
-        for k, v in obj.items():
-            if k in self._attributes:
-                self._attributes[k] = v
-            else:
-                raise AttributeError(
-                    'Entity {} has no attribute {}. Database entry: {}'.format(
-                        self.__class__.__name__, k, obj))
+        if '_id' in obj:
+            obj['id'] = obj['_id']
+            del obj['_id']
+        return cls(**obj)
 
 
 class Text(Entity):
