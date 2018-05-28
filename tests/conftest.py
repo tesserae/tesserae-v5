@@ -4,6 +4,7 @@ import pytest
 
 import datetime
 import getpass
+import glob
 import json
 import os
 
@@ -62,3 +63,8 @@ def populate(connection):
     # Clean up the test database for a clean slate next time
     for collection in test_entries:
         connection[collection].delete_many({})
+
+
+@pytest.fixture(scope='session')
+def tessfiles():
+    return os.path.abspath('./tessfiles')
