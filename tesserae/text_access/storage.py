@@ -1,7 +1,7 @@
 """Handle database interactions related to texts.
 """
 from tesserae.db import create_filter, convert_to_entity, Text
-from tesserae.utils import 
+from tesserae.utils import TessFile
 
 
 class DuplicateTextError(Exception):
@@ -99,3 +99,4 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
 
 
 def load_text(path):
+    pass
