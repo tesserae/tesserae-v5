@@ -9,7 +9,8 @@ setup(
     author_email='jkinniso@nd.edu',
     packages=['tesserae',
               'tesserae.db',
-              'tesserae.text_access'],
+              'tesserae.text_access',
+              'tesserae.utils'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Research',
