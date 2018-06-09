@@ -67,4 +67,5 @@ def populate(connection):
 
 @pytest.fixture(scope='session')
 def tessfiles():
-    return os.path.abspath('./tessfiles')
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), 'tessfiles'))
