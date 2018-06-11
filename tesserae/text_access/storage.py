@@ -1,4 +1,18 @@
 """Handle database interactions related to texts.
+
+Functions in this module interact with the database (MongoDB instance and local
+file storage) to store and retrieve information about texts in the Tesserae
+instance. This should be the first stop for clients when using Tesserae
+functionality.
+
+Functions
+---------
+retrieve_text_list
+    Retrieve the list of available texts.
+insert_text
+    Insert a new text into the database.
+load_text
+    Open a .tess file for reading.
 """
 from tesserae.db import create_filter, convert_to_entity, Text
 from tesserae.utils import TessFile
@@ -75,8 +89,9 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
 
     Raises
     ------
-    FileNotFoundError
-        Raised if the text file cannot be accessed.
+    DuplicateTextError
+        Raised when attempting to insert a text that already exists in the
+        database.
 
     Notes
     -----
@@ -87,7 +102,8 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
 
     .. _MongoDB documentation on role-based access control: https://docs.mongodb.com/manual/core/authorization/
     """
-    hash = hash_text(path)
+    text_file = TessFile(path)
+    hash = test_file.hash()
     db_texts = retrieve_text_list(cts_urn=cts_urn, hash=hash)
 
     if len(db_texts) == 0:
@@ -98,5 +114,29 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
         raise DuplicateTextError(cts_urn, hash)
 
 
-def load_text(path):
-    pass
+def load_text(client, cts_urn, mode='r', buffer=True):
+    """Open a .tess file for reading.
+
+    Parameters
+    ----------
+    cts_urn : str
+        Unique collection-level identifier.
+    mode : str
+        File open mode ('r', 'w', 'a', etc.)
+    buffer : bool
+        If True, load file contents into memory on-the-fly. Otherwise, load in
+        contents on initialization.
+
+    Returns
+    -------
+    text : `tesserae.utils.TessFile` or None
+        A non-/buffered reader for the file at ``path``. If the file does not
+        exit in the database, returns None.
+    """
+    try:
+        text_obj = retrieve_text_list(client, cts_urn=cts_urn)[0]
+        text = TessFile(path, mode=mode, buffer=buffer)
+    except IndexError:
+        text = None
+
+    return text
