@@ -25,6 +25,7 @@ class TestTessFile(object):
         for f in tessfile_list:
             # Test initializing as buffer
             t = TessFile(f)
+            assert t.path == f
             assert t.mode == 'r'
             assert t.buffer
             assert t._TessFile__hash is None
@@ -39,6 +40,7 @@ class TestTessFile(object):
                 for line in tess.readlines():
                     result.append(line)
             t = TessFile(f, buffer=False)
+            assert t.path == f
             assert t.mode == 'r'
             assert not t.buffer
             assert t._TessFile__hash is None
