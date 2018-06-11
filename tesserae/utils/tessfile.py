@@ -34,6 +34,8 @@ class TessFile(object):
 
     Attributes
     ----------
+    path : str
+        Path to the .tess file.
     mode : str
         File open mode ('r', 'w', 'a', etc.)
     buffer : bool
@@ -45,6 +47,7 @@ class TessFile(object):
 
     """
     def __init__(self, path, mode='r', buffer=True, validate=False):
+        self.path = path
         self.mode = mode
         self.buffer = buffer
         self.fname = os.path.basename(path)
