@@ -8,6 +8,7 @@ import glob
 import json
 import os
 
+import numpy as np
 import pymongo
 
 
@@ -43,15 +44,14 @@ def connection(request):
 
 
 @pytest.fixture(scope='session')
-def populate(connection):
+def populate(connection, tessfiles):
     # Load in test entries from tests/test_db_entries.json
     directory = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(directory, 'test_db_entries.json'), 'r') as f:
         test_entries = json.load(f)
 
-    # Perform any conversions to get the data in the right format
-    for doc in test_entries['texts']:
-        doc['year'] = datetime.datetime(doc['year'], 1, 1)
+    for text in test_entries['texts']:
+        text['path'] = os.path.join(tessfiles, text['path'])
 
     # Insert all of the docs
     for collection, docs in test_entries.items():
