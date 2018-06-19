@@ -23,6 +23,7 @@ import copy
 import typing
 
 from bson.objectid import ObjectId
+import numpy as np
 
 
 def convert_to_entity(entity_class):
@@ -192,7 +193,8 @@ class Text(Entity):
     """
 
     def __init__(self, id=None, cts_urn=None, language=None, title=None,
-                 author=None, year=None, unit_types=None):
+                 author=None, year=None, unit_types=None, path=None,
+                 hash=None):
         super(Text, self).__init__()
         self.id = id
         self.cts_urn = cts_urn
@@ -201,6 +203,8 @@ class Text(Entity):
         self.author = author
         self.year = year
         self.unit_types = unit_types if unit_types is not None else []
+        self.path = path
+        self.hash = hash
 
     @property
     def cts_urn(self) -> typing.Optional[str]:
@@ -235,7 +239,7 @@ class Text(Entity):
         self._attributes['author'] = val
 
     @property
-    def year(self) -> typing.Optional[str]:
+    def year(self) -> typing.Optional[int]:
         return self._attributes['year']
 
     @year.setter
@@ -254,6 +258,22 @@ class Text(Entity):
             self._attributes['unit_types'].append(val)
         else:
             self._attributes['unit_types'] = val
+
+    @property
+    def path(self) -> typing.Optional[str]:
+        return self._attributes['path']
+
+    @path.setter
+    def path(self, val: typing.Optional[str]) -> None:
+        self._attributes['path'] = val
+
+    @property
+    def hash(self) -> typing.Optional[str]:
+        return self._attributes['hash']
+
+    @hash.setter
+    def hash(self, val: typing.Optional[str]) -> None:
+        self._attributes['hash'] = val
 
 
 class Unit(Entity):
