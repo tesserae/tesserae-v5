@@ -14,7 +14,7 @@ import string
 def tessfile_list(tessfiles):
     tessfile_list = []
     for root, dirs, files in os.walk(tessfiles):
-        if len(files) > 0:
+        if len(files) > 0 and root.find('new') < 0:
             tessfile_list.extend([os.path.join(root, f) for f in files])
 
     return tessfile_list
