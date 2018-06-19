@@ -72,7 +72,7 @@ class TestText(TestEntity):
                        'year': 19,
                        'unit_types': ['line', 'phrase']}
 
-    def test_init(self):
+    def test_init(self, connection, populate):
         # Test the default instantiation
         e = self.__class__.__entity_class__()
         assert e.id is None
@@ -82,16 +82,44 @@ class TestText(TestEntity):
         assert e.author is None
         assert e.year is None
         assert e.unit_types == []
+        assert e.path is None
+        assert e.hash is None
 
-        # Test instantiation with test args
-        e = self.__class__.__entity_class__(**self.__class__.__test_kwargs__)
-        assert e.id == str(ObjectId(b'thisisatest!'))
-        assert e.language == 'latin'
-        assert e.cts_urn == 'urn:cts:latinLit:phi0690.phi002'
-        assert e.title == 'Aeneid'
-        assert e.author == 'Vergil'
-        assert e.year == 19
-        assert e.unit_types == ['line', 'phrase']
+        # Test instantiation from json args
+        texts = populate['texts']
+        for text in texts:
+            text['id'] = text['_id']
+            del text['_id']
+            e = self.__class__.__entity_class__(**text)
+            assert e.id == text['id']
+            assert e.language == text['language']
+            assert e.cts_urn == text['cts_urn']
+            assert e.title == text['title']
+            assert e.author == text['author']
+            assert e.year == text['year']
+            assert e.unit_types == text['unit_types']
+            assert e.path == text['path']
+            assert e.hash == text['hash']
+            text['_id'] = text['id']
+            del text['id']
+
+        # Test instantiation from database entries
+        texts = connection.texts.find()
+        for text in texts:
+            text['id'] = text['_id']
+            del text['_id']
+            e = self.__class__.__entity_class__(**text)
+            assert e.id == text['id']
+            assert e.language == text['language']
+            assert e.cts_urn == text['cts_urn']
+            assert e.title == text['title']
+            assert e.author == text['author']
+            assert e.year == text['year']
+            assert e.unit_types == text['unit_types']
+            assert e.path == text['path']
+            assert e.hash == text['hash']
+            text['_id'] = text['id']
+            del text['id']
 
     def test_id(self):
         pass
