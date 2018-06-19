@@ -19,11 +19,25 @@ from tesserae.utils import TessFile
 
 
 class DuplicateTextError(Exception):
+    """Raised when duplicate texts exist in the database"""
+    def __init__(self, cts_urn):
+        msg = 'Multiple texts {} exist in the database.'.format(cts_urn)
+        super(DuplicateTextError, self).__init__(msg)
+
+
+class NoTextError(Exception):
+    """Raised when attempting to access a text that is not in the database"""
+    def __init__(self, cts_urn):
+        msg = 'Text {} does not exist in the database.'.format(cts_urn)
+        msg += ' Are you sure you have the correct CTS URN?'
+        super(DuplicateTextError, self).__init__(msg)
+
+
+class TextExistsError(Exception):
     """Raised when attempting to insert a duplicate text in the database"""
     def __init__(self, cts_urn, hash):
-        msg = 'Text {} with hash {} already exists in the database.'. \
-            format(cts_urn, hash)
-        super(DuplicateTextError, self).__init__(msg)
+        msg = 'A text {} with hash {} exists in the database.'
+        super(TextExistsError, self).__init__(msg.format(cts_urn, hash))
 
 
 @convert_to_entity(Text)
@@ -87,6 +101,11 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
     path : str
         Path to the raw text file. May be a remote URL.
 
+    Returns
+    -------
+    result : `pymongo.InsertOneResult`
+        The
+
     Raises
     ------
     DuplicateTextError
@@ -103,15 +122,17 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
     .. _MongoDB documentation on role-based access control: https://docs.mongodb.com/manual/core/authorization/
     """
     text_file = TessFile(path)
-    hash = test_file.hash()
-    db_texts = retrieve_text_list(cts_urn=cts_urn, hash=hash)
+    db_texts = retrieve_text_list(connection, cts_urn=cts_urn,
+                                  hash=text_file.hash)
 
     if len(db_texts) == 0:
         text = Text(cts_urn=cts_urn, language=language, author=author,
-                    title=title, year=year, path=path, hash=hash)
-        connection.insert_one(text.json_encode())
+                    title=title, year=year, unit_types=unit_types, path=path,
+                    hash=text_file.hash)
+        result = connection.texts.insert_one(text.json_encode(exclude=['_id']))
+        return result
     else:
-        raise DuplicateTextError(cts_urn, hash)
+        raise TextExistsError(cts_urn, hash)
 
 
 def load_text(client, cts_urn, mode='r', buffer=True):
@@ -132,11 +153,77 @@ def load_text(client, cts_urn, mode='r', buffer=True):
     text : `tesserae.utils.TessFile` or None
         A non-/buffered reader for the file at ``path``. If the file does not
         exit in the database, returns None.
+
+    Raises
+    ------
+    NoTextError
+        Raised when the requested text does not exist in the database.
     """
     try:
         text_obj = retrieve_text_list(client, cts_urn=cts_urn)[0]
         text = TessFile(path, mode=mode, buffer=buffer)
     except IndexError:
-        text = None
+        raise NoTextError(cts_urn)
 
     return text
+
+
+def update_text(client, cts_urn, **kws):
+    """Update the metadata for a text.
+
+    Parameters
+    ----------
+    client : `pymongo.MongoClient`
+        Client connection to the database.
+    cts_urn : str
+        The CTS URN of the text to update.
+    language : str, optional
+        If supplied, the new languageof the text.
+    author : str, optional
+        If supplied, the new author of the text.
+    title : str, optional
+        If supplied, the new title of the text.
+    year : int, optional
+        If supplied, the new year of authorship/publication.
+    path : str, optional
+        If supplied, the new path to the text file.
+    hash : bool, optional
+        If supplied, recompute the hash of the text file.
+
+    Returns
+    -------
+    result : `pymongo.results.UpdateResult`
+        Information about the result of the update operation.
+
+    Raises
+    ------
+    NoTextError
+        Raised when no text with ``cts_urn`` exists in the database.
+    DuplicateTextError
+        Raise when multiple texts with the same CTS URN are found in the
+        database.
+
+    Notes
+    -----
+    This function will not update the CTS URN of a text. CTS URNs are unique
+    identifiers, and changing one indicates a fundamental alteration of the
+    text, which should be treated as a new version (and given a unique entry in
+    the database).
+
+    If multiple texts with the same CTS URN are discovered in the database, the
+    operation will not complete as it is unclear which text to update. This
+    indicates an external edit to the database and manual repairs are needed.
+    """
+    text = retrieve_text_list(cts_urn=cts_urn, **kws)
+
+    if len(text) > 1:
+        raise DuplicateTextError(cts_urn, '')
+    elif len(text) == 0:
+        raise NoTextError(cts_urn)
+    else:
+        text = text[0]
+
+    update = text.to_json()
+    if '_id' in update:
+        del update['_id']
+    result = client.update_one({'cts_urn': cts_urn}, update)
