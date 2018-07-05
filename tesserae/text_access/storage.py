@@ -108,7 +108,7 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
 
     Raises
     ------
-    DuplicateTextError
+    TextExistsError
         Raised when attempting to insert a text that already exists in the
         database.
 
@@ -121,10 +121,13 @@ def insert_text(connection, cts_urn, language, author, title, year, unit_types,
 
     .. _MongoDB documentation on role-based access control: https://docs.mongodb.com/manual/core/authorization/
     """
+    # Attempt to load the file and any database entry with the same CTS URN
     text_file = TessFile(path)
     db_texts = retrieve_text_list(connection, cts_urn=cts_urn,
                                   hash=text_file.hash)
 
+    # If no entries with the same CTS URN were found in the database, insert.
+    # Otherwise, raise an exception.
     if len(db_texts) == 0:
         text = Text(cts_urn=cts_urn, language=language, author=author,
                     title=title, year=year, unit_types=unit_types, path=path,
@@ -223,8 +226,10 @@ def update_text(client, cts_urn, **kws):
     operation will not complete as it is unclear which text to update. This
     indicates an external edit to the database and manual repairs are needed.
     """
-    text = retrieve_text_list(cts_urn=cts_urn, **kws)
+    # Get the text to update
+    text = retrieve_text_list(client, cts_urn=cts_urn)
 
+    # Ensure that exactly one entry was pulled from the database
     if len(text) > 1:
         raise DuplicateTextError(cts_urn, '')
     elif len(text) == 0:
@@ -232,7 +237,13 @@ def update_text(client, cts_urn, **kws):
     else:
         text = text[0]
 
-    update = text.to_json()
-    if '_id' in update:
-        del update['_id']
-    result = client.update_one({'cts_urn': cts_urn}, update)
+    # Create a copy of the text entity and overwrite the relevent attributes
+    update = text.copy()
+    for k, v in kws.items():
+        setattr(update, k, v)
+
+    # Update and return the result
+    result = client.texts.update_one(
+        {'cts_urn': cts_urn},
+        {'$set': update.json_encode(exclude=['_id', 'cts_urn'])})
+    return result
