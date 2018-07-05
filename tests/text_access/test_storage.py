@@ -8,6 +8,7 @@ from tesserae.utils import TessFile
 
 import json
 import os
+import random
 
 
 @pytest.fixture(scope='module')
@@ -159,10 +160,6 @@ def test_insert_text(connection, populate, newfiles, new_populate):
 
 
 def test_load_text(connection, populate, new_populate):
-    # TODO: Test loading in existing texts
-    # TODO: Test loading in non-existent texts
-    # TODO: Test loading in duplicate texts (possible with configured DB?)
-
     # Test loading texts that exist in the database
     for text in populate['texts']:
         tessfile = load_text(connection, text['cts_urn'])
@@ -188,3 +185,51 @@ def test_load_text(connection, populate, new_populate):
 
     with pytest.raises(NoTextError):
         load_text(connection, 'baz')
+
+
+def test_update_text(connection, populate, new_populate):
+        # Set up some values to use as updates
+        languages = ['esperanto', 'gaelic', 'carib', 'afrikaans', 'raptor']
+        titles = ['the hitchhiker\'s guide to the galaxy', 's/z',
+                  'harry potter and the disengenuous debugger',
+                  'godel, escher, bach', 'the lusty argonian maid']
+        authors = ['hey you', 'bob', 'mork', 'yeah, you', 'stonework']
+        years = [1978, 2285, 10, 354, 2077]
+
+        # Test updating existing texts with random selections from above
+        for text in populate['texts']:
+            new_vals = {
+                'language': languages[random.randint(0, len(languages) - 1)],
+                'title': languages[random.randint(0, len(titles) - 1)],
+                'author': languages[random.randint(0, len(authors) - 1)],
+                'year': languages[random.randint(0, len(years) - 1)],
+            }
+
+            result = update_text(connection, cts_urn=text['cts_urn'],
+                                 **new_vals)
+
+            # Ensure that the update actually occurred by pulling the entry
+            updated = connection.texts.find_one({'cts_urn': text['cts_urn']})
+
+            for k in new_vals:
+                assert updated[k] == new_vals[k]
+                new_vals[k] = text[k]  # Set up the revert
+
+            # Revert the update to ensure no side-effects occurred
+            result = update_text(connection, cts_urn=text['cts_urn'],
+                                 **new_vals)
+
+            # Ensure that the revert actually occurred by pulling the entry
+            updated = connection.texts.find_one({'cts_urn': text['cts_urn']})
+
+            for k in new_vals:
+                assert updated[k] == text[k]
+
+        # Test updating texts that do not exist in the database
+        for text in new_populate['texts']:
+            with pytest.raises(NoTextError):
+                update_text(connection, cts_urn=text['cts_urn'],
+                            **new_vals)
+
+            with pytest.raises(NoTextError):
+                update_text(connection, cts_urn=text['cts_urn'])
