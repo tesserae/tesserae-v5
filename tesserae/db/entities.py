@@ -96,6 +96,13 @@ class Entity(object):
     def id(self, val: typing.Union[str, ObjectId, None]):
         self._attributes['_id'] = val
 
+    def copy(self):
+        attrs = self.json_encode()
+        if '_id' in attrs:
+            attrs['id'] = attrs['_id']
+            del attrs['_id']
+        return self.__class__(**attrs)
+
     def json_encode(self, exclude: typing.Optional[typing.List[str]]=None):
         """Encode this entity as a valid JSON object.
 
