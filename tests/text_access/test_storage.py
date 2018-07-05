@@ -127,9 +127,14 @@ def test_insert_text(connection, populate, newfiles, new_populate):
         text['hash'] = h
         for k in text:
             assert doc[k] == text[k]
+        assert doc['hash'] == text['hash']
 
         if tid is not None:
             text['_id'] = tid
+
+    # Clean up to put the DB in its original state
+    for text in new_populate['texts']:
+        connection.texts.delete_one({'cts_urn': text['cts_urn']})
 
     # Test inserting existing texts (should fail)
     for text in populate['texts']:
@@ -153,7 +158,33 @@ def test_insert_text(connection, populate, newfiles, new_populate):
         insert_text(connection, '', '', '', '', 1, [], '/foo/bar.tess')
 
 
-def test_load_text(connection, populate):
-    # TODO:
+def test_load_text(connection, populate, new_populate):
+    # TODO: Test loading in existing texts
+    # TODO: Test loading in non-existent texts
+    # TODO: Test loading in duplicate texts (possible with configured DB?)
+
     # Test loading texts that exist in the database
     for text in populate['texts']:
+        tessfile = load_text(connection, text['cts_urn'])
+        assert tessfile.path == text['path']
+        assert tessfile.hash == text['hash']
+
+        tessfile = load_text(connection, text['cts_urn'], buffer=False)
+        assert tessfile.path == text['path']
+        assert tessfile.hash == text['hash']
+
+    # Test loading non-existent texts
+    for text in new_populate['texts']:
+        print(text)
+        with pytest.raises(NoTextError):
+            load_text(connection, text['cts_urn'])
+
+    # Test loading non-CTS URNs
+    with pytest.raises(NoTextError):
+        load_text(connection, 'foo')
+
+    with pytest.raises(NoTextError):
+        load_text(connection, 'bar')
+
+    with pytest.raises(NoTextError):
+        load_text(connection, 'baz')
