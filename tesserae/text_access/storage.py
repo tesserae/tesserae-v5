@@ -30,7 +30,7 @@ class NoTextError(Exception):
     def __init__(self, cts_urn):
         msg = 'Text {} does not exist in the database.'.format(cts_urn)
         msg += ' Are you sure you have the correct CTS URN?'
-        super(DuplicateTextError, self).__init__(msg)
+        super(NoTextError, self).__init__(msg)
 
 
 class TextExistsError(Exception):
@@ -159,9 +159,18 @@ def load_text(client, cts_urn, mode='r', buffer=True):
     NoTextError
         Raised when the requested text does not exist in the database.
     """
+    # Retrieve text data from the database by CTS URN
+    text_objs = retrieve_text_list(client, cts_urn=cts_urn)
+
+    # If more than one text was retrieved, database integrity has been
+    # compromised. Raise an exception.
+    if len(text_objs) > 1:
+        raise DuplicateTextError(cts_urn)
+
+    # Attempt to load the first text in the list of text objects. If the list
+    # is empty, raise an excpetion.
     try:
-        text_obj = retrieve_text_list(client, cts_urn=cts_urn)[0]
-        text = TessFile(path, mode=mode, buffer=buffer)
+        text = TessFile(text_objs[0].path, mode=mode, buffer=buffer)
     except IndexError:
         raise NoTextError(cts_urn)
 
