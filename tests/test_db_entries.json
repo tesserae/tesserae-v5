@@ -18,7 +18,7 @@
             "year": 38,
             "unit_types": ["line", "phrase"],
             "path": "la/cicero.de_oratore.tess",
-            "hash": "53b0004b4e0680ce3fb37bef80ca4230"
+            "hash": "28c7b61e085b87b9069232835f1cebea"
         },
         {
             "cts_urn": "urn:cts:greekLit:phi6374.phi869",
@@ -38,7 +38,7 @@
             "year": 416,
             "unit_types": ["line", "phrase"],
             "path": "grc/euripides.heracles.tess",
-            "hash": "6257be2d2eb2b1bf4ff468a170f2a47e"
+            "hash": "0d11b711fa63a07c96e5eb1bc2f65a94"
         }
     ],
     "units": [
