@@ -58,8 +58,8 @@ class TestEntity(object):
     def test_init(self):
         # Test the default instantiation
         e = self.__class__.__entity_class__()
-        assert hasattr(e, '_attributes')
-        assert e._attributes == {}
+        assert hasattr(e, '_id')
+        assert e._id is None
 
 
 class TestText(TestEntity):

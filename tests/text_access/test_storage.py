@@ -42,7 +42,7 @@ def test_retrieve_text_list(connection, populate):
         assert isinstance(text, Text)  # Ensure they were converted to objects
         for doc in coll:
             if doc['_id'] == text.id:
-                assert text._attributes == doc  # Ensure the attributes match
+                assert text.__dict__ == doc  # Ensure the attributes match
 
     # Test retrieving text by existing CTS URN
     tl = retrieve_text_list(connection,
@@ -54,7 +54,7 @@ def test_retrieve_text_list(connection, populate):
         assert isinstance(text, Text)
         for doc in coll:
             if doc['_id'] == text.id:
-                assert text._attributes == doc
+                assert text.__dict__ == doc
 
     # Test retrieving texts by non-existent CTS URN
     tl = retrieve_text_list(connection,
@@ -69,7 +69,7 @@ def test_retrieve_text_list(connection, populate):
         assert isinstance(text, Text)
         for doc in coll:
             if doc['_id'] == text.id:
-                assert text._attributes == doc
+                assert text.__dict__ == doc
 
     # Test retrieving texts by non-existent language
     tl = retrieve_text_list(connection, language='esperanto')
@@ -83,7 +83,7 @@ def test_retrieve_text_list(connection, populate):
         assert isinstance(text, Text)
         for doc in coll:
             if doc['_id'] == text.id:
-                assert text._attributes == doc
+                assert text.__dict__ == doc
 
     # Test retrieving texts by non-existent author
     tl = retrieve_text_list(connection, author='Donald Knuth')
@@ -97,7 +97,7 @@ def test_retrieve_text_list(connection, populate):
         assert isinstance(text, Text)
         for doc in coll:
             if doc['_id'] == text.id:
-                assert text._attributes == doc
+                assert text.__dict__ == doc
 
     # Test retrieving texts by non-existent year
     tl = retrieve_text_list(connection, year=3007)
@@ -110,6 +110,7 @@ def test_insert_text(connection, populate, newfiles, new_populate):
 
     # Test inserting new texts
     for text in new_populate['texts']:
+        print(text)
         if '_id' in text:
             tid = text['_id']
             del text['_id']
