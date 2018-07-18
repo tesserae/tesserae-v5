@@ -103,7 +103,7 @@ def insert_tokens(client, tokens):
         if t.raw == db_tokens[i].raw:
             entities.remove(t)
 
-    result = client.tokens.insert_many([e.json_encode() for e in entities])
+    result = client['tokens'].insert_many([e.json_encode() for e in entities])
     return result
 
 
@@ -152,7 +152,7 @@ def update_token(client, token):
         raise DuplicateTokenError(token)
 
     # Perform the update.
-    result = client.tokens.update_one(
+    result = client.['tokens'].update_one(
         {'raw': token.raw},
         {'$set': token.json_encode(exclude=['_id', 'raw'])})
 
