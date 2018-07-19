@@ -1,0 +1,38 @@
+[
+        {
+            "cts_urn": "urn:cts:latinLit:phi0690.phi002",
+            "title": "aeneid",
+            "author": "vergil",
+            "language": "latin",
+            "year": 19,
+            "unit_types": ["line", "phrase"],
+            "path": "la/vergil.aeneid.tess"
+        },
+        {
+            "cts_urn": "urn:cts:latinLit:phi0690.phi001",
+            "title": "de oratore",
+            "author": "cicero",
+            "language": "latin",
+            "year": 38,
+            "unit_types": ["line", "phrase"],
+            "path": "la/cicero.de_oratore.tess"
+        },
+        {
+            "cts_urn": "urn:cts:greekLit:phi8439.phi453",
+            "title": "heracles",
+            "author": "euripides",
+            "language": "greek",
+            "year": -416,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/euripides.heracles.tess"
+        },
+        {
+            "cts_urn": "urn:cts:greekLit:phi6374.phi869",
+            "title": "epistles",
+            "author": "plato",
+            "language": "greek",
+            "year": -280,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/plato.epistles.tess"
+        }
+]
