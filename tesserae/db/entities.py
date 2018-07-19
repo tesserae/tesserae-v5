@@ -208,11 +208,12 @@ class Text(Entity):
 
 class Unit(Entity):
     def __init__(self, id=None, text=None, index=None, unit_type=None,
-                 tokens=None, n_grams=None):
+                 raw=None, tokens=None, n_grams=None):
         super(Unit, self).__init__(id=id)
         self.text: typing.Optional[str] = text
         self.index: typing.Optional[int] = index
         self.unit_type: typing.Optional[str] = unit_type
+        self.raw: typing.Optional[str] = raw
         self.tokens: typing.List[typing.Union[str, ObjectId]] = \
             tokens if tokens is not None else []
         self.n_grams: typing.List[typing.Union[str, ObjectId]] = \
@@ -220,18 +221,22 @@ class Unit(Entity):
 
 
 class Token(Entity):
-    def __init__(self, id=None, language=None, raw=None, type=None,
-                 lemmas=None, semantic=None, sound=None, frequencies=None):
+    def __init__(self, id=None, language=None, raw=None, token_type=None,
+                 lemmata=None, semantic=None, sound=None, frequencies=None):
         super(Token, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.raw: typing.Optional[str] = raw
-        self.type: typing.Optional[str] = type
-        self.lemmas: typing.List[str] = lemmas if lemmas is not None else []
+        self.token_type: typing.Optional[str] = token_type
+        self.lemmata: typing.List[typing.Sequence[str, int]] = \
+            lemmata if lemmata is not None else []
         self.semantic: typing.List[str] = \
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
         self.frequencies: typing.Dict[str, int] = \
             frequencies if frequencies is not None else {}
+    
+    def __hash__(self):
+        return hash(self.token_type)
 
 
 class NGram(Entity):
