@@ -4,7 +4,7 @@ from cltk.corpus.utils.formatter import cltk_normalize
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
-from tesserae.db.entities import convert, Token
+from tesserae.db.entities import convert_to_entity, Token
 from tesserae.text_access.storage import retrieve_text_list
 
 
@@ -14,7 +14,7 @@ class InvalidLanguageError(Exception):
         super(InvalidLanguageError, self).__init__(msg)
 
 
-def get_token_info(token, language, normalizer=None, featurizer=None):
+def get_token_info(token, language, return_features=True, normalizer=None, featurizer=None):
     """Normalize and get lemmata, semantic, and sound data for a list of tokens
 
     Parameters
@@ -55,12 +55,12 @@ def get_token_info(token, language, normalizer=None, featurizer=None):
     token_type = normalizer(token)
 
     # Get features for the token based on the language
-    token_features = featurizer(token_type)
+    token_features = featurizer(token_type) if return_features else {}
 
     token = Token(language=language,
                   raw=token,
-                  type=token_type,
-                  lemmata=lemmata)
+                  token_type=token_type,
+                  **token_features)
 
     return token
 
@@ -81,7 +81,7 @@ def greek_normalizer(raw):
     return cltk_normalize(raw.lower())
 
 
-def greek_features(token):
+def greek_featurizer(token):
     """Get the features for a single Greek token.
 
     Parameters
@@ -100,7 +100,7 @@ def greek_features(token):
     function.
     """
     features = {}
-    features['lemmata'] = Lemmata('lemmata', 'greek').lookup(token_type)[0][1]
+    features['lemmata'] = Lemmata('lemmata', 'greek').lookup(token)[0][1]
     return features
 
 
@@ -120,7 +120,7 @@ def latin_normalizer(raw):
     return JVReplacer().replace(raw.lower())
 
 
-def latin_features(token):
+def latin_featurizer(token):
     """Get the features for a single latin token.
 
     Parameters
@@ -139,5 +139,5 @@ def latin_features(token):
     function.
     """
     features = {}
-    features['lemmata'] = Lemmata('lemmata', 'latin').lookup(token_type)[0][1]
+    features['lemmata'] = Lemmata('lemmata', 'latin').lookup(token)[0][1]
     return features

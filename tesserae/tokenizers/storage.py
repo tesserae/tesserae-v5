@@ -82,28 +82,33 @@ def insert_tokens(client, tokens):
         Raised when a token with invalid type or fields is encountered.
     """
     # Standardize all tokens as Token entities
-    entities = []
+    entities = set()
     raws = []
     for t in tokens:
         if not isinstance(t, Token):
             try:
-                entities.append(Token(**t))
+                entities.add(Token(**t))
                 raws.append(t['raw'])
             except (TypeError, KeyError, AttributeError):
                 raise InvalidTokenError(t)
         else:
-            entities.append(t)
+            entities.add(t)
             raws.append(t.raw)
+
+    entities = list(entities)
 
     # Only insert tokens that do not already exist in the database
     db_tokens = retrieve_token_list(client, raw=raws)
     del raws
 
-    for t, i in enumerate(entities):
-        if t.raw == db_tokens[i].raw:
-            entities.remove(t)
+    for s in db_tokens:
+        for t in entities:
+            if t.token_type == s.token_type:
+                entities.remove(t)
 
-    result = client['tokens'].insert_many([e.json_encode() for e in entities])
+    result = client['tokens'].insert_many(
+        [e.json_encode(exclude=['_id']) for e in entities],
+        ordered=False)
     return result
 
 
@@ -152,7 +157,7 @@ def update_token(client, token):
         raise DuplicateTokenError(token)
 
     # Perform the update.
-    result = client.['tokens'].update_one(
+    result = client['tokens'].update_one(
         {'raw': token.raw},
         {'$set': token.json_encode(exclude=['_id', 'raw'])})
 
