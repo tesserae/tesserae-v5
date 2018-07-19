@@ -10,6 +10,8 @@ setup(
     packages=['tesserae',
               'tesserae.db',
               'tesserae.text_access',
+              'tesserae.tokenizers',
+              'tesserae.unitizers',
               'tesserae.utils'],
     classifiers=[
         'Development Status :: 3 - Alpha',
