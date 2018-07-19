@@ -18,11 +18,12 @@ def split_line_units(text, start=0, end=None):
     lines : list of tesserae.db.Unit
     """
     units = []
-    for line, i in enumerate(text.readlines()):
+    for i, line in enumerate(text.readlines()):
         tag_idx = line.find('>')
 
         if tag_idx >= 0:
             line = line[tag_idx + 1:]
+        line = line.strip()
 
         unit = {}
         unit['text'] = text.path
@@ -30,7 +31,7 @@ def split_line_units(text, start=0, end=None):
         unit['unit_type'] = 'line'
         unit['raw'] = line
         tokens = list(
-            map(lambda x: get_token_info(x, text.metadata.language).type,
+            map(lambda x: get_token_info(x, text.metadata.language, return_features=False).token_type,
                 line.split()))
         unit['tokens'] = tokens
 
@@ -62,9 +63,10 @@ def split_phrase_units(text, start=0, end=None):
 
         if tag_idx >= 0:
             line = line[tag_idx + 1:]
+        line = line.strip()
 
         tokens = list(
-            map(lambda x: get_token_info(x, text.metadata.language).type,
+            map(lambda x: get_token_info(x, text.metadata.language, return_features=False).token_type,
                 line.split()))
 
         if not partial:
@@ -79,7 +81,7 @@ def split_phrase_units(text, start=0, end=None):
 
         units.append(unit)
 
-        if re.match(r'[.;?]["]*$', line) is None:
+        if re.match(r'^.*[.;?]$', line) is None:
             partial = True
         else:
             partial = False
