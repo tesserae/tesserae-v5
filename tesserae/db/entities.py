@@ -221,7 +221,6 @@ class Unit(Entity):
 
 
 class Token(Entity):
-<<<<<<< HEAD
     def __init__(self, id=None, language=None, raw=None, form=None,
                  lemmas=None, semantic=None, sound=None, frequencies=None):
         super(Token, self).__init__(id=id)
@@ -229,22 +228,12 @@ class Token(Entity):
         self.raw: typing.Optional[str] = raw
         self.form: typing.Optional[str] = form
         self.lemmas: typing.List[str] = lemmas if lemmas is not None else []
-=======
-    def __init__(self, id=None, language=None, raw=None, token_type=None,
-                 lemmata=None, semantic=None, sound=None, frequencies=None):
-        super(Token, self).__init__(id=id)
-        self.language: typing.Optional[str] = language
-        self.raw: typing.Optional[str] = raw
-        self.token_type: typing.Optional[str] = token_type
-        self.lemmata: typing.List[typing.Sequence[str, int]] = \
-            lemmata if lemmata is not None else []
->>>>>>> 2c4829ebfed62aab6ebf8f87e13b11bd865f0d1c
         self.semantic: typing.List[str] = \
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
         self.frequencies: typing.Dict[str, int] = \
             frequencies if frequencies is not None else {}
-    
+
     def __hash__(self):
         return hash(self.token_type)
 
