@@ -43,14 +43,17 @@ class TessFile(object):
         contents on initialization.
     hash : str
         MD5 hash of the file.
-
+    metadata : tesserae.db.Text
+        Text metdata from the database.
 
     """
-    def __init__(self, path, mode='r', buffer=True, validate=False):
+    def __init__(self, path, mode='r', buffer=True, validate=False,
+                 metadata=None):
         self.path = path
         self.mode = mode
         self.buffer = buffer
         self.fname = os.path.basename(path)
+        self.metadata = metadata
 
         if buffer:
             self.file = open(path, 'r')

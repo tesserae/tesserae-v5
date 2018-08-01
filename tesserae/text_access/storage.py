@@ -173,7 +173,8 @@ def load_text(client, cts_urn, mode='r', buffer=True):
     # Attempt to load the first text in the list of text objects. If the list
     # is empty, raise an excpetion.
     try:
-        text = TessFile(text_objs[0].path, mode=mode, buffer=buffer)
+        text = TessFile(text_objs[0].path, mode=mode, buffer=buffer,
+                        metadata=text_objs[0])
     except IndexError:
         raise NoTextError(cts_urn)
 

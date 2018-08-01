@@ -11,7 +11,10 @@ setup(
               'tesserae.db',
               'tesserae.text_access',
               'tesserae.tokenizers',
+<<<<<<< HEAD
               'tesserae.tokenizers.languages',
+=======
+>>>>>>> 2c4829ebfed62aab6ebf8f87e13b11bd865f0d1c
               'tesserae.unitizers',
               'tesserae.utils'],
     classifiers=[

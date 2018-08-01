@@ -46,7 +46,7 @@ def retrieve_unit_list(client, text=None, index=None, unit_type=None):
     units : list of tesserae.db.Unit
     """
     # Create the filter
-    filter = create_filter(text=text, index=index unit_type=unit_type)
+    filter = create_filter(text=text, index=index, unit_type=unit_type)
 
     # Retrieve the units and put them into a nice format
     docs = client['units'].find(filter)
