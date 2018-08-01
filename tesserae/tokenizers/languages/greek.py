@@ -74,7 +74,7 @@ class GreekTokenizer(BaseTokenizer):
         Input should be sanitized with `greek_normalizer` prior to using this
         function.
         """
-        if isinstance
+        # if isinstance
         features = {}
         features['lemmata'] = self.lemmatizer.lookup(token_type)[0][1]
         return features
