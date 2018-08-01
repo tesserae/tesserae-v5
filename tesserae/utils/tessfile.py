@@ -93,7 +93,7 @@ class TessFile(object):
             self.__hash = hashinator.hexdigest()
         return self.__hash
 
-    def readlines(self):
+    def readlines(self, include_tag=True):
         """Iterate over the lines of the .tess file in order.
 
         Yields
@@ -104,6 +104,9 @@ class TessFile(object):
         if self.buffer:
             self.file.seek(0)
             for line in self.file.readlines():
+                if not include_tag:
+                    start = line.find('>') + 1 if not include_tag else 0
+                    line = line[start:]
                 yield line
         else:
             for line in self.file:
@@ -123,10 +126,8 @@ class TessFile(object):
         token : str
             One token of the .tess file.
         """
-        for line in self.readlines():
-            start = line.find('>') + 1 if not include_tag else 0
-            line = line[start:].strip(string.whitespace)
-            tokens = line.split()
+        for line in self.readlines(include_tag=include_tag):
+            tokens = line.strip(string.whitespace).split()
             for token in tokens:
                 yield token
 
