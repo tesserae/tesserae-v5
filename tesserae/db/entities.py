@@ -220,12 +220,12 @@ class Unit(Entity):
 
 
 class Token(Entity):
-    def __init__(self, id=None, language=None, raw=None, type=None,
+    def __init__(self, id=None, language=None, raw=None, form=None,
                  lemmas=None, semantic=None, sound=None, frequencies=None):
         super(Token, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.raw: typing.Optional[str] = raw
-        self.type: typing.Optional[str] = type
+        self.form: typing.Optional[str] = form
         self.lemmas: typing.List[str] = lemmas if lemmas is not None else []
         self.semantic: typing.List[str] = \
             semantic if semantic is not None else []
