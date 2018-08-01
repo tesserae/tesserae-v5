@@ -10,15 +10,15 @@ class LatinTokenizer(BaseTokenizer):
     def __init__(self):
         # Set up patterns that will be reused
         self.jv_replacer = JVReplacer()
-        self.lemmatizer = Lemmata('latin', 'lemmata')
+        self.lemmatizer = Lemmata('lemmata', 'latin')
 
-    def normalize(token):
+    def normalize(self, tokens):
         """Normalize a Latin word.
 
         Parameters
         ----------
-        raw : str
-            The word to normalize.
+        tokens : str or list of str
+            The word(s) to normalize.
 
         Returns
         -------
@@ -30,10 +30,12 @@ class LatinTokenizer(BaseTokenizer):
         This function should be applied to Latin words prior to generating
         other features (e.g., lemmata).
         """
-        normalized = self.replacer.replace(token.lower())
-        return normalized
+        if isinstance(tokens, list):
+            tokens = ' '.join(tokens)
+        normalized = self.jv_replacer.replace(tokens.lower())
+        return super(LatinTokenizer, self).normalize(normalized)
 
-    def featurize(token):
+    def featurize(self, token):
         """Lemmatize a Latin token.
 
         Parameters
