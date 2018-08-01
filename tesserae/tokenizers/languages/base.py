@@ -1,5 +1,6 @@
 import collections
 import re
+import unicodedata
 
 
 class BaseTokenizer(object):
@@ -37,11 +38,20 @@ class BaseTokenizer(object):
             The list of tokens in normalized form.
         """
         if isinstance(tokens, str):
-            tokens = re.sub(r'\s', ' ', tokens.strip(), flags=re.UNICODE)
-            tokens = tokens.split(' ')
+            tokens = unicodedata.normalize('NFKD', tokens)
+            tokens = re.sub(r'[\s—-]+', ' ', tokens.strip(),
+                            flags=re.UNICODE)
+            tokens = re.sub(r'\'[s]{1}\s|\'[s]{1}$', ' s ', tokens,
+                            flags=re.UNICODE)
+            tokens = tokens.split()
+        else:
+            tokens = [unicodedata.normalize('NFKD', t) for t in tokens]
 
-        normalized = [re.sub(r'\W', '', token.lower(), flags=re.UNICODE)
+        normalized = [re.sub(r'[\W]', '', token.lower(), flags=re.UNICODE)
                       for token in tokens]
+
+        normalized = [n for n in normalized if n != '']
+
         return normalized
 
     def featurize(self, tokens):
