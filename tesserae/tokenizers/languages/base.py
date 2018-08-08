@@ -43,11 +43,11 @@ class BaseTokenizer(object):
                             flags=re.UNICODE)
             tokens = re.sub(r'\'[s]{1}\s|\'[s]{1}$', ' s ', tokens,
                             flags=re.UNICODE)
-            tokens = tokens.split()
+            tokens = re.split(r'\s+', tokens, flags=re.UNICODE)
         else:
             tokens = [unicodedata.normalize('NFKD', t) for t in tokens]
 
-        normalized = [re.sub(r'[\W]', '', token.lower(), flags=re.UNICODE)
+        normalized = [re.sub('[\W\u201C\u201D]', '', token.lower(), flags=re.UNICODE)
                       for token in tokens]
 
         normalized = [n for n in normalized if n != '']
