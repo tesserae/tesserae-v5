@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from cltk.semantics.latin.lookup import Lemmata
 
@@ -8,28 +9,21 @@ from tesserae.tokenizers.languages.base import BaseTokenizer
 class GreekTokenizer(BaseTokenizer):
     def __init__(self):
         # Set up patterns that will be reused
-        self.diacriticals = re.compile(
-            '[\u0313\u0314\u0301\u0342\u0300\u0308\u0345]',
-            re.UNICODE)
-        self.vowels = re.compile('[αειηουωΑΕΙΗΟΥΩ]', re.UNICODE)
-        self.grave = re.compile('\u0300', re.UNICODE)
-        self.acute = re.compile('\u0301', re.UNICODE)
-        self.sigma = re.compile('σ\b', re.UNICODE)
-        self.sigma_alt = re.compile('ς', re.UNICODE)
-        self.diacrit_sub1 = r'^{(' + \
-                            self.diacriticals + \
-                            r'}+)(' + \
-                            self.vowels + \
-                            r'}{2,})'
-        self.diacrit_sub2 = r'^{(' + \
-                            self.diacriticals + \
-                            r'}+)(' + \
-                            self.vowels + \
-                            r'}{1})'
+        self.diacriticals = \
+            '[\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345]'
+        self.vowels = '[αειηουωΑΕΙΗΟΥΩ]'
+        self.grave = '\u0300'
+        self.acute = '\u0301'
+        self.sigma = 'σ\b'
+        self.sigma_alt = 'ς'
+        self.diacrit_sub1 = \
+            '\s(' + self.diacriticals + '+)(' + self.vowels + '{2,})'
+        self.diacrit_sub2 = \
+            '\s(' + self.diacriticals + '+)(' + self.vowels + '{1})'
 
-        self.lemmatizer = Lemmata('greek', 'lemmata')
+        self.lemmatizer = Lemmata('lemmata', 'greek')
 
-    def normalize(token):
+    def normalize(self, token):
         """Normalize a single Greek word.
 
         Parameters
@@ -42,21 +36,39 @@ class GreekTokenizer(BaseTokenizer):
         normalized : str
             The normalized string.
         """
-        # Remove non-alphabetic characters
-        normalized = super(GreekTokenizer, self).normalize(token)
+        # Normalize prior to processing
+        normalized = unicodedata.normalize('NFKD', token)
+        normalized = normalized.lower()
 
         # Convert grave accent to acute
-        normalized = re.sub(self.grave, self.acute, token)
+        normalized = re.sub(self.grave, self.acute,
+                            normalized, flags=re.UNICODE)
 
         # Remove diacriticals from vowels
-        normalized = re.sub(self.diacrit_sub1, r'\2', normalized)
-        normalized = re.sub(self.diacrit_sub2, r'\2\1', normalized)
+        normalized = re.sub(self.diacrit_sub1, r' \2',
+                            normalized, flags=re.UNICODE)
+        normalized = re.sub(self.diacrit_sub2, r' \2\1',
+                            normalized, flags=re.UNICODE)
+
+        # Special case for some capitals with diacriticals
+        # normalized = re.sub('\u0313α', 'α\u0313', normalized, flags=re.UNICODE)
+        # normalized = re.sub('\u0314η', 'η\u0314', normalized, flags=re.UNICODE)
 
         # Substitute sigmas
-        normalized = re.sub(self.sigma, self.sigma_alt, normalized)
-        return normalized
+        normalized = re.sub(self.sigma, self.sigma_alt,
+                            normalized, flags=re.UNICODE)
 
-    def featurize(token):
+        # Remove punctuation
+        # normalized = re.sub('([,.!?:;])(\w)', '\1 \2',
+        #                     normalized, flags=re.UNICODE)
+        normalized = re.sub('[,.!?;:\'"\(\)†\d\u201C\u201D—-]+', ' ',
+                            normalized, flags=re.UNICODE)
+
+        normalized = re.split('[\s]+', normalized.strip(), flags=re.UNICODE)
+
+        return [n for n in normalized if n != '']
+
+    def featurize(self, token):
         """Get the features for a single Greek token.
 
         Parameters
