@@ -1,0 +1,11 @@
+__pycache__
+.cache
+.DS_Store
+*.pyx
+*.pyc
+*.pyd
+generated
+_build
+*.debug
+*.log
+.pytest_cache

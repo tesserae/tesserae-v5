@@ -1,0 +1,56 @@
+{
+    "texts": [
+        {
+            "cts_urn": "urn:cts:latinLit:phi0690.phi002",
+            "title": "aeneid",
+            "author": "vergil",
+            "language": "latin",
+            "year": 19,
+            "unit_types": ["line", "phrase"],
+            "path": "la/poetry/vergil.aeneid.tess",
+            "hash": "fec4da8f557de678d370b240c3bfb6cf"
+        },
+        {
+            "cts_urn": "urn:cts:latinLit:phi0690.phi001",
+            "title": "de oratore",
+            "author": "cicero",
+            "language": "latin",
+            "year": 38,
+            "unit_types": ["line", "phrase"],
+            "path": "la/prose/cicero.de_oratore.tess",
+            "hash": "28c7b61e085b87b9069232835f1cebea"
+        },
+        {
+            "cts_urn": "urn:cts:greekLit:phi6374.phi869",
+            "title": "epistles",
+            "author": "plato",
+            "language": "greek",
+            "year": -280,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/prose/plato.epistles.tess",
+            "hash": "d77917b4bf3fa8fac9e635c022e5305a"
+        },
+        {
+            "cts_urn": "urn:cts:greekLit:phi8439.phi453",
+            "title": "heracles",
+            "author": "euripides",
+            "language": "greek",
+            "year": 416,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/poetry/euripides.heracles.tess",
+            "hash": "0d11b711fa63a07c96e5eb1bc2f65a94"
+        }
+    ],
+    "units": [
+
+    ],
+    "tokens": [
+
+    ],
+    "ngrams": [
+
+    ],
+    "matches": [
+
+    ]
+}

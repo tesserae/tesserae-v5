@@ -1,0 +1,44 @@
+{
+    "texts": [
+        {
+            "cts_urn": "urn:cts:greekLit:phi2433.phi245",
+            "title": "civil wars",
+            "author": "appian",
+            "language": "greek",
+            "year": 130,
+            "unit_types": ["line", "phrase"],
+            "path": "new/grc/appian.civil_wars.tess",
+            "hash": "e8ab1f8b43894336747c4949adc2d17b"
+        },
+        {
+            "cts_urn": "urn:cts:greekLit:phi6354.phi357",
+            "title": "anabasis",
+            "author": "xenophon",
+            "language": "latin",
+            "year": -370,
+            "unit_types": ["line", "phrase"],
+            "path": "new/grc/xenophon.anabasis.tess",
+            "hash": "a5dfdfb279299cd6a691dd44336914c3"
+        },
+        {
+            "cts_urn": "urn:cts:latinLit:phi4976.phi642",
+            "title": "metamorphoses",
+            "author": "ovid",
+            "language": "latin",
+            "year": 8,
+            "unit_types": ["line", "phrase"],
+            "path": "new/la/ovid.metamorphoses.tess",
+            "hash": "eefc4eeaf4a4fbaba526a87ffd75807c"
+        },
+        {
+            "cts_urn": "urn:cts:latinLit:phi8645.phi825",
+            "title": "satisfactio",
+            "author": "dracontius",
+            "language": "latin",
+            "year": 65,
+            "unit_types": ["line", "phrase"],
+            "path": "new/la/dracontius.satisfactio.tess",
+            "hash": "c4beb12e30ed8f4697f1aedb881edea0"
+        }
+    ]
+}

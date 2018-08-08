@@ -1,7 +1,7 @@
 # Tesserae v5
 
 This is an update to the Tesserae project to create a stable, modular code base
-for
+for intertext matching.
 
 ## Dependencies
 
