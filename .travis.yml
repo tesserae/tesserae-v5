@@ -10,7 +10,7 @@ before_install:
   - pip install cltk
   - mkdir -p $HOME/cltk_data/greek/model
   - mkdir -p $HOME/cltk_data/latin/model
-  - git clone https://github.com/cltk/greek_models_cltk $HOME/cltk_data/greek/model
-  - git clone https://github.com/cltk/latin_models_cltk $HOME/cltk_data/latin/model
+  - git clone https://github.com/cltk/greek_models_cltk $HOME/cltk_data/greek/model/greek_models_cltk
+  - git clone https://github.com/cltk/latin_models_cltk $HOME/cltk_data/latin/model/latin_models_cltk
 install: pip install .
 script: pytest
