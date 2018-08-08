@@ -13,6 +13,7 @@ setup(
               'tesserae.tokenizers',
               'tesserae.tokenizers.languages',
               'tesserae.unitizers',
+              'tesserae.unitizers.genres',
               'tesserae.utils'],
     classifiers=[
         'Development Status :: 3 - Alpha',
