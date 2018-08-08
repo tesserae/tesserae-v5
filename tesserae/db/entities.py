@@ -82,19 +82,11 @@ class Entity(object):
     MongoDB).
     """
 
-    def __init__(self):
-        self._attributes = {}
+    def __init__(self, id=None):
+        self._id: typing.Optional[typing.Union[str, ObjectId]] = id
 
     def __eq__(self, other):
-        return self._attributes == other._attributes
-
-    @property
-    def id(self) -> typing.Union[str, ObjectId, None]:
-        return self._attributes['_id']
-
-    @id.setter
-    def id(self, val: typing.Union[str, ObjectId, None]):
-        self._attributes['_id'] = val
+        return self.__dict__ == other.__dict__
 
     def copy(self):
         attrs = self.json_encode()
@@ -102,6 +94,10 @@ class Entity(object):
             attrs['id'] = attrs['_id']
             del attrs['_id']
         return self.__class__(**attrs)
+
+    @property
+    def id(self) -> typing.Optional[typing.Union[str, ObjectId]]:
+        return self._id
 
     def json_encode(self, exclude: typing.Optional[typing.List[str]]=None):
         """Encode this entity as a valid JSON object.
@@ -116,15 +112,11 @@ class Entity(object):
         AttributeError
             Raised when a non-existent attribute is encountered in ``exclude``.
         """
-        obj = copy.deepcopy(self._attributes)
-        if exclude is not None:
-            for k in exclude:
-                if k in obj:
-                    del obj[k]
-                else:
-                    raise AttributeError(
-                        'Entity {} does not have a field {}'.format(
-                            self.__class__.__name__, k))
+        obj = copy.deepcopy(self.__dict__)
+        exclude = exclude if exclude is not None else []
+        for k in exclude:
+            if k in obj:
+                del obj[k]
         return obj
 
     @classmethod
@@ -202,138 +194,73 @@ class Text(Entity):
     def __init__(self, id=None, cts_urn=None, language=None, title=None,
                  author=None, year=None, unit_types=None, path=None,
                  hash=None):
-        super(Text, self).__init__()
-        self.id = id
-        self.cts_urn = cts_urn
-        self.language = language
-        self.title = title
-        self.author = author
-        self.year = year
-        self.unit_types = unit_types if unit_types is not None else []
-        self.path = path
-        self.hash = hash
-
-    @property
-    def cts_urn(self) -> typing.Optional[str]:
-        return self._attributes['cts_urn']
-
-    @cts_urn.setter
-    def cts_urn(self, val: typing.Optional[str]) -> None:
-        self._attributes['cts_urn'] = val
-
-    @property
-    def language(self) -> typing.Optional[str]:
-        return self._attributes['language']
-
-    @language.setter
-    def language(self, val: typing.Optional[str]) -> None:
-        self._attributes['language'] = val
-
-    @property
-    def title(self) -> typing.Optional[str]:
-        return self._attributes['title']
-
-    @title.setter
-    def title(self, val: typing.Optional[str]) -> None:
-        self._attributes['title'] = val
-
-    @property
-    def author(self) -> typing.Optional[str]:
-        return self._attributes['author']
-
-    @author.setter
-    def author(self, val: typing.Optional[str]) -> None:
-        self._attributes['author'] = val
-
-    @property
-    def year(self) -> typing.Optional[int]:
-        return self._attributes['year']
-
-    @year.setter
-    def year(self, val: typing.Optional[int]) -> None:
-        self._attributes['year'] = val
-
-    @property
-    def unit_types(self) -> typing.List[str]:
-        return self._attributes['unit_types']
-
-    @unit_types.setter
-    def unit_types(self, val: typing.Union[str, typing.List[str]]):
-        if 'unit_types' not in self._attributes:
-            self._attributes['unit_types'] = []
-        if isinstance(val, str):
-            self._attributes['unit_types'].append(val)
-        else:
-            self._attributes['unit_types'] = val
-
-    @property
-    def path(self) -> typing.Optional[str]:
-        return self._attributes['path']
-
-    @path.setter
-    def path(self, val: typing.Optional[str]) -> None:
-        self._attributes['path'] = val
-
-    @property
-    def hash(self) -> typing.Optional[str]:
-        return self._attributes['hash']
-
-    @hash.setter
-    def hash(self, val: typing.Optional[str]) -> None:
-        self._attributes['hash'] = val
+        super(Text, self).__init__(id=id)
+        self.cts_urn: typing.Optional[str] = cts_urn
+        self.language: typing.Optional[str] = language
+        self.title: typing.Optional[str] = title
+        self.author: typing.Optional[str] = author
+        self.year: typing.Optional[int] = year
+        self.unit_types: typing.List[str] = \
+            unit_types if unit_types is not None else []
+        self.path: typing.Optional[str] = path
+        self.hash: typing.Optional[str] = hash
 
 
 class Unit(Entity):
-    def __init__(self, id=None):
-        super(Unit, self).__init__()
-        self.id = id
-
-    @property
-    def id(self) -> typing.Optional[str]:
-        return self._attributes['id']
-
-    @id.setter
-    def id(self, val: typing.Optional[str]):
-        self._attributes['id'] = val
+    def __init__(self, id=None, text=None, index=None, unit_type=None,
+                 raw=None, tokens=None, n_grams=None):
+        super(Unit, self).__init__(id=id)
+        self.text: typing.Optional[str] = text
+        self.index: typing.Optional[int] = index
+        self.unit_type: typing.Optional[str] = unit_type
+        self.raw: typing.Optional[str] = raw
+        self.tokens: typing.List[typing.Union[str, ObjectId]] = \
+            tokens if tokens is not None else []
+        self.n_grams: typing.List[typing.Union[str, ObjectId]] = \
+            n_grams if n_grams is not None else []
 
 
 class Token(Entity):
-    def __init__(self, id=None):
-        super(Token, self).__init__()
-        self.id = id
+    def __init__(self, id=None, language=None, raw=None, form=None,
+                 lemmas=None, semantic=None, sound=None, frequencies=None):
+        super(Token, self).__init__(id=id)
+        self.language: typing.Optional[str] = language
+        self.raw: typing.Optional[str] = raw
+        self.form: typing.Optional[str] = form
+        self.lemmas: typing.List[str] = lemmas if lemmas is not None else []
+        self.semantic: typing.List[str] = \
+            semantic if semantic is not None else []
+        self.sound: typing.List[str] = sound if sound is not None else []
+        self.frequencies: typing.Dict[str, int] = \
+            frequencies if frequencies is not None else {}
 
-    @property
-    def id(self) -> typing.Optional[str]:
-        return self._attributes['id']
-
-    @id.setter
-    def id(self, val: typing.Optional[str]):
-        self._attributes['id'] = val
+    def __hash__(self):
+        return hash(self.token_type)
 
 
 class NGram(Entity):
     def __init__(self, id=None):
-        super(NGram, self).__init__()
-        self.id = id
+        super(NGram, self).__init__(id=id)
+        # self.id = id
 
-    @property
-    def id(self) -> typing.Optional[str]:
-        return self._attributes['id']
-
-    @id.setter
-    def id(self, val: typing.Optional[str]):
-        self._attributes['id'] = val
+    # @property
+    # def id(self) -> typing.Optional[str]:
+    #     return self._attributes['id']
+    #
+    # @id.setter
+    # def id(self, val: typing.Optional[str]):
+    #     self._attributes['id'] = val
 
 
 class Match(Entity):
     def __init__(self, id=None):
-        super(Match, self).__init__()
-        self.id = id
+        super(Match, self).__init__(id=id)
+        # self.id = id
 
-    @property
-    def id(self) -> typing.Optional[str]:
-        return self._attributes['id']
-
-    @id.setter
-    def id(self, val: typing.Optional[str]):
-        self._attributes['id'] = val
+    # @property
+    # def id(self) -> typing.Optional[str]:
+    #     return self._attributes['id']
+    #
+    # @id.setter
+    # def id(self, val: typing.Optional[str]):
+    #     self._attributes['id'] = val

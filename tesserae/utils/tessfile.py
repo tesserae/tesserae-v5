@@ -43,14 +43,17 @@ class TessFile(object):
         contents on initialization.
     hash : str
         MD5 hash of the file.
-
+    metadata : tesserae.db.Text
+        Text metdata from the database.
 
     """
-    def __init__(self, path, mode='r', buffer=True, validate=False):
+    def __init__(self, path, mode='r', buffer=True, validate=False,
+                 metadata=None):
         self.path = path
         self.mode = mode
         self.buffer = buffer
         self.fname = os.path.basename(path)
+        self.metadata = metadata
 
         if buffer:
             self.file = open(path, 'r')
@@ -93,7 +96,7 @@ class TessFile(object):
             self.__hash = hashinator.hexdigest()
         return self.__hash
 
-    def readlines(self):
+    def readlines(self, include_tag=True):
         """Iterate over the lines of the .tess file in order.
 
         Yields
@@ -104,9 +107,15 @@ class TessFile(object):
         if self.buffer:
             self.file.seek(0)
             for line in self.file.readlines():
+                if not include_tag:
+                    start = line.find('>') + 1 if not include_tag else 0
+                    line = line[start:]
                 yield line
         else:
             for line in self.file:
+                if not include_tag:
+                    start = line.find('>') + 1 if not include_tag else 0
+                    line = line[start:]
                 yield line
 
     def read_tokens(self, include_tag=False):
@@ -123,10 +132,8 @@ class TessFile(object):
         token : str
             One token of the .tess file.
         """
-        for line in self.readlines():
-            start = line.find('>') + 1 if not include_tag else 0
-            line = line[start:].strip(string.whitespace)
-            tokens = line.split()
+        for line in self.readlines(include_tag=include_tag):
+            tokens = line.strip(string.whitespace).split()
             for token in tokens:
                 yield token
 
