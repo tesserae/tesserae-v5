@@ -238,6 +238,16 @@ class Token(Entity):
         return hash(self.token_type)
 
 
+class Frequency(Entity):
+    def __init__(self, id=None, text=None, form=None, stem=None,
+                 frequency=None):
+        super(Frequency, self).__init__(id=id)
+        self.text: typing.Optional[typing.Union[str, ObjectId]] = text
+        self.form: typing.Optional[typing.Union[str, ObjectId]] = form
+        self.stem: typing.Optional[typing.Union[str, ObjectId]] = stem
+        self.frequency: typing.Optional[int] = frequency
+
+
 class NGram(Entity):
     def __init__(self, id=None):
         super(NGram, self).__init__(id=id)
