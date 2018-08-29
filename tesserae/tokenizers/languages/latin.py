@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
@@ -8,6 +9,8 @@ from tesserae.tokenizers.languages.base import BaseTokenizer
 
 class LatinTokenizer(BaseTokenizer):
     def __init__(self):
+        super(LatinTokenizer, self).__init__()
+
         # Set up patterns that will be reused
         self.jv_replacer = JVReplacer()
         self.lemmatizer = Lemmata('lemmata', 'latin')
@@ -30,17 +33,22 @@ class LatinTokenizer(BaseTokenizer):
         This function should be applied to Latin words prior to generating
         other features (e.g., lemmata).
         """
-        if isinstance(tokens, list):
-            tokens = ' '.join(tokens)
-        normalized = self.jv_replacer.replace(tokens.lower())
-        return super(LatinTokenizer, self).normalize(normalized)
+        if isinstance(tokens, str):
+            unicodedata.normalize('NFKD', tokens)
+            normalized = self.jv_replacer.replace(tokens.lower())
+            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
+        else:
+            normalized = [self.jv_replacer.replace(t.lower()) for t in tokens]
 
-    def featurize(self, token):
+        # Run through the remaining normalization and return.
+        return [n for n in normalized if n]
+
+    def featurize(self, tokens):
         """Lemmatize a Latin token.
 
         Parameters
         ----------
-        token : str
+        tokens : list of str
             The token to featurize.
 
         Returns
@@ -50,8 +58,11 @@ class LatinTokenizer(BaseTokenizer):
 
         Notes
         -----
-        Input should be sanitized with `latin_normalizer` prior to using this
-        function.
+        Input should be sanitized with `LatinTokenizer.normalize` prior to
+        using this method.
         """
-        lemmata = self.lemmatizer.lookup(token)[0][1]
-        return lemmata
+        lemmata = self.lemmatizer.lookup(tokens)
+        features = []
+        for i, l in enumerate(lemmata):
+            features.append({'lemmata': lemmata[i][1]})
+        return features
