@@ -21,7 +21,7 @@ def latin_tokens(latin_files):
     for fname in latin_files:
         fname = os.path.splitext(fname)[0] + '.tokens.json'
         with open(fname, 'r') as f:
-            ts = [t for t in json.load(f) if t['TYPE'] == 'WORD']
+            ts = [t for t in json.load(f)]
             tokens.append(ts)
     return tokens
 
@@ -41,7 +41,7 @@ class TestLatinTokenizer(TestBaseTokenizer):
 
         for i in range(len(latin_files)):
             fname = latin_files[i]
-            ref_tokens = latin_tokens[i]
+            ref_tokens = [t for t in latin_tokens[i] if 'FORM' in t]
 
             t = TessFile(fname)
 
@@ -79,3 +79,63 @@ class TestLatinTokenizer(TestBaseTokenizer):
                 assert all(correct)
 
                 token_idx = offset
+
+    def test_tokenize(self, latin_files, latin_tokens):
+        la = self.__test_class__()
+
+        for k in range(len(latin_files)):
+            fname = latin_files[k]
+            ref_tokens = [t for t in latin_tokens[k] if 'FORM' in t]
+
+            t = TessFile(fname)
+
+            token_idx = 0
+
+            for i, line in enumerate(t.readlines(include_tag=False)):
+                tokens, frequencies = la.tokenize(line)
+                tokens = [t for t in tokens
+                          if re.search(r'^[a-zA-Z]+$', t.display,
+                                       flags=re.UNICODE)]
+
+                offset = token_idx + len(tokens)
+
+                correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
+                              zip(tokens, ref_tokens[token_idx:offset]))
+
+                if not all(correct):
+                    print(fname, i, line)
+                    for j in range(len(tokens)):
+                        if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
+                            print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
+
+                assert all(correct)
+
+                correct = map(lambda x: x[0].form == x[1]['FORM'],
+                              zip(tokens, ref_tokens[token_idx:offset]))
+
+                if not all(correct):
+                    print(fname, i, line)
+                    for j in range(len(tokens)):
+                        if tokens[j].form != ref_tokens[token_idx + j]['FORM']:
+                            print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
+
+                assert all(correct)
+
+                token_idx = offset
+
+            la_tokens = [t for t in la.tokens
+                      if re.search(r'^[a-zA-Z]+$', t.display, flags=re.UNICODE)]
+
+            correct = map(lambda x: x[0].form == x[1]['FORM'],
+                          zip(la_tokens, ref_tokens))
+
+            print(len(la_tokens), len(ref_tokens))
+
+            if not all(correct):
+                for j in range(len(la_tokens)):
+                    if tokens[j].form != ref_tokens[j]['FORM']:
+                        print('{}->{}'.format(la_tokens[j].form, ref_tokens[token_idx + j]['FORM']))
+
+            assert all(correct)
+
+            la.clear()
