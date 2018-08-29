@@ -155,7 +155,7 @@ class Text(Entity):
 
     Parameters
     ----------
-    id : str, optional
+    id : bson.objectid.ObjectId, optional
         Database id of the text. Should not be set locally.
     cts_urn : str, optional
         Uniform resource name following the Canonical Text Services convention.
@@ -208,43 +208,144 @@ class Text(Entity):
 
 class Unit(Entity):
     def __init__(self, id=None, text=None, index=None, unit_type=None,
-                 raw=None, tokens=None, n_grams=None):
+                 raw=None, tokens=None):
+        """Group of words that make up a set to match on.
+
+        Units are the chunks of text that matches are computed on. Units can
+        come in the flavor of lines in a poem, sentences, paragraphs, etc.
+
+        Parameters
+        ----------
+        id : bson.ObjectId, optional
+            Database id of the text. Should not be set locally.
+        text : str, optional
+            The text that contains this unit.
+        index : int, optional
+            The order of this unit in the text. This is relative to Units of a
+            particular type.
+        unit_type : str, optional
+            How the chunk of text in this Unit was defined, e.g., "line",
+            "phrase", etc.
+        tokens : list of tesserae.db.Token or bson.objectid.ObjectId, optional
+            The tokens that make up this unit.
+
+        Attributes
+        ----------
+        id : bson.ObjectId
+            Database id of the text. Should not be set locally.
+        text : str
+            The text that contains this unit.
+        index : int
+            The order of this unit in the text. This is relative to Units of a
+            particular type.
+        unit_type : str
+            How the chunk of text in this Unit was defined, e.g., "line",
+            "phrase", etc.
+        tokens : list of tesserae.db.Token or bson.objectid.ObjectId
+            The tokens that make up this unit.
+        """
         super(Unit, self).__init__(id=id)
         self.text: typing.Optional[str] = text
         self.index: typing.Optional[int] = index
         self.unit_type: typing.Optional[str] = unit_type
-        self.raw: typing.Optional[str] = raw
-        self.tokens: typing.List[typing.Union[str, ObjectId]] = \
+        self.tokens: typing.List[typing.Union[str, ObjectId, Token]] = \
             tokens if tokens is not None else []
-        self.n_grams: typing.List[typing.Union[str, ObjectId]] = \
-            n_grams if n_grams is not None else []
 
 
 class Token(Entity):
-    def __init__(self, id=None, language=None, raw=None, form=None,
-                 lemmas=None, semantic=None, sound=None, frequencies=None):
+    def __init__(self, id=None, text=None, index=None, display=None, form=None,
+                 lemmata=None, semantic=None, sound=None, frequencies=None):
+        """An atomic piece of text, along with related features.
+
+        Tokens contain the atomic pieces of text that inform Matches and make
+        up Units. In addition to the raw text, the normalized form of the text
+        and features like lemmata and semantic meaning are also part of a
+        token.
+
+        Parameters
+        ----------
+        id : bson.objectid.ObjectId, optional
+            Database id of the text. Should not be set locally.
+        text : str or bson.objectid.ObjectId, optional
+            The text containing this token.
+        index : int, optional
+            The order of this token in the text.
+        display : str, optional
+            The un-altered form of this token, as it appears in the original
+            text.
+        form : str, optional
+            The normalized form of this token. Normalization depends of the
+            language of the token, however this typically includes converting
+            characters to lower case and standardizing diacritical marks.
+        lemmata : list of str, optional
+            List of stem word associated with this token.
+        semantic : list of str, optional
+        sound : list of str, optional
+
+        Attributes
+        ----------
+        id : bson.objectid.ObjectId
+            Database id of the text. Should not be set locally.
+        text : str or bson.objectid.ObjectId
+            The text containing this token.
+        index : int
+            The order of this token in the text.
+        display : str
+            The un-altered form of this token, as it appears in the original
+            text.
+        form : str
+            The normalized form of this token. Normalization depends of the
+            language of the token, however this typically includes converting
+            characters to lower case and standardizing diacritical marks.
+        lemmata : list of str
+            List of stem word associated with this token.
+        semantic : list of str
+        sound : list of str
+        """
         super(Token, self).__init__(id=id)
-        self.language: typing.Optional[str] = language
-        self.raw: typing.Optional[str] = raw
+        self.text: typing.Optional[typing.Union[str, ObjectId]] = text
+        self.index: typing.Optional[int] = index
+        self.display: typing.Optional[str] = display
         self.form: typing.Optional[str] = form
-        self.lemmas: typing.List[str] = lemmas if lemmas is not None else []
+        self.lemmata: typing.List[str] = lemmata if lemmata is not None else []
         self.semantic: typing.List[str] = \
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
-        self.frequencies: typing.Dict[str, int] = \
-            frequencies if frequencies is not None else {}
-
-    def __hash__(self):
-        return hash(self.token_type)
 
 
 class Frequency(Entity):
-    def __init__(self, id=None, text=None, form=None, stem=None,
-                 frequency=None):
+    def __init__(self, id=None, text=None, form=None, frequency=None):
+        """Record of the frequency with which a token appears in a text.
+
+        The frequency is a record of how often a token as understood by its
+        stem appears in a text. Tesserae uses the frequency of token normalized
+        forms or token stem forms to score matches.
+
+        Parameters
+        ----------
+        id : bson.objectid.ObjectId, optional
+            Database id of the text. Should not be set locally.
+        text : str or bson.objectid.ObjectId, optional
+            The text containing this token.
+        form : str, optional
+            The normalized form of this token.
+        frequency : int, optional
+            The number of occurrences of this token/stem in the text.
+
+        Attributes
+        ----------
+        id : bson.objectid.ObjectId
+            Database id of the text. Should not be set locally.
+        text : str or bson.objectid.ObjectId, optional
+            The text containing this token.
+        form : str
+            The normalized form of this token.
+        frequency : int
+            The number of occurrences of this token/stem in the text.
+        """
         super(Frequency, self).__init__(id=id)
         self.text: typing.Optional[typing.Union[str, ObjectId]] = text
-        self.form: typing.Optional[typing.Union[str, ObjectId]] = form
-        self.stem: typing.Optional[typing.Union[str, ObjectId]] = stem
+        self.form: typing.Optional[str] = form
         self.frequency: typing.Optional[int] = frequency
 
 
