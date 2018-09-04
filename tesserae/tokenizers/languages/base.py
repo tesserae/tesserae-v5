@@ -27,6 +27,7 @@ class BaseTokenizer(object):
 
     def __init__(self):
         # This pattern is used over and over again
+        self.word_characters = '[a-zA-Z]'
         self.diacriticals = \
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
@@ -115,7 +116,6 @@ class BaseTokenizer(object):
 
         # Compute the display, normalized, and featurized forms of the tokens
         if isinstance(raw, str):
-            #raw = re.sub(r'\s+', ' ', raw)
             display = [s for s in re.split(self.split_pattern, raw,
                                            flags=re.UNICODE)
                        if s]
@@ -125,15 +125,17 @@ class BaseTokenizer(object):
                 display = display[:-1]
         else:
             display = raw
-        # print(display)
         normalized = self.normalize(display)
-        # print(normalized)
         featurized = self.featurize(normalized)
 
+        # Create the storage for this run of `tokenize`
         tokens = []
-        frequencies = collections.Counter(normalized)
+        frequencies = collections.Counter(
+            [n for n in normalized if
+             re.match(self.word_characters, n, flags=re.UNICODE)])
         frequency_list = []
 
+        # Get the text id from the metadata if it was passed in
         try:
             text_id = text.id
         except AttributeError:
@@ -141,7 +143,8 @@ class BaseTokenizer(object):
 
         # Prep the token objects
         for i, d in enumerate(display):
-            if re.search(r'^\w+$', d, flags=re.UNICODE):
+
+            if re.search(self.word_characters, d, flags=re.UNICODE):
                 n = normalized[i]
                 f = featurized[i]
                 t = Token(text=text_id, index=i, display=d, form=n, **f)
@@ -160,4 +163,4 @@ class BaseTokenizer(object):
             f = Frequency(text=text_id, form=k, frequency=v)
             frequency_list.append(f)
 
-        return tokens, frequencies
+        return tokens, frequency_list
