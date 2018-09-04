@@ -103,6 +103,17 @@ def test_retrieve_text_list(connection, populate):
     tl = retrieve_text_list(connection, year=3007)
     assert len(tl) == 0
 
+    # Test compound filter retrieval
+    tl = retrieve_text_list(connection, language='latin', author='vergil')
+    count = sum([1 if i['language'] == 'latin' and i['author'] == 'vergil'
+                 else 0 for i in coll])
+    assert len(tl) == count
+    for text in tl:
+        assert isinstance(text, Text)
+        for doc in coll:
+            if doc['_id'] == text.id:
+                assert text.__dict__ == doc
+
 
 def test_insert_text(connection, populate, newfiles, new_populate):
     # TODO: Test with invalid .tess files once a validator is made
