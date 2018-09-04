@@ -26,6 +26,23 @@ def greek_tokens(greek_files):
     return tokens
 
 
+@pytest.fixture(scope='module')
+def greek_word_frequencies(greek_files):
+    freqs = []
+    grc = GreekTokenizer()
+    for fname in greek_files:
+        freq = {}
+        fname = os.path.splitext(fname)[0] + '.freq_score_word'
+        with open(fname, 'r') as f:
+            for line in f.readlines():
+                if '#' not in line:
+                    word, n = re.split('[^\w' + grc.diacriticals + ']+', line,
+                                       flags=re.UNICODE)[:-1]
+                    freq[word] = int(n)
+        freqs.append(freq)
+    return freqs
+
+
 class TestGreekTokenizer(TestBaseTokenizer):
     __test_class__ = GreekTokenizer
 
@@ -91,12 +108,13 @@ class TestGreekTokenizer(TestBaseTokenizer):
             #
             #     token_idx = offset
 
-    def test_tokenize(self, greek_files, greek_tokens):
+    def test_tokenize(self, greek_files, greek_tokens, greek_word_frequencies):
         grc = self.__test_class__()
 
         for k in range(len(greek_files)):
             fname = greek_files[k]
             ref_tokens = [t for t in greek_tokens[k] if 'FORM' in t]
+            ref_freqs = greek_word_frequencies[k]
 
             t = TessFile(fname)
 
@@ -105,7 +123,7 @@ class TestGreekTokenizer(TestBaseTokenizer):
             for i, line in enumerate(t.readlines(include_tag=False)):
                 tokens, frequencies = grc.tokenize(line)
                 tokens = [t for t in tokens
-                          if re.search('[' + grc.word_characters + ']+',
+                          if re.search('[\w]',
                                        t.display, flags=re.UNICODE)]
                 offset = token_idx + len(tokens)
 
@@ -117,6 +135,7 @@ class TestGreekTokenizer(TestBaseTokenizer):
                     for j in range(len(tokens)):
                         if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
                             print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
+                            print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
 
                 assert all(correct)
 
@@ -134,7 +153,7 @@ class TestGreekTokenizer(TestBaseTokenizer):
                 token_idx = offset
 
             grc_tokens = [t for t in grc.tokens
-                          if re.search('[' + grc.word_characters + ']+',
+                          if re.search('[\w]',
                                        t.display, flags=re.UNICODE)]
 
             print(len(grc_tokens), len(ref_tokens))
@@ -147,6 +166,30 @@ class TestGreekTokenizer(TestBaseTokenizer):
                     if grc_tokens[j].form != ref_tokens[j]['FORM']:
                         print('{}->{}'.format(grc_tokens[j].form, ref_tokens[j]['FORM']))
                         print('{}->{}'.format(grc_tokens[j].display, ref_tokens[j]['DISPLAY']))
+
+            assert all(correct)
+
+            if '' in ref_freqs:
+                del ref_freqs['']
+
+            for key in ref_freqs:
+                assert key in grc.frequencies
+                assert grc.frequencies[key] == ref_freqs[key]
+
+            diff = []
+            for word in frequencies:
+                if word.form not in ref_freqs and word.form != '':
+                    diff.append(word.form)
+            print(diff)
+            assert len(diff) == 0
+
+            assert len(frequencies) == len(ref_freqs)
+            keys = sorted(list(ref_freqs.keys()))
+            frequencies.sort(key=lambda x: x.form)
+            correct = map(
+                lambda x: x[0].form == x[1] and
+                          x[0].frequency == ref_freqs[x[1]],
+                zip(frequencies, keys))
 
             assert all(correct)
 
