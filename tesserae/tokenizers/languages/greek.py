@@ -12,16 +12,19 @@ class GreekTokenizer(BaseTokenizer):
 
         # Set up patterns that will be reused
         self.diacriticals = \
-            '[\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345]'
-        self.vowels = '[αειηουωΑΕΙΗΟΥΩ]'
+            '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
+        self.vowels = 'αειηουωΑΕΙΗΟΥΩ'
         self.grave = '\u0300'
         self.acute = '\u0301'
         self.sigma = 'σ\b'
         self.sigma_alt = 'ς'
+
+        self.word_characters = '[α-ωΑ-Ω' + self.diacriticals + ']'
+
         self.diacrit_sub1 = \
-            '\s(' + self.diacriticals + '+)(' + self.vowels + '{2,})'
+            '^([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
         self.diacrit_sub2 = \
-            '\s(' + self.diacriticals + '+)(' + self.vowels + '{1})'
+            '^([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
@@ -40,7 +43,7 @@ class GreekTokenizer(BaseTokenizer):
         """
         if isinstance(tokens, str):
             tokens = \
-                [t for t in re.split('([^\w' + self.diacriticals + '])',
+                [t for t in re.split('([^\w' + self.diacriticals + ']+)',
                                      tokens,
                                      flags=re.UNICODE)
                  if t]
@@ -55,34 +58,22 @@ class GreekTokenizer(BaseTokenizer):
 
         # Remove diacriticals from vowels
         normalized = \
-            [re.sub(self.diacrit_sub1, r' \2', n, flags=re.UNICODE)
+            [re.sub(self.diacrit_sub1, r'\2', n, flags=re.UNICODE)
              for n in normalized]
         normalized = \
-            [re.sub(self.diacrit_sub2, r' \2\1', n, flags=re.UNICODE)
+            [re.sub(self.diacrit_sub2, r'\2\1', n, flags=re.UNICODE)
              for n in normalized]
-
-        # Special case for some capitals with diacriticals
-        # normalized = re.sub('\u0313α', 'α\u0313', normalized, flags=re.UNICODE)
-        # normalized = re.sub('\u0314η', 'η\u0314', normalized, flags=re.UNICODE)
 
         # Substitute sigmas
         normalized = \
             [re.sub(self.sigma, self.sigma_alt, n, flags=re.UNICODE)
              for n in normalized]
 
-        # Remove punctuation
-        # normalized = re.sub('([,.!?:;])(\w)', '\1 \2',
-        #                     normalized, flags=re.UNICODE)
         normalized = \
-            [re.sub('[,.!?;:\'"\(\)†\d\u201C\u201D—-]+', ' ',
-                    n, flags=re.UNICODE)
+            [re.sub("^(['0-9]*)(" + self.word_characters + "+)(['0-9]*)$", r'\2', n, flags=re.UNICODE)
              for n in normalized]
 
-        normalized = \
-            [re.split('[\s]+', n.strip(), flags=re.UNICODE)
-             for n in normalized]
-
-        return normalized
+        return [n for n in normalized if n]
 
     def featurize(self, tokens):
         """Get the features for a single Greek token.
@@ -103,7 +94,7 @@ class GreekTokenizer(BaseTokenizer):
         method.
         """
         features = []
-        lemmata = self.lemmatizer.lookup(token_type)
+        lemmata = self.lemmatizer.lookup(tokens)
         for i, l in enumerate(lemmata):
             features.append({'lemmata': lemmata[i][1]})
         return features
@@ -135,9 +126,14 @@ class GreekTokenizer(BaseTokenizer):
         frequencies : list of tesserae.db.Frequency
         """
         display = \
-            [t for t in re.split('([^\w' + self.diacriticals + '])', raw,
+            [t for t in re.split('([' + self.word_characters + ']+)', raw,
                                  flags=re.UNICODE)
              if t]
+
+        if display[0] == ' ':
+            display = display[1:]
+        if display[-1] == ' ':
+            display = display[:-1]
 
         return \
             super(GreekTokenizer, self).tokenize(
