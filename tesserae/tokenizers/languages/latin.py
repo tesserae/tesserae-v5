@@ -33,15 +33,20 @@ class LatinTokenizer(BaseTokenizer):
         This function should be applied to Latin words prior to generating
         other features (e.g., lemmata).
         """
-        if isinstance(tokens, str):
-            unicodedata.normalize('NFKD', tokens)
-            normalized = self.jv_replacer.replace(tokens.lower())
-            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-        else:
-            normalized = [self.jv_replacer.replace(t.lower()) for t in tokens]
+        # Apply the global normalizer
+        normalized = super(LatinTokenizer, self).normalize(tokens)
 
-        # Run through the remaining normalization and return.
-        return [n for n in normalized if n]
+        # Replace j/v with i/u, respectively
+        normalized = [self.jv_replacer.replace(n) for n in normalized]
+
+        # normalized = [n for n in normalized if n]
+
+        normalized = \
+            [re.sub('[^a-zA-Z]+', '', n, flags=re.UNICODE) for n in normalized]
+
+        print(normalized)
+
+        return normalized
 
     def featurize(self, tokens):
         """Lemmatize a Latin token.

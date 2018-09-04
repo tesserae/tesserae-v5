@@ -60,27 +60,19 @@ class BaseTokenizer(object):
         normalized : list
             The list of tokens in normalized form.
         """
+        # Apply lowercase and NKFD normalization to the tokens, and split them
+        # if they are in a single string
         if isinstance(tokens, str):
-            tokens = [unicodedata.normalize('NFKD', t).lower() for t in
-                      re.split('(, )|([^\w' + self.diacriticals + '])',
-                               tokens, flags=re.UNICODE)
+            tokens = [t for t in
+                      re.split(self.split_pattern, tokens, flags=re.UNICODE)
                       if t]
-            print(tokens)
-            # tokens =
-            # tokens = re.sub(r'[\s—-]+', ' ', tokens.strip(),
-            #                 flags=re.UNICODE)
-            # tokens = re.sub(r'\'[s]{1}\s|\'[s]{1}$', ' s ', tokens,
-            #                 flags=re.UNICODE)
 
-        else:
-            tokens = [unicodedata.normalize('NFKD', t).lower() for t in tokens]
+        tokens = [unicodedata.normalize('NFKD', t).lower() for t in tokens]
 
-        # normalized = \
-        #     [re.sub(self.split_pattern, ' ', token.lower(),
-        #             flags=re.UNICODE).strip()
-        #      for token in tokens]
+        # Remove empty strings and Nones from the normalized token list
+        normalized = [n for n in tokens if n]
 
-        normalized = [n for n in tokens if n != '']
+        print(normalized)
 
         return normalized
 
@@ -116,23 +108,26 @@ class BaseTokenizer(object):
 
         # Compute the display, normalized, and featurized forms of the tokens
         if isinstance(raw, str):
-            display = [s for s in re.split(self.split_pattern, raw,
-                                           flags=re.UNICODE)
+            display = [s for s in re.split(self.split_pattern,
+                                           raw, flags=re.UNICODE)
                        if s]
-            if display[0] == ' ':
-                display = display[1:]
-            if display[-1] == ' ':
-                display = display[:-1]
+            if len(display) > 0:
+                if display[0] == ' ':
+                    display = display[1:]
+                if display[-1] == ' ':
+                    display = display[:-1]
         else:
             display = raw
+        print(display)
         normalized = self.normalize(display)
+        print(normalized)
         featurized = self.featurize(normalized)
 
         # Create the storage for this run of `tokenize`
         tokens = []
         frequencies = collections.Counter(
-            [n for n in normalized if
-             re.match(self.word_characters, n, flags=re.UNICODE)])
+            [n for i, n in enumerate(normalized) if
+             re.search('[\w]+', display[i], flags=re.UNICODE)])
         frequency_list = []
 
         # Get the text id from the metadata if it was passed in
@@ -143,8 +138,7 @@ class BaseTokenizer(object):
 
         # Prep the token objects
         for i, d in enumerate(display):
-
-            if re.search(self.word_characters, d, flags=re.UNICODE):
+            if re.search('[\w]', d, flags=re.UNICODE):
                 n = normalized[i]
                 f = featurized[i]
                 t = Token(text=text_id, index=i, display=d, form=n, **f)
@@ -154,6 +148,8 @@ class BaseTokenizer(object):
 
         # Update the internal record if necessary
         if record:
+            if '' in self.frequencies:
+                del self.frequencies['']
             self.tokens.extend([t for t in tokens])
             self.frequencies.update(frequencies)
             frequencies = self.frequencies
