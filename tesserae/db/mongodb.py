@@ -167,7 +167,7 @@ def create_filter(**kwargs):
             f[k].update(q)
 
     if len(f) > 1:
-        f = {'$and': [{k: v} for k in f]}
+        f = {'$and': [{k: v} for k, v in f.items()]}
 
     return f
 
