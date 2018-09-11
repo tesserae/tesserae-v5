@@ -110,13 +110,13 @@ class TessFile(object):
                 if not include_tag:
                     start = line.find('>') + 1 if not include_tag else 0
                     line = line[start:]
-                yield line.strip()
+                yield line
         else:
             for line in self.file:
                 if not include_tag:
                     start = line.find('>') + 1 if not include_tag else 0
                     line = line[start:]
-                yield line.strip()
+                yield line
 
     def read_tokens(self, include_tag=False):
         """Iterate over the tokens of a .tess file in order.

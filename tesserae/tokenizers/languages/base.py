@@ -31,7 +31,8 @@ class BaseTokenizer(object):
         self.diacriticals = \
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
-        self.split_pattern = '(, )|([^\w' + self.diacriticals + '])'
+        self.split_pattern = \
+            '([^\w' + self.diacriticals + '])'
 
         self.clear()
 
@@ -72,8 +73,6 @@ class BaseTokenizer(object):
         # Remove empty strings and Nones from the normalized token list
         normalized = [n for n in tokens if n]
 
-        print(normalized)
-
         return normalized
 
     def tokenize(self, raw, record=True, text=None):
@@ -108,19 +107,17 @@ class BaseTokenizer(object):
 
         # Compute the display, normalized, and featurized forms of the tokens
         if isinstance(raw, str):
+            raw = re.sub(r'([.!?;:]{1})([\n\r\r\n])', r'\1', raw, flags=re.UNICODE)
             display = [s for s in re.split(self.split_pattern,
                                            raw, flags=re.UNICODE)
                        if s]
+            display = [re.sub(r'[\n]', r' / ', s, re.UNICODE) for s in display]
             if len(display) > 0:
-                if display[0] == ' ':
+                if re.search('^[\s]+$', display[0], flags=re.UNICODE):
                     display = display[1:]
-                if display[-1] == ' ':
-                    display = display[:-1]
         else:
             display = raw
-        print(display)
         normalized = self.normalize(display)
-        print(normalized)
         featurized = self.featurize(normalized)
 
         # Create the storage for this run of `tokenize`

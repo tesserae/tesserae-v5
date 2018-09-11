@@ -39,12 +39,8 @@ class LatinTokenizer(BaseTokenizer):
         # Replace j/v with i/u, respectively
         normalized = [self.jv_replacer.replace(n) for n in normalized]
 
-        # normalized = [n for n in normalized if n]
-
         normalized = \
             [re.sub('[^a-zA-Z]+', '', n, flags=re.UNICODE) for n in normalized]
-
-        print(normalized)
 
         return normalized
 
