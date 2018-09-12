@@ -16,7 +16,7 @@ class TestBaseTokenizer(object):
 
     def test_normalize(self):
         test_words = ['foo', 'Bar', 'BAZ', 'FoO bAr BaZ']
-        punct = '.?:;\'"!'
+        punct = '.?:;"!'
         whitespace = ' \t\n\r'
 
         t = self.__test_class__()
