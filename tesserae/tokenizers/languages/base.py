@@ -32,7 +32,7 @@ class BaseTokenizer(object):
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '([^\w' + self.diacriticals + '])'
+            '( / )|( \. \. \.)|(\.\~\.\~\.)|([^\w' + self.diacriticals + '])'
 
         self.clear()
 
@@ -106,8 +106,7 @@ class BaseTokenizer(object):
             self.clear()
 
         # Compute the display, normalized, and featurized forms of the tokens
-        if isinstance(raw, str):
-            raw = re.sub(r'([.!?;:]{1})([\n\r\r\n])', r'\1', raw, flags=re.UNICODE)
+        if isinstance(raw, str) and re.search(r'[\w]', raw, flags=re.UNICODE):
             display = [s for s in re.split(self.split_pattern,
                                            raw, flags=re.UNICODE)
                        if s]
@@ -115,8 +114,11 @@ class BaseTokenizer(object):
             if len(display) > 0:
                 if re.search('^[\s]+$', display[0], flags=re.UNICODE):
                     display = display[1:]
-        else:
+        elif isinstance(raw, list):
             display = raw
+        else:
+            return [], []
+
         normalized = self.normalize(display)
         featurized = self.featurize(normalized)
 
@@ -134,13 +136,15 @@ class BaseTokenizer(object):
             text_id = None
 
         # Prep the token objects
+        base = len(self.tokens)
         for i, d in enumerate(display):
+            idx = i + base
             if re.search('[\w]', d, flags=re.UNICODE):
                 n = normalized[i]
                 f = featurized[i]
-                t = Token(text=text_id, index=i, display=d, form=n, **f)
+                t = Token(text=text_id, index=idx, display=d, form=n, **f)
             else:
-                t = Token(text=text_id, index=i, display=d)
+                t = Token(text=text_id, index=idx, display=d)
             tokens.append(t)
 
         # Update the internal record if necessary

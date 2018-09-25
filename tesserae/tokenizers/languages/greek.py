@@ -22,7 +22,7 @@ class GreekTokenizer(BaseTokenizer):
         self.diacrit_sub2 = \
             '^([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
-        self.split_pattern = '(, )|([^\w' + self.diacriticals + '\'])'
+        self.split_pattern = '( / )|([^\w' + self.diacriticals + '\'])'
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
