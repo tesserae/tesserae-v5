@@ -67,7 +67,9 @@ class DefaultMatcher(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
-        pass
+        tokens = self.retrieve_tokens(texts)
+        units = self.retreve_units(texts, unit_type)
+        frequencies = self.retrieve_frequencies(texts, tokens, frequency_basis)
 
     def retrieve_frequencies(self, texts, tokens, basis):
         """Get token frequencies for the tokens to be matched.
@@ -114,48 +116,6 @@ class DefaultMatcher(object):
 
         return formatted
 
-    def retrieve_lines(self, texts):
-        """Get the lines associated with a text from the database.
-
-        Parameters
-        ----------
-        text : tesserae.db.Text
-            Text metadata.
-
-        Returns
-        -------
-        lines : list of tesserae.db.Unit
-            The line units in the order they appear in the original text.
-        """
-        lines = []
-
-        for text in texts:
-            lines.append(connection.find('units',
-                         text=text.id, unit_type='line'))
-
-        return lines
-
-    def retrieve_phrases(self, texts):
-        """Get the phrases associated with a text from the database.
-
-        Parameters
-        ----------
-        text : tesserae.db.Text
-            Text metadata.
-
-        Returns
-        -------
-        phrases : list of tesserae.db.Unit
-            The phrase units in the order they appear in the original text.
-        """
-        phrases = []
-
-        for text in texts:
-            phrases.append(connection.find('units',
-                           text=text.id, unit_type='phrase'))
-
-        return phrases
-
     def retrieve_tokens(self, texts):
         """Get the tokens associated with a text from the database.
 
@@ -175,6 +135,29 @@ class DefaultMatcher(object):
             tokens.append(connection.find('units', text=text.id))
 
         return phrases
+
+    def retrieve_units(self, texts, unit_type):
+        """Get the units associated with a text from the database.
+
+        Parameters
+        ----------
+        text : tesserae.db.Text
+            Text metadata.
+        unit_type : {'line','phrase'}
+            The type of unit to retrieve.
+
+        Returns
+        -------
+        units : list of tesserae.db.Unit
+            The units in the order they appear in the original text.
+        """
+        units = []
+
+        for text in texts:
+            units.append(connection.find('units',
+                         text=text.id, unit_type=unit_type))
+
+        return units
 
     def score(self, frequencies, distances):
         """
