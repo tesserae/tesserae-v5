@@ -12,7 +12,6 @@ setup(
               'tesserae.db.entities',
               'tesserae.text_access',
               'tesserae.tokenizers',
-              'tesserae.tokenizers.languages',
               'tesserae.utils'],
     classifiers=[
         'Development Status :: 3 - Alpha',
