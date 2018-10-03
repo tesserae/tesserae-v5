@@ -95,6 +95,7 @@ class TessMongoConnection():
     def delete(self, **kwargs):
         """Delete one or more entries from the database.
         """
+        pass
 
     def insert(self, entity):
         """Insert one or more entities into the database.
