@@ -12,6 +12,7 @@ from bson.objectid import ObjectId
 from tesserae.db.entities.entity import Entity
 from tesserae.db.entities.token import Token
 
+
 class Unit(Entity):
     """Group of words that make up a set to match on.
 
