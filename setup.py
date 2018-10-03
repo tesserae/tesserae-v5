@@ -9,11 +9,10 @@ setup(
     author_email='jkinniso@nd.edu',
     packages=['tesserae',
               'tesserae.db',
+              'tesserae.db.entities',
               'tesserae.text_access',
               'tesserae.tokenizers',
               'tesserae.tokenizers.languages',
-              'tesserae.unitizers',
-              'tesserae.unitizers.genres',
               'tesserae.utils'],
     classifiers=[
         'Development Status :: 3 - Alpha',
