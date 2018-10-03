@@ -3,7 +3,7 @@ import pytest
 from collections import Counter
 import random
 
-from tesserae.tokenizers.languages import BaseTokenizer
+from tesserae.tokenizers import BaseTokenizer
 
 
 class TestBaseTokenizer(object):

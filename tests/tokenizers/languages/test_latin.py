@@ -11,7 +11,7 @@ import sys
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
-from tesserae.tokenizers.languages import LatinTokenizer
+from tesserae.tokenizers import LatinTokenizer
 from tesserae.utils import TessFile
 
 

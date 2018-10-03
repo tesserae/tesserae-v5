@@ -3,7 +3,7 @@ import unicodedata
 
 from cltk.semantics.latin.lookup import Lemmata
 
-from tesserae.tokenizers.languages.base import BaseTokenizer
+from tesserae.tokenizers.base import BaseTokenizer
 
 
 class GreekTokenizer(BaseTokenizer):

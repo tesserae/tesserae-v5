@@ -4,7 +4,7 @@ import unicodedata
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
-from tesserae.tokenizers.languages.base import BaseTokenizer
+from tesserae.tokenizers.base import BaseTokenizer
 
 
 class LatinTokenizer(BaseTokenizer):
