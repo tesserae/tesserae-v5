@@ -7,7 +7,7 @@ import os
 import re
 
 from tesserae.db import Text
-from tesserae.tokenizers.languages import GreekTokenizer, LatinTokenizer
+from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.utils import TessFile
 
 
