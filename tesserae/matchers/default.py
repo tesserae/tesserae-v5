@@ -1,6 +1,6 @@
 import numpy as np
 
-from tesserae.db import get_connection
+from tesserae.db import get_connection, Match
 
 # TODO: implement probabilistic stem matching once that's worked out
 
@@ -13,7 +13,7 @@ class DefaultMatcher(object):
         """Reset this Matcher to its initial state."""
         self.matches = []
 
-    def frequency_dist(self, match_tokens):
+    def frequency_dist(self, frequency_vector):
         """Compute distance based on frequency.
 
         The frequency distance computes the unmber of words separating the two
@@ -21,16 +21,16 @@ class DefaultMatcher(object):
 
         Parameters
         ----------
-        match_tokens : list of (tesserae.db.Token, tesserae.db.Frequency)
-            The tokens to compute the distance.
+        frequency_vector : list of float
+            The frequencies of the tokens.
 
         Returns
         -------
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        match_tokens.sort(key: x[1].frequency)
-        return np.abs(match_tokens[0].index - match_tokens[1].index)
+        ordered = np.argsort(distance_vector, axis=-1, kind='heapsort')
+        return np.abs(ordered[1] - ordered[0]) + 1
 
     def match(texts, unit_type, stopwords=10, stopword_basis='corpus',
               score_basis='word', frequency_basis='texts', max_distance=10,
@@ -71,6 +71,45 @@ class DefaultMatcher(object):
         units = self.retreve_units(texts, unit_type)
         frequencies = self.retrieve_frequencies(texts, tokens, frequency_basis)
 
+        # TODO: recursive scheme for matching
+        # matches = find_matches(units, score_basis, tokens, 0, 1)
+
+        matches = []
+
+        for unit_a in units[0]:
+            for unit_b in units[1]:
+                match = Match(units=[unit_a, unit_b])
+                match_tokens = []
+                distance_vector = [[], []]
+                match_frequencies = [[], []]
+                tokens_a = [tokens[t] for t in unit_a.tokens]
+                tokens_b = [tokens[t] for t in unit_b.tokens]
+                for token_a in tokens_a:
+                    if distance_metric == 'frequency':
+                        distance_vector[0].append(
+                            frequencies[token_a.form].frequency)
+                    for token_b in tokens_b:
+                        if distance_metric == 'frequency':
+                            distance_vector[1].append(
+                                frequencies[token_b.form].frequency)
+                        if token_a.match(token_b, feature):
+                            match_tokens.append((token_a, token_b))
+                            if distance_metric == 'span':
+                                distance_vector[0].append(token_a.index)
+                                distance_vector[1].append(token_b.index)
+
+                dist = map(self.compute_distance, distance_vector)
+
+                if len(match_tokens) >= 2 and all(dist < max_distance):
+                    dist = sum(dist)
+                    freq = sum(match_frequencies)
+                    match.score = math.log(freq / dist)
+                    match.match_tokens = match_tokens
+                    matches.append(match)
+
+        self.matches = matches
+        return matches
+
     def retrieve_frequencies(self, texts, tokens, basis):
         """Get token frequencies for the tokens to be matched.
 
@@ -99,20 +138,17 @@ class DefaultMatcher(object):
         if basis == 'corpus':
             frequencies = self.collection.find('frequencies',
                                                form=[t.form for t in tokens])
-            formatted = {'corpus': {}}
-            for f in frequencies:
-                try:
-                    formatted['corpus'][f.form] += f.frequency
-                except KeyError:
-                    formatted['corpus'][f.form] = f.frequency
         else:
             frequencies = self.collection.find('frequencies',
                                                text=[t.id for t in texts],
                                                form=[t.form for t in tokens])
 
-            formatted = {t.cts_urn: {} for t in texts}
-            for f in frequencies:
-                formatted[f.text][f.form] = f.frequency
+        formatted = {}
+        for f in frequencies:
+            try:
+                formatted[f.form] += f.frequency
+            except KeyError:
+                formatted[f.form] = f.frequency
 
         return formatted
 
@@ -159,12 +195,7 @@ class DefaultMatcher(object):
 
         return units
 
-    def score(self, frequencies, distances):
-        """
-        """
-        pass
-
-    def span_dist(self, match_tokens):
+    def span_distance(self, index_vector):
         """Compute distance based on position in the text.
 
         The span distance computes the number of words separating the first and
@@ -172,13 +203,13 @@ class DefaultMatcher(object):
 
         Parameters
         ----------
-        match_tokens : list of (tesserae.db.Token, tesserae.db.Frequency)
-            The tokens to compute the distance.
+        index_vector : list of int
+            The indices of the match tokens.
 
         Returns
         -------
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        match_tokens.sort(key=lambda x: x[0].index)
-        return np.abs(match_tokens[0].index, match_tokens[1].index)
+        ordered = np.argsort(index_vector, axis=-1, kind='heapsort')
+        return np.abs(index_vector[ordered[0]] - index_vector[ordered[-1]]) + 1
