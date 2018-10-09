@@ -1,7 +1,7 @@
 import re
 
 from tesserae.db import Text, Token, Unit
-from tesserae.tokenizers.languages import BaseTokenizer
+from tesserae.tokenizers import BaseTokenizer
 
 
 class InvalidMetadataError(Exception):
