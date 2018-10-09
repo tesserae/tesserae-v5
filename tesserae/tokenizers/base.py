@@ -131,7 +131,7 @@ class BaseTokenizer(object):
 
         # Get the text id from the metadata if it was passed in
         try:
-            text_id = text.id
+            text_id = text.path
         except AttributeError:
             text_id = None
 
