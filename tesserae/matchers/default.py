@@ -1,6 +1,6 @@
 import numpy as np
 
-from tesserae.db import get_connection, Match
+from tesserae.db import Match
 
 # TODO: implement probabilistic stem matching once that's worked out
 
@@ -8,12 +8,13 @@ from tesserae.db import get_connection, Match
 class DefaultMatcher(object):
     def __init__(self, connection):
         self.connection = connection
+        self.clear()
 
     def clear(self):
         """Reset this Matcher to its initial state."""
         self.matches = []
 
-    def frequency_dist(self, frequency_vector):
+    def frequency_distance(self, frequency_vector):
         """Compute distance based on frequency.
 
         The frequency distance computes the unmber of words separating the two
@@ -29,7 +30,7 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        ordered = np.argsort(distance_vector, axis=-1, kind='heapsort')
+        ordered = np.argsort(frequency_vector, kind='heapsort')
         return np.abs(ordered[1] - ordered[0]) + 1
 
     def match(texts, unit_type, stopwords=10, stopword_basis='corpus',
@@ -75,6 +76,8 @@ class DefaultMatcher(object):
         # matches = find_matches(units, score_basis, tokens, 0, 1)
 
         matches = []
+        distance_function = self.span_distance if distance_metric == 'span' \
+            else self.frequency_distance
 
         for unit_a in units[0]:
             for unit_b in units[1]:
@@ -98,11 +101,12 @@ class DefaultMatcher(object):
                                 distance_vector[0].append(token_a.index)
                                 distance_vector[1].append(token_b.index)
 
-                dist = map(self.compute_distance, distance_vector)
+                dist = map(distance_function, distance_vector)
 
                 if len(match_tokens) >= 2 and all(dist < max_distance):
                     dist = sum(dist)
-                    freq = sum(match_frequencies)
+                    freq = np.sum(
+                        np.sum(1.0 / np.asarray(match_frequencies), axis=-1))
                     match.score = math.log(freq / dist)
                     match.match_tokens = match_tokens
                     matches.append(match)
@@ -168,7 +172,7 @@ class DefaultMatcher(object):
         tokens = []
 
         for text in texts:
-            tokens.append(connection.find('units', text=text.id))
+            tokens.append(connection.find('tokens', text=text.id))
 
         return phrases
 
@@ -211,5 +215,15 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        ordered = np.argsort(index_vector, axis=-1, kind='heapsort')
-        return np.abs(index_vector[ordered[0]] - index_vector[ordered[-1]]) + 1
+        index_vector = np.asarray(index_vector)
+        ordered = np.argsort(index_vector, kind='heapsort', axis=-1)
+        dist = np.abs(
+            np.take_along_axis(index_vector, ordered, axis=-1)[:, -1] -
+            np.take_along_axis(index_vector, ordered, axis=-1)[:, 0]) + 1
+
+        if np.any(dist < 2):
+            raise ValueError(
+                "The index vector must contain multiple values and cannot " +
+                "contain duplicate values")
+
+        return dist
