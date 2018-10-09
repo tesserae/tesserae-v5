@@ -30,7 +30,9 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
+        frequency_vector = np.array(frequency_vector, dtype=np..dtype([[('f', float), ('i', float)]]))
         ordered = np.argsort(frequency_vector, kind='heapsort')
+        frequency_vector = frequency_vector[:, :, 0]
         return np.abs(ordered[1] - ordered[0]) + 1
 
     def match(texts, unit_type, stopwords=10, stopword_basis='corpus',
@@ -90,11 +92,11 @@ class DefaultMatcher(object):
                 for token_a in tokens_a:
                     if distance_metric == 'frequency':
                         distance_vector[0].append(
-                            frequencies[token_a.form].frequency)
+                            (frequencies[token_a.form].frequency, token_a.index))
                     for token_b in tokens_b:
                         if distance_metric == 'frequency':
                             distance_vector[1].append(
-                                frequencies[token_b.form].frequency)
+                                (frequencies[token_b.form].frequency, token_b.index))
                         if token_a.match(token_b, feature):
                             match_tokens.append((token_a, token_b))
                             if distance_metric == 'span':
