@@ -30,13 +30,21 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        frequency_vector = np.array(frequency_vector, dtype=np.dtype([[('f', float), ('i', float)]]))
-        ordered = np.argsort(frequency_vector, kind='heapsort')
-        frequency_vector = frequency_vector[:, :, 0]
-        return np.abs(ordered[1] - ordered[0]) + 1
+        idx_sorted = np.argsort(frequency_vector[:, :, 1], axis=1)
+        freq = np.take_along_axis(frequency_vector[:, :, 0], idx_sorted, axis=-1)
+        freq_sorted = np.argsort(freq, axis=1)
+        idx = np.take_along_axis(
+            np.take_along_axis(frequency_vector[:, :, 1], idx_sorted, axis=-1),
+            freq_sorted, axis=-1)
+        freq = np.take_along_axis(freq, freq_sorted, axis=-1)
+        _, unique_idx = np.unique(freq, return_index=True, axis=1)
+        unique_idx[unique_idx > 1] -= 1
+        end = unique_idx[1]
+        return np.abs(idx[:, end] - idx[:, 0]) + 1
 
-    def match(texts, unit_type, stopwords=10, stopword_basis='corpus',
-              score_basis='word', frequency_basis='texts', max_distance=10,
+    def match(self, texts, unit_type, feature, stopwords=10,
+              stopword_basis='corpus', score_basis='word',
+              frequency_basis='texts', max_distance=10,
               distance_metric='frequency'):
         """Find matches between one or more texts.
 
@@ -48,6 +56,10 @@ class DefaultMatcher(object):
         ----------
         texts : list of tesserae.db.Text
             The texts to match. Texts are matched in
+        unit_type : {'line','phrase'}
+            The type of unit to match on.
+        feature : {'exact word','lemma','semantic','lemma + semantic','sound'}
+            The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
             or else a list of words to use as stopwords.
@@ -71,11 +83,10 @@ class DefaultMatcher(object):
             - 'span': the greatest distance between any two matching words
         """
         tokens = self.retrieve_tokens(texts)
-        units = self.retreve_units(texts, unit_type)
+        units = self.retrieve_units(texts, unit_type)
         frequencies = self.retrieve_frequencies(texts, tokens, frequency_basis)
 
         # TODO: recursive scheme for matching
-        # matches = find_matches(units, score_basis, tokens, 0, 1)
 
         matches = []
         distance_function = self.span_distance if distance_metric == 'span' \
@@ -113,7 +124,7 @@ class DefaultMatcher(object):
                     match.match_tokens = match_tokens
                     matches.append(match)
 
-        self.matches = matches
+        self.matches.extend(matches)
         return matches
 
     def retrieve_frequencies(self, texts, tokens, basis):
@@ -142,10 +153,10 @@ class DefaultMatcher(object):
             }}
         """
         if basis == 'corpus':
-            frequencies = self.collection.find('frequencies',
+            frequencies = self.connection.find('frequencies',
                                                form=[t.form for t in tokens])
         else:
-            frequencies = self.collection.find('frequencies',
+            frequencies = self.connection.find('frequencies',
                                                text=[t.id for t in texts],
                                                form=[t.form for t in tokens])
 
@@ -174,7 +185,7 @@ class DefaultMatcher(object):
         tokens = []
 
         for text in texts:
-            tokens.append(connection.find('tokens', text=text.id))
+            tokens.append(self.connection.find('tokens', text=text.id))
 
         return tokens
 
