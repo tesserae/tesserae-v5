@@ -30,7 +30,7 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
-        frequency_vector = np.array(frequency_vector, dtype=np..dtype([[('f', float), ('i', float)]]))
+        frequency_vector = np.array(frequency_vector, dtype=np.dtype([[('f', float), ('i', float)]]))
         ordered = np.argsort(frequency_vector, kind='heapsort')
         frequency_vector = frequency_vector[:, :, 0]
         return np.abs(ordered[1] - ordered[0]) + 1
@@ -176,7 +176,7 @@ class DefaultMatcher(object):
         for text in texts:
             tokens.append(connection.find('tokens', text=text.id))
 
-        return phrases
+        return tokens
 
     def retrieve_units(self, texts, unit_type):
         """Get the units associated with a text from the database.
