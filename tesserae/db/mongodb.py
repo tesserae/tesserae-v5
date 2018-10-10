@@ -36,6 +36,7 @@ except ImportError:
 import pymongo
 
 import tesserae.db.entities
+from tesserae.db.entities import Entity
 
 
 class TessMongoConnection():
@@ -88,14 +89,19 @@ class TessMongoConnection():
             if hasattr(ent, 'collection') and ent[collection] == collection:
                 entity = ent
 
-        result = [entity.from_json(doc) for doc in documents]
+        result = [entity.json_decode(doc) for doc in documents]
 
         return result
 
-    def delete(self, **kwargs):
+    def delete(self, entity):
         """Delete one or more entries from the database.
         """
-        pass
+        if isinstance(entity, Entity):
+            entity = [entity]
+        collection = self.connection[entity[0].__class__.collection]
+        result = collection.delete_many(
+            self.create_filter(_id=[e.id for e  in entity]))
+        return result
 
     def insert(self, entity):
         """Insert one or more entities into the database.
@@ -107,22 +113,39 @@ class TessMongoConnection():
 
 
         """
-        key = entity.primary
-
         if isinstance(entity, Entity):
+            entity = [entity]
+
+        for e in entity:
             exists = self.find(entity.collection,
                                **entity.to_json(exclude='_id'))
 
-        if len(exists) != 0:
-            # TODO: raise excpetion about duplicate entry
-            pass
+            if len(exists) != 0:
+                raise ValueError("Entity {} exists in the database.".format(e))
 
-        self.connection.insert_one()
+        collection = self.connection[e[0].__class__.collection]
+        result =collection.insert_many(
+            [e.json_encode(exclude=['_id']) for e in entity])
+        return result
 
     def update(self, entity):
         """Update an existing entry in the database.
         """
-        pass
+        if isinstance(entity, Entity):
+            entity = [entity]
+
+        for e in entity:
+            exists = self.find(entity.collection,
+                               **entity.to_json(exclude='_id'))
+
+            if len(exists) == 0:
+                raise ValueError("Entity {} exists in the database.".format(e))
+
+        collection = self.connection[e[0].__class__.collection]
+        result = collection.update_many(
+            self.create_filter(_id=[e.id for e in entity]),
+            [e.json_encode(exclude=['_id']) for e in entity])
+        return result
 
     def create_filter(self, **kwargs):
         """Create a filter for querying a MongoDB collection.
