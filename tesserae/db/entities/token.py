@@ -75,3 +75,29 @@ class Token(Entity):
         self.semantic: typing.List[str] = \
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
+
+    def match(self, other, feature):
+        """Determine whether two tokens match along a given feature.
+
+        Parameters
+        ----------
+        other : tesserae.db.entities.Token
+            The token to compare against.
+        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
+            The feature to compare on.
+
+        Returns
+        -------
+        match : bool
+        """
+        if feature == 'word':
+            return self.form == other.form
+        elif feature == 'lemmata':
+            return set(self.lemmata) == set(other.lemmata)
+        elif feature == 'semantic':
+            return set(self.semantic) == set(other.semantic)
+        elif feature == 'sound':
+            return set(self.sound) == set(other.sound)
+        else:
+            return set(self.lemmata) == set(other.lemmata) and \
+                   set(self.semantic) == set(other.semantic)

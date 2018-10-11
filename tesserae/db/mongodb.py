@@ -67,7 +67,7 @@ class TessMongoConnection():
         conn = conn[db]
         self.connection = conn
 
-    def find(self, collection, **filter_values):
+    def find(self, collection, sort=None, **filter_values):
         """Retrieve database entries.
 
         Parameters
@@ -82,12 +82,12 @@ class TessMongoConnection():
             The documents returned from the database.
         """
         query_filter = self.create_filter(**filter_values)
-        documents = self.connection[collection].find_many(query_filter)
+        coll = self.connection[collection]
+        documents = coll.find(query_filter, sort=sort)
 
         entity = None
-        for ent in tesserae.db.entities.__dict__:
-            if hasattr(ent, 'collection') and ent[collection] == collection:
-                entity = ent
+        if collection in tesserae.db.entities.entity_map:
+            entity = tesserae.db.entities.entity_map[collection]
 
         result = [entity.json_decode(doc) for doc in documents]
 
@@ -96,11 +96,14 @@ class TessMongoConnection():
     def delete(self, entity):
         """Delete one or more entries from the database.
         """
-        if isinstance(entity, Entity):
+        if not isinstance(entity, list):
             entity = [entity]
-        collection = self.connection[entity[0].__class__.collection]
-        result = collection.delete_many(
-            self.create_filter(_id=[e.id for e  in entity]))
+        try:
+            collection = self.connection[entity[0].__class__.collection]
+            result = collection.delete_many(
+                self.create_filter(_id=[e.id for e  in entity]))
+        except IndexError:
+            raise ValueError("No entities provided.")
         return result
 
     def insert(self, entity):
@@ -113,38 +116,44 @@ class TessMongoConnection():
 
 
         """
-        if isinstance(entity, Entity):
+        if not isinstance(entity, list):
             entity = [entity]
 
         for e in entity:
-            exists = self.find(entity.collection,
-                               **entity.to_json(exclude='_id'))
+            exists = self.find(e.collection,
+                               **e.json_encode(exclude=['_id']))
 
             if len(exists) != 0:
                 raise ValueError("Entity {} exists in the database.".format(e))
 
-        collection = self.connection[e[0].__class__.collection]
-        result =collection.insert_many(
-            [e.json_encode(exclude=['_id']) for e in entity])
+        try:
+            collection = self.connection[entity[0].__class__.collection]
+            result = collection.insert_many(
+                [e.json_encode(exclude=['_id']) for e in entity])
+        except IndexError:
+            raise ValueError("No entities provided.")
         return result
 
     def update(self, entity):
         """Update an existing entry in the database.
         """
-        if isinstance(entity, Entity):
+        if not isinstance(entity, list):
             entity = [entity]
 
         for e in entity:
-            exists = self.find(entity.collection,
-                               **entity.to_json(exclude='_id'))
+            exists = self.find(e.collection,
+                               **e.json_encode(exclude=['_id']))
 
             if len(exists) == 0:
-                raise ValueError("Entity {} exists in the database.".format(e))
+                raise ValueError("Entity {} does not exist in the database.".format(e))
 
-        collection = self.connection[e[0].__class__.collection]
-        result = collection.update_many(
-            self.create_filter(_id=[e.id for e in entity]),
-            [e.json_encode(exclude=['_id']) for e in entity])
+        try:
+            collection = self.connection[entity[0].__class__.collection]
+            result = collection.update_many(
+                self.create_filter(_id=[e.id for e in entity]),
+                [e.json_encode(exclude=['_id']) for e in entity])
+        except IndexError:
+            raise ValueError
         return result
 
     def create_filter(self, **kwargs):

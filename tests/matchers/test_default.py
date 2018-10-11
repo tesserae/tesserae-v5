@@ -2,10 +2,45 @@ import pytest
 
 from tesserae.matchers import DefaultMatcher
 
+import re
+import os
+
 import numpy as np
 import pymongo
 
-from tesserae.db import TessMongoConnection, Match
+from tesserae.db import TessMongoConnection, Match, Text, Token
+
+
+@pytest.fixture(scope='module')
+def reference_matches(tessfiles):
+    matches = []
+    for root, dirs, files in os.walk(tessfiles):
+        for fname in files:
+            if fname.find('tesresults') >= 0:
+                metadata = {}
+                matchset = []
+
+                with open(os.path.join(root, fname), 'r') as f:
+                    for line in f.readlines():
+                        if re.search(r'^[\d]+.+[\d]+$', line, flags=re.UNICODE):
+                            match = {}
+                            parts = line.split('\t')
+                            match['result'] = int(parts[0])
+                            match['target_loc'] = parts[1].strip('"')
+                            match['target_text'] = parts[2].strip('"')
+                            match['source_loc'] = parts[3].strip('"')
+                            match['source_text'] = parts[4].strip('"')
+                            match['shared'] = \
+                                re.split(r'; ', parts[5].strip('"'), flags=re.UNICODE)
+                            match['score'] = int(parts[6])
+                            matchset.append(match)
+                        elif re.search(r'^[#].+[=].+$', line, flags=re.UNICODE):
+                            parts = line.split()
+                            if re.search(r'^[\d]+$', parts[3], flags=re.UNICODE):
+                                parts[3] = int(parts[3])
+                            metadata[parts[1]] = parts[3]
+                matches.append((metadata, matchset))
+    return matches
 
 
 class TestDefaultMatcher(object):
@@ -73,23 +108,162 @@ class TestDefaultMatcher(object):
             assert m.matches == []
 
     def test_frequency_distance(self):
-        pass
-        # m = DefaultMatcher(None)
-        #
-        # frequency_vector = [1, 2]
-        # assert m.frequency_distance(frequency_vector) == [1, 1]
+        m = DefaultMatcher(None)
 
-    def test_match(self, request):
-        pass
+        test_vals = [
+            np.array([[[1, 1], [1, 2]], [[1, 1], [1, 2]]]),
+            np.array([[[1, 2], [1, 1]], [[1, 1], [1, 2]]]),
+            np.array([[[1, 1], [1, 2]], [[1, 2], [1, 1]]]),
+            np.array([[[1, 2], [1, 1]], [[1, 2], [1, 1]]]),
+            np.array([[[1, 1], [3, 2]], [[1, 1], [3, 2]]]),
+            np.array([[[1, 2], [3, 1]], [[1, 1], [3, 2]]]),
+            np.array([[[1, 1], [3, 2]], [[1, 2], [3, 1]]]),
+            np.array([[[1, 2], [3, 1]], [[1, 2], [3, 1]]]),
+        ]
 
-    def test_retrieve_frequencies(self, request):
-        pass
+        answers = [
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+            np.array([2, 2]),
+        ]
 
-    def test_retrieve_tokens(self, request):
-        pass
+        for i, val in enumerate(test_vals):
+            assert np.all(m.frequency_distance(val) == answers[i])
 
-    def test_retrieve_units(self, request):
-        pass
+
+
+    def test_match(self, request, populate, reference_matches):
+        conf = request.config
+        conn = TessMongoConnection(conf.getoption('db_host'),
+                                   conf.getoption('db_port'),
+                                   conf.getoption('db_user'),
+                                   password=conf.getoption('db_passwd',
+                                                           default=None),
+                                   db=conf.getoption('db_name',
+                                                     default=None))
+        for t in populate['texts']:
+            start = -1
+            if t['language'] == 'latin':
+                start = t['path'].find('la/')
+            if t['language'] == 'greek':
+                start = t['path'].find('grc/')
+            if start > 0:
+                t['path'] = t['path'][start:]
+
+                                   
+        m = DefaultMatcher(conn)
+        for ref in reference_matches:
+            metadata = ref[0]
+            correct = ref[1]
+            source = [t for t in populate['texts'] if re.search(metadata['source'], t['path'])]
+            target = [t for t in populate['texts'] if re.search(metadata['target'], t['path'])]
+            texts = [Text.json_decode(source[0]), Text.json_decode(target[0])]
+
+            matches = m.match(texts, metadata['unit'], metadata['feature'],
+                              stopwords=metadata['stopsize'],
+                              stopword_basis=metadata['stbasis'],
+                              score_basis=metadata['scorebase'],
+                              frequency_basis=metadata['freqbasis'],
+                              max_distance=metadata['max_dist'],
+                              distance_metric=metadata['dibasis'])
+            print(matches)
+            assert len(matches) == len(correct)
+
+    def test_retrieve_frequencies(self, request, populate):
+        conf = request.config
+        conn = TessMongoConnection(conf.getoption('db_host'),
+                                   conf.getoption('db_port'),
+                                   conf.getoption('db_user'),
+                                   password=conf.getoption('db_passwd',
+                                                           default=None),
+                                   db=conf.getoption('db_name',
+                                                     default=None))
+        m = DefaultMatcher(conn)
+
+        for text in populate['texts']:
+            text = Text.json_decode(text)
+            
+            start = -1
+            if text.language == 'latin':
+                start = text.path.find('la/')
+            if text.language == 'greek':
+                start = text.path.find('grc/')
+            if start >= 0:
+                text.path = text.path[start:]
+
+            tokens = [t for t in populate['tokens'] if t['text'] == text.path]
+            correct = [f for f in populate['frequencies']
+                       if f['text'] == text.path]
+            frequencies, _ = m.retrieve_frequencies([text], tokens, [text])
+            assert len(frequencies) > 0
+            assert len(frequencies) == len(correct)
+            for c in correct:
+                assert c['form'] in frequencies
+
+    def test_retrieve_tokens(self, request, populate):
+        conf = request.config
+        conn = TessMongoConnection(conf.getoption('db_host'),
+                                   conf.getoption('db_port'),
+                                   conf.getoption('db_user'),
+                                   password=conf.getoption('db_passwd',
+                                                           default=None),
+                                   db=conf.getoption('db_name',
+                                                     default=None))
+        m = DefaultMatcher(conn)
+        
+        for text in populate['texts']:
+            text = Text.json_decode(text)
+            
+            start = -1
+            if text.language == 'latin':
+                start = text.path.find('la/')
+            if text.language == 'greek':
+                start = text.path.find('grc/')
+            if start >= 0:
+                text.path = text.path[start:]
+
+            correct = [t for t in populate['tokens'] if t['text'] == text.path]
+            correct.sort(key=lambda x: x['index'])
+            tokens = m.retrieve_tokens([text])
+            assert len(tokens) > 0
+            assert len(tokens[0]) == len(correct)
+            for t in tokens[0]:
+                assert t.json_encode() == correct[t.index]
+
+    def test_retrieve_units(self, request, populate):
+        conf = request.config
+        conn = TessMongoConnection(conf.getoption('db_host'),
+                                   conf.getoption('db_port'),
+                                   conf.getoption('db_user'),
+                                   password=conf.getoption('db_passwd',
+                                                           default=None),
+                                   db=conf.getoption('db_name',
+                                                     default=None))
+        m = DefaultMatcher(conn)
+        for text in populate['texts']:
+            text = Text.json_decode(text)
+            
+            start = -1
+            if text.language == 'latin':
+                start = text.path.find('la/')
+            if text.language == 'greek':
+                start = text.path.find('grc/')
+            if start >= 0:
+                text.path = text.path[start:]
+
+            correct = [u for u in populate['units']
+                      if u['text'] == text.path and u['unit_type'] == 'line']
+            correct.sort(key=lambda x: x['index'])
+            units = m.retrieve_units([text], 'line')
+            assert len(units[0]) > 0
+            assert len(units[0]) == len(correct)
+            for u in units[0]:
+                assert u.json_encode() == correct[u.index]
 
     def test_span_distance(self):
         m = DefaultMatcher(None)

@@ -6,6 +6,20 @@ import datetime
 
 import pymongo
 
+from tesserae.db.entities import Frequency, Match, Text, Token, Unit
+
+
+@pytest.fixture(scope='module')
+def entity_map():
+    return {
+        'frequencies': Frequency,
+        'matches': Match,
+        'texts': Text,
+        'tokens': Token,
+        'units': Unit
+    }
+
+
 
 class TestTessMongoConnection(object):
     def test_init(self, request):
@@ -147,7 +161,7 @@ class TestTessMongoConnection(object):
                              '$gt': datetime.datetime(1984, 1, 1),
                              '$exists': True}}
 
-    def test_delete(self, request, populate):
+    def test_delete(self, request, populate, entity_map):
         conf = request.config
         conn = TessMongoConnection(conf.getoption('db_host'),
                                    conf.getoption('db_port'),
@@ -158,18 +172,20 @@ class TestTessMongoConnection(object):
                                                      default=None))
 
         for entity_type in populate:
-            for query_ent in populate[entity_type]:
-                res = conn.delete(entity_type, _id=query_ent['_id'])
+            if len(populate[entity_type]) == 0:
+                continue
+            end = \
+                len(populate[entity_type]) if len(populate[entity_type]) < 100 \
+                else 100
+            for query_ent in populate[entity_type][:end]:
+                entity = entity_map[entity_type].json_decode(query_ent)
+                res = conn.delete(entity)
+                found = conn.find(entity_type, **entity.json_encode(exclude=['_id']))
                 assert res.deleted_count == 1
-                assert res.raw_result == query_ent
-                conn.insert(entity_type, **query_ent)
+                assert len(found) == 0
+                conn.insert(entity)
 
-                conn.delete(entity_type, **query_ent)
-                assert res.deleted_count == 1
-                assert res.raw_result == query_ent
-                conn.insert(entity_type, **query_ent)
-
-    def test_find(self, request, populate):
+    def test_find(self, request, populate, entity_map):
         conf = request.config
         conn = TessMongoConnection(conf.getoption('db_host'),
                                    conf.getoption('db_port'),
@@ -179,14 +195,20 @@ class TestTessMongoConnection(object):
                                    db=conf.getoption('db_name',
                                                      default=None))
         for entity_type in populate:
-            for query_ent in populate[entity_type]:
-                ents = conn.find(entity_type, _id=query_ent['_id'])
-                assert ents[0].json_encode == query_ent
+            if len(populate[entity_type]) == 0:
+                continue
+            end = \
+                len(populate[entity_type]) if len(populate[entity_type]) < 100 \
+                else 100
+            for query_ent in populate[entity_type][:end]:
+                entity = entity_map[entity_type].json_decode(query_ent)
 
-                ents = conn.find(entity_type, **query_ent)
-                assert ents[0].json_encode == query_ent
+                ents = conn.find(entity_type,
+                    **entity.json_encode(exclude=['_id', 'lemmata', 'semantic', 'sound']))
+                assert ents[0].json_encode(exclude=['_id']) == entity.json_encode(exclude=['_id'])
 
         for text in populate['texts']:
+            text = Text.json_decode(text)
             ents = conn.find('tokens', text=text.path)
             correct_tokens = [t for t in populate['tokens']
                               if t['text'] == text.path]
@@ -203,7 +225,7 @@ class TestTessMongoConnection(object):
             assert len(ents) == len(correct_tokens)
 
 
-    def test_insert(self, request, populate):
+    def test_insert(self, request, populate, entity_map):
         conf = request.config
         conn = TessMongoConnection(conf.getoption('db_host'),
                                    conf.getoption('db_port'),
@@ -213,12 +235,17 @@ class TestTessMongoConnection(object):
                                    db=conf.getoption('db_name',
                                                      default=None))
         for entity_type in populate:
-            conn.delete(entity_type, _id=[t['_id'] for t in
-                                          populate[entity_type]])
-            for query_ent in populate[entity_type]:
-                del query_ent['_id']
-                res = conn.insert(entity_type, **query_ent)
-                assert res.inserted_ids[0] == query_ent['_id']
+            if len(populate[entity_type]) == 0:
+                continue
+            end = \
+                len(populate[entity_type]) if len(populate[entity_type]) < 100 \
+                else 100
+            entities = [entity_map[entity_type].json_decode(e)
+                    for e in populate[entity_type][:end]]
+            conn.delete(entities)
+            for entity in entities:
+                res = conn.insert(entity)
+                assert len(res.inserted_ids) == 1
 
     def test_to_query_list(self):
         pass
@@ -226,7 +253,7 @@ class TestTessMongoConnection(object):
     def test_to_query_range(self):
         pass
 
-    def test_update(self, request, populate):
+    def test_update(self, request, populate, entity_map):
         conf = request.config
         conn = TessMongoConnection(conf.getoption('db_host'),
                                    conf.getoption('db_port'),
@@ -236,9 +263,15 @@ class TestTessMongoConnection(object):
                                    db=conf.getoption('db_name',
                                                      default=None))
         for entity_type in populate:
-            for query_ent in populate[entity_type]:
-                query_ent['foo'] = 'bar'
-                res = conn.insert(entity_type, **query_ent)
+            if len(populate[entity_type]) == 0:
+                continue
+            end = \
+                len(populate[entity_type]) if len(populate[entity_type]) < 100 \
+                else 100
+            for query_ent in populate[entity_type][:end]:
+                entity = entity_map[entity_type].json_decode(query_ent)
+                entity.foo = 'bar'
+                res = conn.update(entity)
                 assert res.matched_count == 1
                 assert res.modified_count == 1
-                assert res.raw_result == query_ent
+                assert res.raw_result['foo'] == entity.foo
