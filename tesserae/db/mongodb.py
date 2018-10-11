@@ -67,7 +67,7 @@ class TessMongoConnection():
         conn = conn[db]
         self.connection = conn
 
-    def find(self, collection, **filter_values):
+    def find(self, collection, sort=None, **filter_values):
         """Retrieve database entries.
 
         Parameters
@@ -82,9 +82,8 @@ class TessMongoConnection():
             The documents returned from the database.
         """
         query_filter = self.create_filter(**filter_values)
-        print(query_filter)
         coll = self.connection[collection]
-        documents = coll.find(query_filter)
+        documents = coll.find(query_filter, sort=sort)
 
         entity = None
         if collection in tesserae.db.entities.entity_map:
