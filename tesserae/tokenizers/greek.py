@@ -86,5 +86,5 @@ class GreekTokenizer(BaseTokenizer):
         features = []
         lemmata = self.lemmatizer.lookup(tokens)
         for i, l in enumerate(lemmata):
-            features.append({'lemmata': lemmata[i][1]})
+            features.append({'lemmata': [lem[0] for lem in l[1]]})
         return features
