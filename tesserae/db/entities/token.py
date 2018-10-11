@@ -76,7 +76,7 @@ class Token(Entity):
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
 
-    def match(other, feature):
+    def match(self, other, feature):
         """Determine whether two tokens match along a given feature.
 
         Parameters
@@ -90,8 +90,14 @@ class Token(Entity):
         -------
         match : bool
         """
-        if feature != 'lemmata + semantic':
-            return getattr(self, feature) == getattr(other, feature)
+        if feature == 'word':
+            return self.form == other.form
+        elif feature == 'lemmata':
+            return set(self.lemmata) == set(other.lemmata)
+        elif feature == 'semantic':
+            return set(self.semantic) == set(other.semantic)
+        elif feature == 'sound':
+            return set(self.sound) == set(other.sound)
         else:
-            return self.lemmata == other.lemmata and \
-                   self.semantic == other.semantic
+            return set(self.lemmata) == set(other.lemmata) and \
+                   set(self.semantic) == set(other.semantic)
