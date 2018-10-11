@@ -1,4 +1,9 @@
+from collections import OrderedDict
+from operator import itemgetter
+import re
+
 import numpy as np
+import pymongo
 
 from tesserae.db import Match
 
@@ -38,8 +43,11 @@ class DefaultMatcher(object):
             freq_sorted, axis=-1)
         freq = np.take_along_axis(freq, freq_sorted, axis=-1)
         _, unique_idx = np.unique(freq, return_index=True, axis=1)
-        unique_idx[unique_idx > 1] -= 1
-        end = unique_idx[1]
+        if unique_idx.shape[0] > 1:
+            unique_idx[unique_idx > 1] -= 1
+            end = unique_idx[1]
+        else:
+            end = freq.shape[1] - 1
         return np.abs(idx[:, end] - idx[:, 0]) + 1
 
     def match(self, texts, unit_type, feature, stopwords=10,
@@ -58,7 +66,7 @@ class DefaultMatcher(object):
             The texts to match. Texts are matched in
         unit_type : {'line','phrase'}
             The type of unit to match on.
-        feature : {'exact word','lemma','semantic','lemma + semantic','sound'}
+        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
@@ -84,7 +92,11 @@ class DefaultMatcher(object):
         """
         tokens = self.retrieve_tokens(texts)
         units = self.retrieve_units(texts, unit_type)
-        frequencies = self.retrieve_frequencies(texts, tokens, frequency_basis)
+        frequencies, stopwords = self.retrieve_frequencies(texts, tokens, frequency_basis)
+        stopwords = '|'.join(['[\w]'] + stopwords)
+
+        print(len(units[0]), len(tokens[0]), len(frequencies))
+        print(len(units[1]), len(tokens[1]), len(frequencies))
 
         # TODO: recursive scheme for matching
 
@@ -98,36 +110,42 @@ class DefaultMatcher(object):
                 match_tokens = []
                 distance_vector = [[], []]
                 match_frequencies = [[], []]
-                tokens_a = [tokens[t] for t in unit_a.tokens]
-                tokens_b = [tokens[t] for t in unit_b.tokens]
+                tokens_a = [tokens[0][t] for t in unit_a.tokens]
+                tokens_b = [tokens[1][t] for t in unit_b.tokens]
                 for token_a in tokens_a:
-                    if distance_metric == 'frequency':
-                        distance_vector[0].append(
-                            (frequencies[token_a.form].frequency, token_a.index))
+                    if token_a.form and not re.search(stopwords, token_a.form, flags=re.UNICODE): # or token_a.form in stopwords:
+                        continue
                     for token_b in tokens_b:
-                        if distance_metric == 'frequency':
-                            distance_vector[1].append(
-                                (frequencies[token_b.form].frequency, token_b.index))
+                        if token_b.form and not re.search(stopwords, token_b.form, flags=re.UNICODE): # or token_b.form in stopwords:
+                            continue
                         if token_a.match(token_b, feature):
                             match_tokens.append((token_a, token_b))
                             if distance_metric == 'span':
                                 distance_vector[0].append(token_a.index)
                                 distance_vector[1].append(token_b.index)
+                            elif distance_metric == 'frequency':
+                                distance_vector[0].append(
+                                    (frequencies[token_a.form].frequency, token_a.index))
+                                distance_vector[1].append(
+                                    (frequencies[token_b.form].frequency, token_b.index))
 
-                dist = map(distance_function, distance_vector)
+                if len(match_tokens) < 2:
+                    continue
 
-                if len(match_tokens) >= 2 and all(dist < max_distance):
+                dist = distance_function(distance_vector)
+
+                if all(dist < max_distance):
                     dist = sum(dist)
                     freq = np.sum(
                         np.sum(1.0 / np.asarray(match_frequencies), axis=-1))
-                    match.score = math.log(freq / dist)
+                    match.score = np.log(freq / dist)
                     match.match_tokens = match_tokens
                     matches.append(match)
 
         self.matches.extend(matches)
         return matches
 
-    def retrieve_frequencies(self, texts, tokens, basis):
+    def retrieve_frequencies(self, texts, tokens, basis, stoplist=None):
         """Get token frequencies for the tokens to be matched.
 
         Parameters
@@ -153,21 +171,29 @@ class DefaultMatcher(object):
             }}
         """
         if basis == 'corpus':
-            frequencies = self.connection.find('frequencies',
-                                               form=[t.form for t in tokens])
+            frequencies = self.connection.find(
+                'frequencies',
+                sort=[('frequency', pymongo.ASCENDING)])
         else:
-            frequencies = self.connection.find('frequencies',
-                                               text=[t.id for t in texts],
-                                               form=[t.form for t in tokens])
+            frequencies = self.connection.find(
+                'frequencies',
+                sort=[('frequency', pymongo.ASCENDING)],
+                text=[t.path for t in texts])
 
-        formatted = {}
+        formatted = OrderedDict()
         for f in frequencies:
             try:
                 formatted[f.form] += f.frequency
             except KeyError:
                 formatted[f.form] = f.frequency
 
-        return formatted
+        stopwords = []
+        if stoplist:
+            stopwords = sorted(formatted.items(), key=lambda x: x[1]['frequency'], reverse=True)
+            stopwords = [i[0] for i in stopwords]
+            stopwords = stopwords[:stoplist]
+
+        return formatted, stopwords
 
     def retrieve_tokens(self, texts):
         """Get the tokens associated with a text from the database.
@@ -185,7 +211,11 @@ class DefaultMatcher(object):
         tokens = []
 
         for text in texts:
-            tokens.append(self.connection.find('tokens', text=text.id))
+            tokens.append(self.connection.find(
+                'tokens',
+                sort=[('index', pymongo.ASCENDING)],
+                text=text.path))
+            tokens[-1].sort(key=lambda x: x.index)
 
         return tokens
 
@@ -207,9 +237,9 @@ class DefaultMatcher(object):
         units = []
 
         for text in texts:
-            units.append(connection.find('units',
-                         text=text.id, unit_type=unit_type))
-
+            units.append(self.connection.find('units',
+                         text=text.path, unit_type=unit_type))
+            units[-1].sort(key=lambda x: x.index)
         return units
 
     def span_distance(self, index_vector):
