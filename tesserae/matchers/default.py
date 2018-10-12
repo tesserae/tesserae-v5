@@ -11,6 +11,28 @@ from tesserae.db import Match
 
 
 class DefaultMatcher(object):
+    """Intertext matching using the Tesserae v3 similarity scoreself.
+
+    Based on the similarity score described in [tess]_ .
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        Open connection to the Tesserae MongoDB instanceself.
+
+    Attributes
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        Open connection to the Tesserae MongoDB instanceself.
+    matches : list of tesserae.db.Match
+
+    References
+    ----------
+    .. [tess] Forstall, C., Coffee, N., Buck, T., Roache, K., & Jacobson, S.
+       (2014). Modeling the scholars: Detecting intertextuality through
+       enhanced word-level n-gram matching. Digital Scholarship in the
+       Humanities, 30(4), 503-515.
+    """
     def __init__(self, connection):
         self.connection = connection
         self.clear()
@@ -35,6 +57,10 @@ class DefaultMatcher(object):
         distance : float
             The number of words separating the two lowest-frequency tokens.
         """
+        frequency_vector = np.asarray(frequency_vector)
+
+        # Lexical sort the frequencies first by token index in the unit, then
+        # by the frequency of the token.
         idx_sorted = np.argsort(frequency_vector[:, :, 1], axis=1)
         freq = np.take_along_axis(frequency_vector[:, :, 0], idx_sorted, axis=-1)
         freq_sorted = np.argsort(freq, axis=1)
@@ -42,12 +68,21 @@ class DefaultMatcher(object):
             np.take_along_axis(frequency_vector[:, :, 1], idx_sorted, axis=-1),
             freq_sorted, axis=-1)
         freq = np.take_along_axis(freq, freq_sorted, axis=-1)
+
+        # Find the index of the first occurrence of each unique frequency
+        # value.
         _, unique_idx = np.unique(freq, return_index=True, axis=1)
+
+        # Account for repeated frequency values.
         if unique_idx.shape[0] > 1:
             unique_idx[unique_idx > 1] -= 1
             end = unique_idx[1]
         else:
             end = freq.shape[1] - 1
+
+        # The distance is the number of words separating the two least-frequent
+        # tokens, taking the maximum possible distance when multiple tokens
+        # occur at the lowest frequency.
         return np.abs(idx[:, end] - idx[:, 0]) + 1
 
     def match(self, texts, unit_type, feature, stopwords=10,
@@ -90,13 +125,14 @@ class DefaultMatcher(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
+        # Get the units, tokens, and frequencies to match on
         tokens = self.retrieve_tokens(texts)
         units = self.retrieve_units(texts, unit_type)
-        frequencies, stopwords = self.retrieve_frequencies(texts, tokens, frequency_basis)
-        stopwords = '|'.join(['[\w]'] + stopwords)
+        frequencies, stopwords = \
+            self.retrieve_frequencies(texts, tokens,
+                                      frequency_basis, stopwords)
 
-        print(len(units[0]), len(tokens[0]), len(frequencies))
-        print(len(units[1]), len(tokens[1]), len(frequencies))
+        print('Stopwords: {}'.format(stopwords))
 
         # TODO: recursive scheme for matching
 
@@ -107,37 +143,40 @@ class DefaultMatcher(object):
         for unit_a in units[0]:
             for unit_b in units[1]:
                 match = Match(units=[unit_a, unit_b])
-                match_tokens = []
+                match_tokens = [[], []]
                 distance_vector = [[], []]
                 match_frequencies = [[], []]
                 tokens_a = [tokens[0][t] for t in unit_a.tokens]
                 tokens_b = [tokens[1][t] for t in unit_b.tokens]
                 for token_a in tokens_a:
-                    if token_a.form and not re.search(stopwords, token_a.form, flags=re.UNICODE): # or token_a.form in stopwords:
+                    if not token_a.form or not re.search(r'[\w]', token_a.form, flags=re.UNICODE) or token_a.form in stopwords:
                         continue
                     for token_b in tokens_b:
-                        if token_b.form and not re.search(stopwords, token_b.form, flags=re.UNICODE): # or token_b.form in stopwords:
+                        if not token_b.form or not re.search(r'[\w]', token_b.form, flags=re.UNICODE) or token_b.form in stopwords:
                             continue
                         if token_a.match(token_b, feature):
-                            match_tokens.append((token_a, token_b))
+                            match_tokens[0].append(token_a)
+                            match_frequencies[0].append(frequencies[token_a.form])
+                            match_tokens[1].append(token_b)
+                            match_frequencies[1].append(frequencies[token_b.form])
                             if distance_metric == 'span':
                                 distance_vector[0].append(token_a.index)
                                 distance_vector[1].append(token_b.index)
                             elif distance_metric == 'frequency':
                                 distance_vector[0].append(
-                                    (frequencies[token_a.form].frequency, token_a.index))
+                                    (frequencies[token_a.form], token_a.index))
                                 distance_vector[1].append(
-                                    (frequencies[token_b.form].frequency, token_b.index))
+                                    (frequencies[token_b.form], token_b.index))
 
-                if len(match_tokens) < 2:
+                if len(match_tokens[0]) < 2 or len(match_tokens[1]) < 2:
                     continue
 
-                dist = distance_function(distance_vector)
+                dist = distance_function(distance_vector).astype(np.float32)
 
-                if all(dist < max_distance):
+                if np.all(dist > 1) and np.all(dist <= max_distance):
                     dist = sum(dist)
                     freq = np.sum(
-                        np.sum(1.0 / np.asarray(match_frequencies), axis=-1))
+                        np.sum(1.0 / np.asarray(match_frequencies).astype(np.float32), axis=-1))
                     match.score = np.log(freq / dist)
                     match.match_tokens = match_tokens
                     matches.append(match)
@@ -173,11 +212,11 @@ class DefaultMatcher(object):
         if basis == 'corpus':
             frequencies = self.connection.find(
                 'frequencies',
-                sort=[('frequency', pymongo.ASCENDING)])
+                sort=[('frequency', pymongo.DESCENDING)])
         else:
             frequencies = self.connection.find(
                 'frequencies',
-                sort=[('frequency', pymongo.ASCENDING)],
+                sort=[('frequency', pymongo.DESCENDING)],
                 text=[t.path for t in texts])
 
         formatted = OrderedDict()
@@ -189,7 +228,7 @@ class DefaultMatcher(object):
 
         stopwords = []
         if stoplist:
-            stopwords = sorted(formatted.items(), key=lambda x: x[1]['frequency'], reverse=True)
+            stopwords = sorted(formatted.items(), key=lambda x: x[1], reverse=True)
             stopwords = [i[0] for i in stopwords]
             stopwords = stopwords[:stoplist]
 
@@ -215,7 +254,6 @@ class DefaultMatcher(object):
                 'tokens',
                 sort=[('index', pymongo.ASCENDING)],
                 text=text.path))
-            tokens[-1].sort(key=lambda x: x.index)
 
         return tokens
 
@@ -238,8 +276,8 @@ class DefaultMatcher(object):
 
         for text in texts:
             units.append(self.connection.find('units',
+                         sort=[('index', pymongo.ASCENDING)],
                          text=text.path, unit_type=unit_type))
-            units[-1].sort(key=lambda x: x.index)
         return units
 
     def span_distance(self, index_vector):
@@ -259,14 +297,19 @@ class DefaultMatcher(object):
             The number of words separating the two lowest-frequency tokens.
         """
         index_vector = np.asarray(index_vector)
+
+        # Sort the indices of the match words in each unit.
         ordered = np.argsort(index_vector, kind='heapsort', axis=-1)
+
+        # The distance of the match in each unit is the number of words
+        # spearating the first and last match words.
         dist = np.abs(
             np.take_along_axis(index_vector, ordered, axis=-1)[:, -1] -
             np.take_along_axis(index_vector, ordered, axis=-1)[:, 0]) + 1
 
-        if np.any(dist < 2):
-            raise ValueError(
-                "The index vector must contain multiple values and cannot " +
-                "contain duplicate values")
+        # if np.any(dist < 2):
+        #     raise ValueError(
+        #         "The index vector must contain multiple values and cannot " +
+        #         "contain duplicate values")
 
         return dist
