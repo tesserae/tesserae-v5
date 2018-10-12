@@ -51,6 +51,10 @@ class Entity():
         """
         return self._id
 
+    @id.setter
+    def id(self, value : typing.Optional[typing.Union[str, ObjectId]]):
+        self._id = value
+
     def json_encode(self, exclude: typing.Optional[typing.List[str]] = None):
         """Encode this entity as a valid JSON object.
 
