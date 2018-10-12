@@ -9,3 +9,6 @@ _build
 *.debug
 *.log
 .pytest_cache
+.ipynb_checkpoints
+.vscode
+*env/
