@@ -93,11 +93,11 @@ class Token(Entity):
         if feature == 'word':
             return self.form == other.form
         elif feature == 'lemmata':
-            return set(self.lemmata) == set(other.lemmata)
+            return len(set(self.lemmata) & set(other.lemmata)) > 0
         elif feature == 'semantic':
-            return set(self.semantic) == set(other.semantic)
+            return len(set(self.semantic) & set(other.semantic)) > 0
         elif feature == 'sound':
-            return set(self.sound) == set(other.sound)
+            return len(set(self.sound) & set(other.sound)) > 0
         else:
-            return set(self.lemmata) == set(other.lemmata) and \
-                   set(self.semantic) == set(other.semantic)
+            return len(set(self.lemmata) & set(other.lemmata)) > 0 and \
+                   len(set(self.semantic) & set(other.semantic)) > 0
