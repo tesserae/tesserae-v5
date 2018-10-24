@@ -1,3 +1,5 @@
-from .mongodb import get_connection, create_filter
-from .entities import convert_to_entity, Text, Unit, Token, Frequency, NGram, \
-                      Match
+from .mongodb import TessMongoConnection
+from .entities import *
+
+__all__ = ['TessMongoConnection', 'Frequency', 'Match', 'Token', 'Text',
+           'Unit']

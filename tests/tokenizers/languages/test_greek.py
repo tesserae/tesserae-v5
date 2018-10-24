@@ -10,7 +10,7 @@ import sys
 
 from cltk.semantics.latin.lookup import Lemmata
 
-from tesserae.tokenizers.languages import GreekTokenizer
+from tesserae.tokenizers import GreekTokenizer
 from tesserae.utils import TessFile
 
 
