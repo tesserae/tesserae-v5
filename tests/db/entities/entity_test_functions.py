@@ -17,7 +17,7 @@ def entity_init(entity, default_attrs, valid_attrs):
 
         e = entity(**v)
 
-        if fix_id:
+        if 'id' in v or fix_id:
             v['_id'] = v.pop('id')
 
         for k in e.__dict__:
