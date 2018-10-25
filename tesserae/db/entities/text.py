@@ -35,6 +35,8 @@ class Text(Entity):
         Year that the text was written/published.
     unit_types : str or list of str, optional
         Available methods for splitting a text into units.
+    is_prose : bool, optional
+        Is this text prose?
 
     Attributes
     ----------
@@ -53,6 +55,8 @@ class Text(Entity):
         Year that the text was written/published.
     unit_types : list of str
         Available methods for splitting a text into units.
+    is_prose : bool, optional
+        Is this text prose?
 
     """
 
@@ -60,7 +64,7 @@ class Text(Entity):
 
     def __init__(self, id=None, cts_urn=None, language=None, title=None,
                  author=None, year=None, unit_types=None, path=None,
-                 hash=None):
+                 is_prose=None, hash=None):
         super(Text, self).__init__(id=id)
         self.cts_urn: typing.Optional[str] = cts_urn
         self.language: typing.Optional[str] = language
@@ -70,4 +74,5 @@ class Text(Entity):
         self.unit_types: typing.List[str] = \
             unit_types if unit_types is not None else []
         self.path: typing.Optional[str] = path
+        self.is_prose: typing.Optional[bool] = is_prose
         self.hash: typing.Optional[str] = hash
