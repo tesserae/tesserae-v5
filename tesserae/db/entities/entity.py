@@ -98,4 +98,7 @@ class Entity():
         if '_id' in obj:
             obj['id'] = obj['_id']
             del obj['_id']
-        return cls(**obj)
+        instance = cls()
+        for k, v in obj.items():
+            setattr(instance, k, v)
+        return instance
