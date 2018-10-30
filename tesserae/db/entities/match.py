@@ -27,20 +27,19 @@ class Match(Entity):
         Tokens contributing to the match.
     score : float, optional
         The score of this match.
-    metadata : dict, optional
-        Metadata about the match (e.g., scorer method, scorer parameters).
+    match_set : bson.objectid.ObjectId, optional
+        Match set that this match belongs to.
 
     """
 
     collection = 'matches'
 
     def __init__(self, id=None, units=None, tokens=None, score=None,
-                 metadata=None):
+                 match_set=None):
         super(Match, self).__init__(id=id)
         self.units: typing.Optional[typing.List[ObjectId, Unit]] = \
             units if units is not None else []
         self.tokens: typing.Optional[typing.List[ObjectId, Token]] = \
             tokens if tokens is not None else []
         self.score: typing.Optional[float] = score
-        self.metadata: typing.Optional[typing.Dict] = \
-            metadata if metadata is not None else {}
+        self.match_set: typing.Optional[ObjectId] = match_set
