@@ -96,6 +96,12 @@ class TessFile(object):
             self.__hash = hashinator.hexdigest()
         return self.__hash
 
+    def read(self):
+        if self.buffer:
+            return self.file.read()
+        else:
+            return '\n'.join(self.file)
+
     def readlines(self, include_tag=True):
         """Iterate over the lines of the .tess file in order.
 
