@@ -17,7 +17,7 @@ def entity_init(entity, default_attrs, valid_attrs):
 
         e = entity(**v)
 
-        if fix_id:
+        if 'id' in v or fix_id:
             v['_id'] = v.pop('id')
 
         for k in e.__dict__:
@@ -45,7 +45,16 @@ def entity_copy(entity, default_attrs, valid_attrs):
     assert e2 == e1
 
     for v in valid_attrs:
-        e1 = entity(id=v)
+        fix_id = False
+        if '_id' in v:
+            v['id'] = v.pop('_id')
+            fix_id = True
+            
+        e1 = entity(**v)
+        
+        if 'id' in v or fix_id:
+            v['_id'] = v.pop('id')
+        
         e2 = e1.copy()
         assert e2 is not e1
         assert e2 == e1
@@ -106,7 +115,7 @@ def entity_json_encode(entity, default_attrs, valid_attrs):
 
         e = entity(**v)
 
-        if fix_id:
+        if 'id' in v or fix_id:
             v['_id'] = v.pop('id')
 
         for i, k in enumerate(attrs):
@@ -151,7 +160,7 @@ def entity_json_decode(entity, default_attrs, valid_attrs):
 
         e = entity(**v)
 
-        if fix_id:
+        if 'id' in v or fix_id:
             v['_id'] = v.pop('id')
 
         decoded = entity.json_decode(v)
