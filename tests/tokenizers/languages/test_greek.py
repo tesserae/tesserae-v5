@@ -118,79 +118,109 @@ class TestGreekTokenizer(TestBaseTokenizer):
 
             t = TessFile(fname)
 
-            token_idx = 0
+            tokens, frequencies = grc.tokenize(t.read())
+            tokens = [t for t in tokens
+                      if re.search('[\w]',
+                                   t.display, flags=re.UNICODE)]
 
-            for i, line in enumerate(t.readlines(include_tag=False)):
-                tokens, frequencies = grc.tokenize(line)
-                tokens = [t for t in tokens
-                          if re.search('[\w]',
-                                       t.display, flags=re.UNICODE)]
-                offset = token_idx + len(tokens)
-
-                correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-                              zip(tokens, ref_tokens[token_idx:offset]))
-
-                if not all(correct):
-                    print(fname, i, line)
-                    for j in range(len(tokens)):
-                        if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
-                            print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
-                            print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-
-                assert all(correct)
-
-                correct = map(lambda x: x[0].form == x[1]['FORM'],
-                              zip(tokens, ref_tokens[token_idx:offset]))
-
-                if not all(correct):
-                    print(fname, i, line)
-                    for j in range(len(tokens)):
-                        if tokens[j].form != ref_tokens[token_idx + j]['FORM']:
-                            print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-
-                assert all(correct)
-
-                token_idx = offset
-
-            grc_tokens = [t for t in grc.tokens
-                          if re.search('[\w]',
-                                       t.display, flags=re.UNICODE)]
-
-            print(len(grc_tokens), len(ref_tokens))
-
-            correct = map(lambda x: x[0].form == x[1]['FORM'],
-                          zip(grc_tokens, ref_tokens))
+            correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
+                          zip(tokens, ref_tokens))
 
             if not all(correct):
-                for j in range(len(grc_tokens)):
-                    if grc_tokens[j].form != ref_tokens[j]['FORM']:
-                        print('{}->{}'.format(grc_tokens[j].form, ref_tokens[j]['FORM']))
-                        print('{}->{}'.format(grc_tokens[j].display, ref_tokens[j]['DISPLAY']))
+                print(fname)
+                for j in range(len(tokens)):
+                    if tokens[j].display != ref_tokens[j]['DISPLAY']:
+                        print(ref_tokens[j])
+                        print('{}->{}'.format(tokens[j].display, ref_tokens[j]['DISPLAY']))
+                        print('{}->{}'.format(tokens[j].form, ref_tokens[j]['FORM']))
 
             assert all(correct)
 
-            if '' in ref_freqs:
-                del ref_freqs['']
+            correct = map(lambda x: x[0].form == x[1]['FORM'],
+                          zip(tokens, ref_tokens))
 
-            for key in ref_freqs:
-                assert key in grc.frequencies
-                assert grc.frequencies[key] == ref_freqs[key]
-
-            diff = []
-            for word in frequencies:
-                if word.form not in ref_freqs and word.form != '':
-                    diff.append(word.form)
-            print(diff)
-            assert len(diff) == 0
-
-            assert len(frequencies) == len(ref_freqs)
-            keys = sorted(list(ref_freqs.keys()))
-            frequencies.sort(key=lambda x: x.form)
-            correct = map(
-                lambda x: x[0].form == x[1] and
-                          x[0].frequency == ref_freqs[x[1]],
-                zip(frequencies, keys))
+            if not all(correct):
+                print(fname)
+                for j in range(len(tokens)):
+                    if tokens[j].form != ref_tokens[j]['FORM']:
+                        print(ref_tokens[j])
+                        print('{}->{}'.format(tokens[j].form, ref_tokens[j]['FORM']))
 
             assert all(correct)
 
-            grc.clear()
+            # token_idx = 0
+            #
+            # for i, line in enumerate(t.readlines(include_tag=False)):
+            #     tokens, frequencies = grc.tokenize(line)
+            #     tokens = [t for t in tokens
+            #               if re.search('[\w]',
+            #                            t.display, flags=re.UNICODE)]
+            #     offset = token_idx + len(tokens)
+            #
+            #     correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
+            #                   zip(tokens, ref_tokens[token_idx:offset]))
+            #
+            #     if not all(correct):
+            #         print(fname, i, line)
+            #         for j in range(len(tokens)):
+            #             if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
+            #                 print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
+            #                 print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
+            #
+            #     assert all(correct)
+            #
+            #     correct = map(lambda x: x[0].form == x[1]['FORM'],
+            #                   zip(tokens, ref_tokens[token_idx:offset]))
+            #
+            #     if not all(correct):
+            #         print(fname, i, line)
+            #         for j in range(len(tokens)):
+            #             if tokens[j].form != ref_tokens[token_idx + j]['FORM']:
+            #                 print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
+            #
+            #     assert all(correct)
+            #
+            #     token_idx = offset
+            #
+            # grc_tokens = [t for t in grc.tokens
+            #               if re.search('[\w]',
+            #                            t.display, flags=re.UNICODE)]
+            #
+            # print(len(grc_tokens), len(ref_tokens))
+            #
+            # correct = map(lambda x: x[0].form == x[1]['FORM'],
+            #               zip(grc_tokens, ref_tokens))
+            #
+            # if not all(correct):
+            #     for j in range(len(grc_tokens)):
+            #         if grc_tokens[j].form != ref_tokens[j]['FORM']:
+            #             print('{}->{}'.format(grc_tokens[j].form, ref_tokens[j]['FORM']))
+            #             print('{}->{}'.format(grc_tokens[j].display, ref_tokens[j]['DISPLAY']))
+            #
+            # assert all(correct)
+            #
+            # if '' in ref_freqs:
+            #     del ref_freqs['']
+            #
+            # for key in ref_freqs:
+            #     assert key in grc.frequencies
+            #     assert grc.frequencies[key] == ref_freqs[key]
+            #
+            # diff = []
+            # for word in frequencies:
+            #     if word.form not in ref_freqs and word.form != '':
+            #         diff.append(word.form)
+            # print(diff)
+            # assert len(diff) == 0
+            #
+            # assert len(frequencies) == len(ref_freqs)
+            # keys = sorted(list(ref_freqs.keys()))
+            # frequencies.sort(key=lambda x: x.form)
+            # correct = map(
+            #     lambda x: x[0].form == x[1] and
+            #               x[0].frequency == ref_freqs[x[1]],
+            #     zip(frequencies, keys))
+            #
+            # assert all(correct)
+            #
+            # grc.clear()
