@@ -52,7 +52,7 @@ class Entity():
         return self._id
 
     @id.setter
-    def id(self, value : typing.Optional[typing.Union[str, ObjectId]]):
+    def id(self, value: typing.Optional[typing.Union[str, ObjectId]]):
         self._id = value
 
     def json_encode(self, exclude: typing.Optional[typing.List[str]] = None):
@@ -73,6 +73,22 @@ class Entity():
         for k in exclude:
             if k in obj:
                 del obj[k]
+
+        # Nasty code to recursively follow dictionary/list entries to transform
+        # attributes containing Entity instances into ObjectIds
+        curr = obj
+        stack = [curr.items()]
+        while stack:
+            for curr, (k, v) in stack[-1]:
+                if isinstance(v, dict):
+                    stack.append((curr[k], v.items()))
+                elif isinstance(v, list):
+                    stack.append((curr[k], enumerate(v)))
+                elif isinstance(v, Entity):
+                    curr[k] = v.id
+            else:
+                stack.pop()
+
         return obj
 
     @classmethod
