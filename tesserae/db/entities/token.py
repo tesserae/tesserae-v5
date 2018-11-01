@@ -56,12 +56,14 @@ class Token(Entity):
     collection = 'tokens'
 
     def __init__(self, id=None, text=None, index=None, display=None,
-                 feature_set=None):
+                 feature_set=None, line_id=None, phrase_id=None):
         super(Token, self).__init__(id=id)
         self.text: typing.Optional[typing.Union[str, ObjectId]] = text
         self.index: typing.Optional[int] = index
         self.display: typing.Optional[str] = display
         self.feature_set: typing.Optional[ObjectId] = feature_set
+        self.line_id: typing.Optional[ObjectId] = line_id
+        self.phrase_id: typing.Optional[ObjectId]
 
     def match(self, other, feature):
         """Determine whether two tokens match along a given feature.
