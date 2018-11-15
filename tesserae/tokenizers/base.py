@@ -2,7 +2,7 @@ import collections
 import re
 import unicodedata
 
-from tesserae.db import Frequency, Token
+from tesserae.db import FeatureSet, Frequency, Token
 
 
 class BaseTokenizer(object):
@@ -100,7 +100,9 @@ class BaseTokenizer(object):
         normalized = self.normalize(raw)
         normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
         normalized = [n for n in normalized if n]
-        display = re.split(self.split_pattern, raw, flags=re.UNICODE)
+        raw = re.sub(r'<.+>\s', '', raw, flags=re.UNICODE)
+        raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
+        display = [t for t in re.split(r'( / )|([^\w])', raw, flags=re.UNICODE) if t]
         featurized = self.featurize(normalized)
 
         # Create the storage for this run of `tokenize`
@@ -108,26 +110,43 @@ class BaseTokenizer(object):
         frequencies = collections.Counter(
             [n for i, n in enumerate(normalized) if
              re.search('[\w]+', normalized[i], flags=re.UNICODE)])
-        frequency_list = []
+        frequency_list = {}
+        feature_sets = {}
 
         # Get the text id from the metadata if it was passed in
         try:
-            text_id = text.path
+            text_id = text
         except AttributeError:
             text_id = None
+
+        try:
+            language = text.language
+        except AttributeError:
+            language = None
 
         # Prep the token objects
         base = len(self.tokens)
         norm_i = 0
         for i, d in enumerate(display):
             idx = i + base
+            feature_set = None
+            frequency = None
             if re.search(self.word_characters, d, flags=re.UNICODE):
                 n = normalized[norm_i]
                 f = featurized[norm_i]
-                t = Token(text=text_id, index=idx, display=d, form=n, **f)
+                try:
+                    feature_set = feature_sets[n]
+                    frequency = freqeuncy_list[n]
+                except KeyError as e:
+                    feature_set = FeatureSet(form=n, language=language, **f)
+                    frequency = Frequency(text=text_id,
+                                          form=n,
+                                          frequency=frequencies[n])
+                    frequency_list[n] = frequency
                 norm_i += 1
-            else:
-                t = Token(text=text_id, index=idx, display=d, form='')
+
+            t = Token(text=text_id, index=idx, display=d,
+                      feature_set=feature_set, frequency=frequency)
             tokens.append(t)
 
         # Update the internal record if necessary
@@ -138,9 +157,4 @@ class BaseTokenizer(object):
             self.frequencies.update(frequencies)
             frequencies = self.frequencies
 
-        # Prep the freqeuncy objects
-        for k, v in frequencies.items():
-            f = Frequency(text=text_id, form=k, frequency=v)
-            frequency_list.append(f)
-
-        return tokens, frequency_list
+        return tokens, list(frequency_list.values())
