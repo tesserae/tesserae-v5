@@ -10,7 +10,6 @@ import typing
 from bson.objectid import ObjectId
 
 from tesserae.db.entities.entity import Entity
-from tesserae.db.entities.token import Token
 
 
 class Unit(Entity):
@@ -56,8 +55,20 @@ class Unit(Entity):
     def __init__(self, id=None, text=None, index=None, unit_type=None,
                  tokens=None):
         super(Unit, self).__init__(id=id)
-        self.text: typing.Optional[str] = text
+        self.text: typing.Optional[ObjectId] = text
         self.index: typing.Optional[int] = index
         self.unit_type: typing.Optional[str] = unit_type
-        self.tokens: typing.List[typing.Union[str, ObjectId, Token]] = \
+        self.tokens: typing.List[typing.Union[ObjectId, Entity]] = \
             tokens if tokens is not None else []
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.text, self.tokens]
+        self.text = self.text.id
+        self.tokens = [t.id for t in self.tokens]
+
+        obj = super(Unit, self).json_encode(exclude=exclude)
+
+        self.text, self.tokens = self._ignore
+        del self._ignore
+
+        return obj
