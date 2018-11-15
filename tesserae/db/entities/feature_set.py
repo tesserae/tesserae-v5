@@ -60,3 +60,6 @@ class FeatureSet(Entity):
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
         self.language: typing.Optional[str] = language
+
+    def __hash__(self):
+        return hash(self.form)

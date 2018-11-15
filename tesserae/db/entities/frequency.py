@@ -47,6 +47,21 @@ class Frequency(Entity):
 
     def __init__(self, id=None, text=None, form=None, frequency=None):
         super(Frequency, self).__init__(id=id)
-        self.text: typing.Optional[typing.Union[str, ObjectId]] = text
-        self.form: typing.Optional[typing.Union[str, ObjectId, Token]] = form
+        self.text: typing.Optional[typing.Union[ObjectId]] = text
+        self.form: typing.Optional[typing.Union[ObjectId, FeatureSet]] = form
         self.frequency: typing.Optional[int] = frequency
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.text, self.form]
+        self.text = self.text.id
+        #self.form = self.form.id
+
+        obj = super(Frequency, self).json_encode(exclude=exclude)
+
+        self.text, self.form = self._ignore
+        del self._ignore
+
+        return obj
+
+    def __hash__(self):
+        return hash(self.form)
