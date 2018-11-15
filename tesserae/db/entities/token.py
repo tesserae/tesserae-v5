@@ -9,7 +9,7 @@ import typing
 
 from bson.objectid import ObjectId
 
-from tesserae.db.entities import Entity
+from tesserae.db.entities.entity import Entity
 
 
 class Token(Entity):
@@ -56,14 +56,15 @@ class Token(Entity):
     collection = 'tokens'
 
     def __init__(self, id=None, text=None, index=None, display=None,
-                 feature_set=None, line_id=None, phrase_id=None):
+                 feature_set=None, line=None, phrase=None, frequency=None):
         super(Token, self).__init__(id=id)
-        self.text: typing.Optional[typing.Union[str, ObjectId]] = text
+        self.text: typing.Optional[typing.Union[Entity, ObjectId]] = text
         self.index: typing.Optional[int] = index
         self.display: typing.Optional[str] = display
-        self.feature_set: typing.Optional[ObjectId] = feature_set
-        self.line_id: typing.Optional[ObjectId] = line_id
-        self.phrase_id: typing.Optional[ObjectId]
+        self.feature_set: typing.Optional[typing.Union[Entity, ObjectId]] = feature_set
+        self.line: typing.Optional[typing.Union[Entity, ObjectId]] = line
+        self.phrase: typing.Optional[typing.Union[Entity, ObjectId]] = phrase
+        self.frequency: typing.Optional[typing.Union[Entity, ObjectId]] = frequency
 
     def match(self, other, feature):
         """Determine whether two tokens match along a given feature.
@@ -90,3 +91,22 @@ class Token(Entity):
         else:
             return len(set(self.lemmata) & set(other.lemmata)) > 0 and \
                    len(set(self.semantic) & set(other.semantic)) > 0
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.text, self.feature_set, self.line, self.phrase, self.frequency]
+        self.text = self.text.id if self.text is not None else None
+        self.feature_set = self.feature_set.id if self.feature_set is not None else None
+        self.line = self.line.id if self.line is not None else None
+        self.phrase = self.phrase.id if self.phrase is not None else None
+        self.frequency = self.frequency.id if self.frequency is not None else None
+
+        obj = super(Token, self).json_encode(exclude=exclude)
+
+        self.text = self._ignore[0]
+        self.feature_set = self._ignore[1]
+        self.line = self._ignore[2]
+        self.phrase = self._ignore[3]
+        self.frequency = self._ignore[4]
+        del self._ignore
+
+        return obj
