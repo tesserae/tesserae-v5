@@ -68,26 +68,36 @@ class Entity():
         AttributeError
             Raised when a non-existent attribute is encountered in ``exclude``.
         """
-        obj = copy.deepcopy(self.__dict__)
+        # obj = copy.deepcopy(self.__dict__)
         exclude = exclude if exclude is not None else []
-        for k in exclude:
-            if k in obj:
-                del obj[k]
+        exclude = exclude + ['_ignore']
+        # for k in exclude:
+        #     if k in obj:
+        #         del obj[k]
+        # if '_ignore' in obj:
+        #     del obj['_ignore']
+
+        obj = {k: v for k, v in self.__dict__.items() if k not in exclude}
 
         # Nasty code to recursively follow dictionary/list entries to transform
         # attributes containing Entity instances into ObjectIds
-        curr = obj
-        stack = [curr.items()]
-        while stack:
-            for curr, (k, v) in stack[-1]:
-                if isinstance(v, dict):
-                    stack.append((curr[k], v.items()))
-                elif isinstance(v, list):
-                    stack.append((curr[k], enumerate(v)))
-                elif isinstance(v, Entity):
-                    curr[k] = v.id
-            else:
-                stack.pop()
+        # stack = [iter(obj.items())]
+        # obj_stack = [obj]
+        # while stack:
+        #     iterator = stack[-1]
+        #
+        #     try:
+        #         k, v = next(iterator)
+        #         if isinstance(v, dict):
+        #             stack.append(iter(v.items()))
+        #             obj_stack.append(v)
+        #         elif isinstance(v, list):
+        #             stack.append(enumerate(v))
+        #             obj_stack.append(v)
+        #         elif isinstance(v, Entity):
+        #             obj_stack[-1][k] = v.id
+        #     except StopIteration:
+        #         stack.pop()
 
         return obj
 
