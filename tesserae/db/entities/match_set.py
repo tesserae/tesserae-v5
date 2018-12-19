@@ -47,9 +47,23 @@ class MatchSet(Entity):
 
     collection = 'match_sets'
 
-    def __init__(self, id=None):
-        super(MatchSet, self).__init__(id=id, matches=None, parameters=None)
-        self.matches: typing.List[ObjectId] = \
-            matches if matches is not None else []
+    def __init__(self, id=None, texts=None, unit_type=None, feature=None,
+                 parameters=None):
+        super(MatchSet, self).__init__(id=id)
+        self.texts: typing.List[typing.Union[ObjectId, Entity]] = \
+            texts if texts is not None else []
+        self.unit_type: typing.Optional[str] = unit_type
+        self.feature: typing.Optional[str]
         self.parameters: typing.Dict = \
             parameters if parameters is not None else {}
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.texts]
+        self.texts = [t.id for t in self.texts]
+
+        obj = super(Unit, self).json_encode(exclude=exclude)
+
+        self.texts = self._ignore[0]
+        del self._ignore
+
+        return obj

@@ -67,6 +67,36 @@ class TessMongoConnection():
         conn = conn[db]
         self.connection = conn
 
+    def aggregate(self, collection, pipeline, encode=True):
+        """Execute a MongoDB aggregation pipeline.
+
+        Parameters
+        ----------
+        collection : str
+            The MongoDB collection to search.
+        pipeline : list of dict
+            The list of pipeline stage commands.
+        encode : bool
+            If True, encode the results as tesserae.db.entities.Entity
+            instances. Set to False if `pipeline` will return documents that
+            do not match any Entity.
+
+        Returns
+        -------
+        entities : list of tesserae.db.entities.Entity or list of dict
+            The documents returned from the database.
+        """
+        result = self.connection[collection].aggregate(pipeline)
+        if encode:
+            entity = None
+            if collection in tesserae.db.entities.entity_map:
+                entity = tesserae.db.entities.entity_map[collection]
+
+            result = [entity.json_decode(doc) for doc in documents]
+        else:
+            result = [d for d in result]
+        return result
+
     def find(self, collection, sort=None, **filter_values):
         """Retrieve database entries.
 
@@ -78,6 +108,7 @@ class TessMongoConnection():
             Keyword arguments with values to filter the database query.
 
         Returns
+        -------
         entities : list of tesserae.db.entities.Entity
             The documents returned from the database.
         """

@@ -43,3 +43,15 @@ class Match(Entity):
             tokens if tokens is not None else []
         self.score: typing.Optional[float] = score
         self.match_set: typing.Optional[ObjectId] = match_set
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.units, self.tokens]
+        self.units = [u.id for u in self.units]
+        self.tokens = [t.id.for t in self.tokens]
+
+        obj = super(Unit, self).json_encode(exclude=exclude)
+
+        self.texts = self._ignore[0]
+        del self._ignore
+
+        return obj

@@ -52,7 +52,7 @@ class FeatureSet(Entity):
     collection = 'feature_sets'
 
     def __init__(self, id=None, form=None, lemmata=None, semantic=None,
-                 sound=None, language=None):
+                 sound=None, language=None, frequency=None):
         super(FeatureSet, self).__init__(id=id)
         self.form: typing.Optional[str] = form
         self.lemmata: typing.List[str] = lemmata if lemmata is not None else []
@@ -60,6 +60,8 @@ class FeatureSet(Entity):
             semantic if semantic is not None else []
         self.sound: typing.List[str] = sound if sound is not None else []
         self.language: typing.Optional[str] = language
+        self.frequency: typing.Dict[str, int] = \
+            frequency if frequency is not None else {}
 
     def __hash__(self):
         return hash(self.form)
