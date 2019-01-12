@@ -1,3 +1,5 @@
+import concurrent.futures
+
 import pymongo
 
 from tesserae.db import Match, MatchSet
@@ -63,7 +65,7 @@ class DefaultMatcher(object):
             {'$limit': n}
         ])
 
-        stoplist = connection.aggregate('frequencies', pipeline)
+        stoplist = self.connection.aggregate('frequencies', pipeline)
 
         return stoplist
 
@@ -153,7 +155,7 @@ class DefaultMatcher(object):
                             'frequency': '$frequency.' + str(t.id)
                         },
                         None]}}
-            for t in texts})
+             for t in texts})
 
         remove_null_entries = \
             {'$project': {
@@ -164,49 +166,19 @@ class DefaultMatcher(object):
         flatten_by_text = [{'$unwind': '$' + str(t.id)} for t in texts]
 
         group_by_common_unit = \
-            {'$group':
-                '_id': {str(t.id): '$' + str(t.id) + '.unit' for t in texts}}
+            {'$group': {
+                '_id': {str(t.id): '$' + str(t.id) + '.unit' for t in texts}}}
         group_by_common_unit['$group'].update(
-            {str(t.id): {'$push': '$' + str(t.id)}})
+            {str(t.id): {'$push': '$' + str(t.id)} for t in texts})
 
         determine_if_match = \
             {'$project': {
                 str(t.id): True,
-                str(t.id) + '_arraySize': {'$size': '$' + str(t.id)}
-            for t in texts}}
+                str(t.id) + '_arraySize': {'$size': '$' + str(t.id)}}
+             for t in texts}
 
         remove_non_matches = \
             {'$match': {str(t.id) + '_arraySize': {'$gt': 1} for t in texts}}
-
-        if distance_metric == 'span':
-            compute_similarity_components = \
-                {'$project': {
-                    str(t.id): True,
-                    str(t.id) + '_distance':
-                        {'$subtract': [
-                            {'$max': '$' + str(t.id) + '.index'},
-                            {'$min': '$' + str(t.id) + '.index'}]},
-                    str(t.id) + '_frequency': {
-                        '$pow': [{'$sum': '$' + str(t.id) + '.frequency'}, -1]
-                    },
-                for t in texts}}
-
-        remove_zero_dist = \
-            {'$match':
-                {str(t.id) + '_distance': {'$gt': 0} for t in texts}}
-
-        format_score = \
-            {'$addFields': {
-                'score': {
-                    '$ln': {
-                        '$divide': [
-                            {'$sum':
-                                ['$' + str(t.id) + '_frequency'
-                                 for t in texts]}
-                            {'$sum':
-                                ['$' + str(t.id) + '_distance'
-                                 for t in texts]}
-            ]}}}}
 
         sort_matches = {'$sort': {'score': -1}}
 
@@ -214,8 +186,7 @@ class DefaultMatcher(object):
                     reshape_relevant_fields, flatten_features,
                     group_by_feature, remove_null_entries, flatten_by_text,
                     group_by_common_unit, determine_if_match,
-                    remove_non_matches, compute_similarity_components,
-                    remove_zero_dist, format_score, sort_matches]
+                    remove_non_matches]
 
         agg_matches = self.connection.aggregate('tokens', pipeline)
 
@@ -233,10 +204,26 @@ class DefaultMatcher(object):
             })
 
         matches = []
-        for match in agg_matches:
-            matches.append(Match(
-                units=[v for v in match['_id'].values()],
-                tokens=[],
-                score=match['score'],
-                match_set=match_set
-            ))
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_to_url = {
+                executor.submit(self.score, match_doc, texts): match_doc
+                for match_doc in agg_matches}
+            for future in concurrent.futures.as_completed(future_to_url):
+                matches.append(future_to_match[future])
+
+        self.matches = matches
+
+        return matches
+
+    def score(self, match_doc, texts, distance_metric):
+        frequencies = np.array([[token.frequency for token in match_doc[str(text.id)]] for text in texts])
+
+        if distance_metric == 'frequency':
+            idx = np.argsort(frequencies, axis=-1)
+            distances = np.abs(idx[:, 1] - idx[:, 0])
+        else:
+            indices = np.array([[token.index for token in match_doc[str(text.id)]] for text in texts])
+            distances = np.abs(np.max(indices, axis=-1) - np.min(indices, axis=-1))
+
+        return np.ln(np.sum(np.pow(np.sum(frequencies, axis=-1), -1.0)), np.sum(distances))
