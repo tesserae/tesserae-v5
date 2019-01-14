@@ -86,13 +86,14 @@ class TessMongoConnection():
         entities : list of tesserae.db.entities.Entity or list of dict
             The documents returned from the database.
         """
-        result = self.connection[collection].aggregate(pipeline)
+        result = self.connection[collection].aggregate(pipeline,
+                                                       allowDiskUse=True)
         if encode:
             entity = None
             if collection in tesserae.db.entities.entity_map:
                 entity = tesserae.db.entities.entity_map[collection]
 
-            result = [entity.json_decode(doc) for doc in documents]
+            result = [entity.json_decode(doc) for doc in result]
         else:
             result = [d for d in result]
         return result

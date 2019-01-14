@@ -47,7 +47,7 @@ class Match(Entity):
     def json_encode(self, exclude=None):
         self._ignore = [self.units, self.tokens]
         self.units = [u.id for u in self.units]
-        self.tokens = [t.id.for t in self.tokens]
+        self.tokens = [t.id for t in self.tokens]
 
         obj = super(Unit, self).json_encode(exclude=exclude)
 

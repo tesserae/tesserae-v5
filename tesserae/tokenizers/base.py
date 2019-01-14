@@ -115,7 +115,7 @@ class BaseTokenizer(object):
 
         # Get the text id from the metadata if it was passed in
         try:
-            text_id = text
+            text_id = text.id
         except AttributeError:
             text_id = None
 
@@ -138,7 +138,9 @@ class BaseTokenizer(object):
                     feature_set = feature_sets[n]
                     frequency = freqeuncy_list[n]
                 except KeyError as e:
-                    feature_set = FeatureSet(form=n, language=language, **f)
+                    feature_set = FeatureSet(
+                        form=n, language=language,
+                        frequency={str(text_id.id): frequencies[n]}, **f)
                     frequency = Frequency(text=text_id,
                                           form=n,
                                           frequency=frequencies[n])
