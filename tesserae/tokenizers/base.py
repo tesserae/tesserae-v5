@@ -115,7 +115,7 @@ class BaseTokenizer(object):
 
         # Get the text id from the metadata if it was passed in
         try:
-            text_id = text.id
+            text_id = text
         except AttributeError:
             text_id = None
 
@@ -132,22 +132,22 @@ class BaseTokenizer(object):
             feature_set = None
             frequency = None
             if re.search(self.word_characters, d, flags=re.UNICODE):
-                n = normalized[norm_i]
-                f = featurized[norm_i]
                 try:
+                    n = normalized[norm_i]
+                    f = featurized[norm_i]
                     feature_set = feature_sets[n]
                     frequency = freqeuncy_list[n]
+                    norm_i += 1
                 except KeyError as e:
                     feature_set = FeatureSet(
                         form=n, language=language,
                         frequency={str(text_id.id): frequencies[n]}, **f)
-                    frequency = Frequency(text=text_id,
+                    frequency = Frequency(text=text,
                                           form=n,
                                           frequency=frequencies[n])
                     frequency_list[n] = frequency
-                norm_i += 1
 
-            t = Token(text=text_id, index=idx, display=d,
+            t = Token(text=text, index=idx, display=d,
                       feature_set=feature_set, frequency=frequency)
             tokens.append(t)
 
