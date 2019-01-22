@@ -11,19 +11,19 @@ class GreekTokenizer(BaseTokenizer):
         super(GreekTokenizer, self).__init__()
 
         # Set up patterns that will be reused
-        self.word_characters = '[Ά-ώ]'
         self.vowels = 'αειηουωΑΕΙΗΟΥΩ'
         self.grave = '\u0300'
         self.acute = '\u0301'
         self.sigma = 'σ\b'
         self.sigma_alt = 'ς'
+        self.word_characters = 'Ά-ώ' + self.sigma_alt + self.diacriticals
 
         self.diacrit_sub1 = \
             '([\s])([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
         self.diacrit_sub2 = \
             '([\s])([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
-        self.split_pattern = '[<].+[>][\s]| / |[^\w' + self.diacriticals + '\']'
+        self.split_pattern = '[<].+[>][\s]| / |[^\w' + self.diacriticals + self.sigma_alt + '\']'
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
