@@ -3,7 +3,7 @@ import concurrent.futures
 import numpy as np
 import pymongo
 
-from tesserae.db import Match, MatchSet
+from tesserae.db import Frequency, Match, MatchSet, Token
 
 
 class AggregationMatcher(object):
@@ -37,7 +37,7 @@ class AggregationMatcher(object):
         """Reset this Matcher to its initial state."""
         self.matches = []
 
-    def create_stoplist(self, n, feature, basis=None):
+    def create_stoplist(self, n, feature, basis='corpus'):
         """Compute a stoplist of `n` tokens.
 
         Parameters
@@ -53,42 +53,35 @@ class AggregationMatcher(object):
         stoplist : list of str
             The `n` most frequent tokens in the basis texts.
         """
+        if basis != 'corpus':
+            qs = Frequency.objects.raw(
+                {'text': {'$in': [t._id for t in basis]}})
+        else:
+            qs = Frequency.objects.raw({})
+
         pipeline = [
+            {'$lookup': {
+                'from': 'feature_set',
+                'localField': 'feature_set',
+                'foreignField': '_id',
+                'as': 'feature_set'
+            }},
             {'$project': {
-                feature: 1,
-                'frequency': {'$objectToArray': '$frequency'}}},
-            {'$unwind': '$frequency'}
+                'frequency': True,
+                'feature': '$feature_set.' + feature
+            }},
+            {'$unwind': '$feature'},
+            {'$group': {
+                '_id': '$feature',
+                'frequency': {'$sum': '$frequency'}
+            }},
+            {'$sort': {
+                'frequency': -1
+            }},
+            {'$limit': n}
         ]
 
-        if basis == 'corpus' or basis is None:
-            pipeline.append(
-                {'$group': {
-                    '_id': '$' + feature,
-                    'frequency': {
-                        '$push': '$frequency.v'
-                    }}})
-        else:
-            pipeline.append(
-                {'$group': {
-                    '_id': '$' + feature,
-                    'frequency': {
-                        '$push': {
-                            '$cond': {
-                                ['$in',
-                                 '$frequency.k',
-                                 [str(t.id) for t in basis]],
-                                '$frequency.v',
-                                0
-                                }}}}})
-
-        pipeline.extend([
-            {'$project': {'frequency': {'$sum': '$frequency'}}},
-            {'$sort': {'frequency': -1}},
-            {'$limit': n}
-        ])
-
-        stoplist = self.connection.aggregate(
-            'feature_sets', pipeline, encode=False)
+        stoplist = qs.aggregate(*pipeline, allowDiskUse=True)
 
         return [s['_id'] for s in stoplist]
 
@@ -137,100 +130,109 @@ class AggregationMatcher(object):
             'form' if feature == 'form' else 'lemmata',
             basis=stopword_basis)
 
+        print(stoplist)
+
         pipeline = []
 
-        match_on_text = \
-            {'$match': {
-                'text': {'$in': [t.id for t in texts]},
-                'feature_set': {'$ne': None}}}
-
-        pipeline.append(match_on_text)
-
-        lookup_frequencies = \
-            {'$lookup': {
-                'from': 'feature_sets',
-                'localField': 'feature_set',
-                'foreignField': '_id',
-                'as': 'features'}}
-
-        pipeline.append(lookup_frequencies)
+        # lookup_feature_set = \
+        #     {'$lookup': {
+        #         'from': 'feature_set',
+        #         'localField': 'feature_set',
+        #         'foreignField': '_id',
+        #         'as': 'feature_set'}}
+        #
+        # pipeline.append(lookup_feature_set)
+        #
+        # lookup_frequency = \
+        #     {'$lookup': {
+        #         'from': 'frequency',
+        #         'localField': 'frequency',
+        #         'foreignField': '_id',
+        #         'as': 'frequency'}}
+        #
+        # # pipeline.append(lookup_frequency)
 
         remove_stopwords = \
             {'$match': {
-                'features.' + feature: {'$nin': stoplist + [None]}}}
+                'feature_set.' + feature: {'$nin': stoplist + [None]}}}
 
-        pipeline.append(remove_stopwords)
+        # pipeline.append(remove_stopwords)
 
         reshape_relevant_fields = \
             {'$project': {
                 'text': True,
                 'index': True,
                 'unit': '$' + unit_type,
-                'feature': {'$arrayElemAt': ['$features.' + feature, 0]},
-                'frequency': {'$arrayElemAt': ['$features.frequency', 0]}}}
+                'feature': '$feature_set.' + feature,
+                'frequency': True}}
 
         pipeline.append(reshape_relevant_fields)
 
         flatten_features = \
             {'$unwind': '$feature'}
 
-        pipeline.append(flatten_features)
+        # pipeline.append(flatten_features)
 
         group_by_feature = \
             {'$group': {'_id': '$feature'}}
         group_by_feature['$group'].update(
-            {str(t.id): {
+            {str(t._id): {
                 '$push': {
                     '$cond': [
-                        {'$eq': ['$text', t.id]},
+                        {'$eq': ['$text', t._id]},
                         {
                             '_id': '$_id',
                             'unit': '$unit',
                             'feature': '$feature',
                             'index': '$index',
-                            'frequency': '$frequency.' + str(t.id)
+                            'frequency': '$frequency.' + str(t._id)
                         },
                         None]}}
              for t in texts})
 
-        pipeline.append(group_by_feature)
+        # pipeline.append(group_by_feature)
 
         remove_null_entries = \
             {'$project': {
-                str(t.id): {
-                    '$setDifference': ['$' + str(t.id), [None]]}
+                str(t._id): {
+                    '$setDifference': ['$' + str(t._id), [None]]}
                 for t in texts}}
         remove_null_entries['$project'].update(
-                {str(t.id) + '_arraySize': {
+                {str(t._id) + '_arraySize': {
                     '$size': {
-                        '$setDifference': ['$' + str(t.id), [None]]}}
+                        '$setDifference': ['$' + str(t._id), [None]]}}
                 for t in texts})
-        pipeline.append(remove_null_entries)
+
+        # pipeline.append(remove_null_entries)
 
         remove_null_entries = \
-            {'$match': {str(t.id) + '_arraySize': {'$gt': 1} for t in texts}}
-        pipeline.append(remove_null_entries)
+            {'$match': {str(t._id) + '_arraySize': {'$gt': 1} for t in texts}}
 
-        flatten_by_text = [{'$unwind': '$' + str(t.id)} for t in texts]
-        pipeline.extend(flatten_by_text)
+        # pipeline.append(remove_null_entries)
+
+        flatten_by_text = [{'$unwind': '$' + str(t._id)} for t in texts]
+
+        # pipeline.extend(flatten_by_text)
 
         group_by_common_unit = \
             {'$group': {
-                '_id': {str(t.id): '$' + str(t.id) + '.unit' for t in texts}}}
+                '_id': {str(t._id): '$' + str(t._id) + '.unit' for t in texts}}}
         group_by_common_unit['$group'].update(
-            {str(t.id): {'$push': '$' + str(t.id)} for t in texts})
-        pipeline.append(group_by_common_unit)
+            {str(t._id): {'$push': '$' + str(t._id)} for t in texts})
+        # pipeline.append(group_by_common_unit)
 
         determine_if_match = \
-            {'$project': {str(t.id): True for t in texts}}
+            {'$project': {str(t._id): True for t in texts}}
         determine_if_match['$project'].update({
-            str(t.id) + '_arraySize': {'$size': '$' + str(t.id)}
+            str(t._id) + '_arraySize': {'$size': '$' + str(t._id)}
             for t in texts})
-        pipeline.append(determine_if_match)
+
+        # pipeline.append(determine_if_match)
 
         remove_non_matches = \
-            {'$match': {str(t.id) + '_arraySize': {'$gt': 1} for t in texts}}
-        pipeline.append(remove_non_matches)
+            {'$match': {str(t._id) + '_arraySize': {'$gt': 1} for t in texts}}
+
+        # pipeline.append(remove_non_matches)
 
         # pipeline = [match_on_text, lookup_frequencies, remove_stopwords,
         #             reshape_relevant_fields, flatten_features,
@@ -239,8 +241,11 @@ class AggregationMatcher(object):
         # pipeline.extend([group_by_common_unit, determine_if_match,
         #                  remove_non_matches])
 
-        agg_matches = list(self.connection.aggregate('tokens', pipeline,
-                                                     encode=False))
+        qs = Token.objects.raw({
+            'text': {'$in': [t._id for t in texts]},
+            'feature_set': {'$ne': None}})
+        agg_matches = qs.aggregate(*pipeline, allowDiskUse=True)
+        print([a for a in agg_matches][:10])
 
         match_set = MatchSet(
             texts=texts,
@@ -254,6 +259,7 @@ class AggregationMatcher(object):
                 'max_distance': max_distance,
                 'distance_metric': distance_metric
             })
+        match_set.save()
 
         matches = []
 
@@ -264,26 +270,27 @@ class AggregationMatcher(object):
             for future in concurrent.futures.as_completed(future_to_match):
                 matches.append(future.result())
 
+        Match.objects.bulk_create(matches)
         self.matches = matches
 
         return sorted(matches, key=lambda x: x.score, reverse=True)
 
 
     def score(self, match_doc, texts, distance_metric, match_set=None):
-        frequencies = np.array([[token['frequency'] for token in match_doc[str(t.id)]] for t in texts])
+        frequencies = np.array([[token['frequency'] for token in match_doc[str(t._id)]] for t in texts])
 
         if distance_metric == 'frequency':
             idx = np.argsort(frequencies, axis=-1)
             distances = np.abs(idx[:, 1] - idx[:, 0])
         else:
-            indices = np.array([[token['index'] for token in match_doc[str(t.id)]] for t in texts])
+            indices = np.array([[token['index'] for token in match_doc[str(t._id)]] for t in texts])
             distances = np.abs(np.max(indices, axis=-1) - np.min(indices, axis=-1))
 
         score = np.log(np.sum(np.power(np.sum(frequencies, axis=-1), -1.0)) / np.sum(distances))
         match = Match(
             units=list(match_doc['_id'].values()),
             tokens=[
-                [match_doc[str(t.id)][i]['_id'] for i in range(len(match_doc[str(t.id)]))]
+                [match_doc[str(t._id)][i]['_id'] for i in range(len(match_doc[str(t._id)]))]
                 for t in texts],
             score=score,
             match_set=match_set
