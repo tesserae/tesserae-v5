@@ -67,3 +67,12 @@ class MatchSet(Entity):
         del self._ignore
 
         return obj
+
+    def unique_values(self):
+        uniques = {
+            'texts': [t.id for t in self.texts],
+            'unit_type': self.unit_type,
+            'feature': self.feature,
+            'parameters': self.parameters
+        }
+        return uniques

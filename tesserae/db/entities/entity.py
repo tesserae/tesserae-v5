@@ -128,3 +128,8 @@ class Entity():
         for k, v in obj.items():
             setattr(instance, k, v)
         return instance
+
+    def unique_values(self):
+        uniques = copy.deepcopy(self.__dict__)
+        del uniques['_id']
+        return uniques

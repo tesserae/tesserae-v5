@@ -55,3 +55,11 @@ class Match(Entity):
         del self._ignore
 
         return obj
+
+    def unique_values(self):
+        uniques = {
+            'units': [u.id for u in self.units],
+            'score': self.score,
+            'match_set': self.match_set.id
+        }
+        return uniques

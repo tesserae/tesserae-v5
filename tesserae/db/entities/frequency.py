@@ -45,23 +45,33 @@ class Frequency(Entity):
 
     collection = 'frequencies'
 
-    def __init__(self, id=None, text=None, form=None, frequency=None):
+    def __init__(self, id=None, text=None, feature_set=None, frequency=None):
         super(Frequency, self).__init__(id=id)
-        self.text: typing.Optional[typing.Union[ObjectId]] = text
-        self.form: typing.Optional[typing.Union[ObjectId, FeatureSet]] = form
+        self.text: typing.Optional[ObjectId] = text
+        self.feature_set: typing.Optional[ObjectId] = feature_set
         self.frequency: typing.Optional[int] = frequency
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.text, self.form]
-        self.text = self.text.id
-        #self.form = self.form.id
+        self._ignore = []
+
+        if isinstance(self.text, Entity):
+            self._ignore.append(self.text)
+            self.text = self.text.id
+
+        if isinstance(self.feature_set, Entity):
+            self._ignore.append(self.feature_set)
+            self.feature_set = self.feature_set.id
 
         obj = super(Frequency, self).json_encode(exclude=exclude)
 
-        self.text, self.form = self._ignore
+        self.text, self.feature_set = self._ignore
         del self._ignore
 
         return obj
 
     def __hash__(self):
-        return hash(self.form)
+        return hash(self.feature_set)
+
+    def unique_values(self):
+        uniques = {'text': self.text.id, 'feature_set': self.feature_set.id}
+        return uniques

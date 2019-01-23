@@ -110,3 +110,7 @@ class Token(Entity):
         del self._ignore
 
         return obj
+
+    def unique_values(self):
+        uniques = {'text': self.text.id, 'index': self.index}
+        return uniques

@@ -72,3 +72,10 @@ class Unit(Entity):
         del self._ignore
 
         return obj
+
+    def unique_values(self):
+        uniques = {
+            'text': self.text.id,
+            'index': self.index,
+            'unit_type': self.unit_type}
+        return uniques
