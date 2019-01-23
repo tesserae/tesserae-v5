@@ -7,8 +7,8 @@ from tesserae.tokenizers.base import BaseTokenizer
 
 
 class GreekTokenizer(BaseTokenizer):
-    def __init__(self):
-        super(GreekTokenizer, self).__init__()
+    def __init__(self, connection):
+        super(GreekTokenizer, self).__init__(connection)
 
         # Set up patterns that will be reused
         self.vowels = 'αειηουωΑΕΙΗΟΥΩ'
