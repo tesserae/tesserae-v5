@@ -37,7 +37,7 @@ class AggregationMatcher(object):
         """Reset this Matcher to its initial state."""
         self.matches = []
 
-    def create_stoplist(self, n, feature, basis='corpus'):
+    def create_stoplist(self, n, feature, language, basis='corpus'):
         """Compute a stoplist of `n` tokens.
 
         Parameters
@@ -53,35 +53,48 @@ class AggregationMatcher(object):
         stoplist : list of str
             The `n` most frequent tokens in the basis texts.
         """
-        if basis != 'corpus':
-            qs = Frequency.objects.raw(
-                {'text': {'$in': [t._id for t in basis]}})
-        else:
-            qs = Frequency.objects.raw({})
+        pipeline = []
 
-        pipeline = [
+        if basis != 'corpus':
+            pipeline.append({
+                '$match': {
+                    'text': {'$in': [t.id for t in texts]}
+                }
+            })
+        else:
+            pipeline.extend([
+                {'$lookup': {
+                    'from': 'texts',
+                    'localField': 'text',
+                    'foreignField': '_id',
+                    'as': 'text'
+                }},
+                {'$match': {'text.language': language}}
+            ])
+
+        pipeline.extend([
             {'$lookup': {
-                'from': 'feature_set',
+                'from': 'feature_sets',
                 'localField': 'feature_set',
                 'foreignField': '_id',
                 'as': 'feature_set'
             }},
             {'$project': {
                 'frequency': True,
-                'feature': '$feature_set.' + feature
+                'feature_set': {'$arrayElemAt': ['$feature_set', 0]}
             }},
-            {'$unwind': '$feature'},
+            {'$unwind': '$feature_set'},
             {'$group': {
-                '_id': '$feature',
+                '_id': {'$arrayElemAt': ['$feature_set.' + feature, 0]},
                 'frequency': {'$sum': '$frequency'}
             }},
             {'$sort': {
                 'frequency': -1
             }},
             {'$limit': n}
-        ]
+        ])
 
-        stoplist = qs.aggregate(*pipeline, allowDiskUse=True)
+        stoplist = self.connection.aggregate('frequencies', pipeline, encode=False)
 
         return [s['_id'] for s in stoplist]
 
@@ -128,35 +141,36 @@ class AggregationMatcher(object):
         stoplist = self.create_stoplist(
             stopwords,
             'form' if feature == 'form' else 'lemmata',
+            texts[0].language,
             basis=stopword_basis)
 
         print(stoplist)
 
         pipeline = []
 
-        # lookup_feature_set = \
-        #     {'$lookup': {
-        #         'from': 'feature_set',
-        #         'localField': 'feature_set',
-        #         'foreignField': '_id',
-        #         'as': 'feature_set'}}
-        #
-        # pipeline.append(lookup_feature_set)
-        #
-        # lookup_frequency = \
-        #     {'$lookup': {
-        #         'from': 'frequency',
-        #         'localField': 'frequency',
-        #         'foreignField': '_id',
-        #         'as': 'frequency'}}
-        #
-        # # pipeline.append(lookup_frequency)
+        lookup_feature_set = \
+            {'$lookup': {
+                'from': 'feature_sets',
+                'localField': 'feature_set',
+                'foreignField': '_id',
+                'as': 'feature_set'}}
+
+        pipeline.append(lookup_feature_set)
 
         remove_stopwords = \
             {'$match': {
                 'feature_set.' + feature: {'$nin': stoplist + [None]}}}
 
-        # pipeline.append(remove_stopwords)
+        pipeline.append(remove_stopwords)
+
+        lookup_frequency = \
+            {'$lookup': {
+                'from': 'frequencies',
+                'localField': 'frequency',
+                'foreignField': '_id',
+                'as': 'frequency'}}
+
+        pipeline.append(lookup_frequency)
 
         reshape_relevant_fields = \
             {'$project': {
@@ -171,7 +185,7 @@ class AggregationMatcher(object):
         flatten_features = \
             {'$unwind': '$feature'}
 
-        # pipeline.append(flatten_features)
+        pipeline.append(flatten_features)
 
         group_by_feature = \
             {'$group': {'_id': '$feature'}}
@@ -190,7 +204,7 @@ class AggregationMatcher(object):
                         None]}}
              for t in texts})
 
-        # pipeline.append(group_by_feature)
+        pipeline.append(group_by_feature)
 
         remove_null_entries = \
             {'$project': {
@@ -203,23 +217,23 @@ class AggregationMatcher(object):
                         '$setDifference': ['$' + str(t._id), [None]]}}
                 for t in texts})
 
-        # pipeline.append(remove_null_entries)
+        pipeline.append(remove_null_entries)
 
         remove_null_entries = \
             {'$match': {str(t._id) + '_arraySize': {'$gt': 1} for t in texts}}
 
-        # pipeline.append(remove_null_entries)
+        pipeline.append(remove_null_entries)
 
         flatten_by_text = [{'$unwind': '$' + str(t._id)} for t in texts]
 
-        # pipeline.extend(flatten_by_text)
+        pipeline.extend(flatten_by_text)
 
         group_by_common_unit = \
             {'$group': {
                 '_id': {str(t._id): '$' + str(t._id) + '.unit' for t in texts}}}
         group_by_common_unit['$group'].update(
             {str(t._id): {'$push': '$' + str(t._id)} for t in texts})
-        # pipeline.append(group_by_common_unit)
+        pipeline.append(group_by_common_unit)
 
         determine_if_match = \
             {'$project': {str(t._id): True for t in texts}}
@@ -227,12 +241,12 @@ class AggregationMatcher(object):
             str(t._id) + '_arraySize': {'$size': '$' + str(t._id)}
             for t in texts})
 
-        # pipeline.append(determine_if_match)
+        pipeline.append(determine_if_match)
 
         remove_non_matches = \
             {'$match': {str(t._id) + '_arraySize': {'$gt': 1} for t in texts}}
 
-        # pipeline.append(remove_non_matches)
+        pipeline.append(remove_non_matches)
 
         # pipeline = [match_on_text, lookup_frequencies, remove_stopwords,
         #             reshape_relevant_fields, flatten_features,
@@ -241,11 +255,9 @@ class AggregationMatcher(object):
         # pipeline.extend([group_by_common_unit, determine_if_match,
         #                  remove_non_matches])
 
-        qs = Token.objects.raw({
-            'text': {'$in': [t._id for t in texts]},
-            'feature_set': {'$ne': None}})
-        agg_matches = qs.aggregate(*pipeline, allowDiskUse=True)
-        print([a for a in agg_matches][:10])
+        agg_matches = self.connection.aggregate('tokens', pipeline, encode=False)
+        print(agg_matches)
+        return [], None
 
         match_set = MatchSet(
             texts=texts,
@@ -259,7 +271,6 @@ class AggregationMatcher(object):
                 'max_distance': max_distance,
                 'distance_metric': distance_metric
             })
-        match_set.save()
 
         matches = []
 
@@ -270,7 +281,6 @@ class AggregationMatcher(object):
             for future in concurrent.futures.as_completed(future_to_match):
                 matches.append(future.result())
 
-        Match.objects.bulk_create(matches)
         self.matches = matches
 
         return sorted(matches, key=lambda x: x.score, reverse=True)
