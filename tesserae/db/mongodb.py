@@ -153,7 +153,7 @@ class TessMongoConnection():
 
         filter_vals = {}
         for e in entity:
-            for k, v in e.json_encode(exclude=['_id']).items():
+            for k, v in e.unique_values().items():
                 if k in filter_vals:
                     filter_vals[k].append(v)
                 else:
@@ -162,7 +162,12 @@ class TessMongoConnection():
         exists = self.find(entity[0].collection, **filter_vals)
 
         if len(exists) != 0:
-            raise ValueError("Entity {} exists in the database.".format(e))
+            exists = [e.unique_values() for e in exists]
+            new_ents = []
+            for e in entity:
+                if e.unique_values() not in exists:
+                    new_ents.append(e)
+            entity = new_ents
 
         try:
             collection = self.connection[entity[0].__class__.collection]
