@@ -111,10 +111,11 @@ class BaseTokenizer(object):
         # Create the storage for this run of `tokenize`
         tokens = []
         frequencies = collections.Counter(
-            [n for i, n in enumerate(normalized) if
-             re.search('[\w]+', normalized[i], flags=re.UNICODE)])
+            [n for i, n in enumerate(normalized)])
         frequency_list = {}
-        feature_sets = {fs.form: fs for fs in self.connection.find('feature_sets', language=text.language)}
+        feature_sets = self.connection.find('feature_sets',
+                                            language=text.language)
+        feature_sets = {fs.form: fs for fs in feature_sets}
         new_feature_sets = []
 
         # Get the text id from the metadata if it was passed in
@@ -136,26 +137,29 @@ class BaseTokenizer(object):
             feature_set = None
             frequency = None
             if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
-                try:
-                    n = normalized[norm_i]
-                    f = featurized[norm_i]
+                n = normalized[norm_i]
+                f = featurized[norm_i]
+
+                if n in feature_sets:
                     feature_set = feature_sets[n]
-                    frequency = frequency_list[n]
-                except KeyError as e:
+                else:
                     feature_set = FeatureSet(form=n, language=language, **f)
                     feature_sets[n] = feature_set
                     new_feature_sets.append(feature_set)
+
+                if n in frequency_list:
+                    frequency = frequency_list[n]
+                else:
                     frequency = Frequency(text=text,
                                           feature_set=feature_set,
                                           frequency=frequencies[n])
                     frequency_list[n] = frequency
-                finally:
-                    norm_i += 1
+
+                norm_i += 1
 
             t = Token(text=text, index=idx, display=d,
                       feature_set=feature_set, frequency=frequency)
             tokens.append(t)
-
 
         # Update the internal record if necessary
         if record:
