@@ -45,20 +45,24 @@ class Match(Entity):
         self.match_set: typing.Optional[ObjectId] = match_set
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.units, self.tokens]
-        self.units = [u.id for u in self.units]
-        self.tokens = [t.id for t in self.tokens]
+        self._ignore = [self.match_set, self.units, self.tokens]
+        if isinstance(self.match_set, Entity):
+            self.match_set = self.match_set.id
+        self.units = [u.id if isinstance(u, Entity) else u for u in self.units]
+        self.tokens = [t.id if isinstance(t, Entity) else t
+                       for t in self.tokens]
 
-        obj = super(Unit, self).json_encode(exclude=exclude)
+        obj = super(Match, self).json_encode(exclude=exclude)
 
-        self.texts = self._ignore[0]
+        self.match_set, self.units, self.tokens = self._ignore
         del self._ignore
 
         return obj
 
     def unique_values(self):
         uniques = {
-            'units': [u.id for u in self.units],
+            'units': [u.id if isinstance(u, Entity) else u
+                      for u in self.units],
             'score': self.score,
             'match_set': self.match_set.id
         }

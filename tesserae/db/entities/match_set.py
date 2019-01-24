@@ -53,15 +53,15 @@ class MatchSet(Entity):
         self.texts: typing.List[typing.Union[ObjectId, Entity]] = \
             texts if texts is not None else []
         self.unit_type: typing.Optional[str] = unit_type
-        self.feature: typing.Optional[str]
+        self.feature: typing.Optional[str] = feature
         self.parameters: typing.Dict = \
             parameters if parameters is not None else {}
 
     def json_encode(self, exclude=None):
         self._ignore = [self.texts]
-        self.texts = [t.id for t in self.texts]
+        self.texts = [t.id if isinstance(t, Entity) else t for t in self.texts]
 
-        obj = super(Unit, self).json_encode(exclude=exclude)
+        obj = super(MatchSet, self).json_encode(exclude=exclude)
 
         self.texts = self._ignore[0]
         del self._ignore
@@ -70,7 +70,8 @@ class MatchSet(Entity):
 
     def unique_values(self):
         uniques = {
-            'texts': [t.id for t in self.texts],
+            'texts': [t.id if isinstance(t, Entity) else t
+                      for t in self.texts],
             'unit_type': self.unit_type,
             'feature': self.feature,
             'parameters': self.parameters
