@@ -62,7 +62,13 @@ class FeatureSet(Entity):
         self.language: typing.Optional[str] = language
 
     def __hash__(self):
-        return hash(self.form)
+        return self.form
+
+    def __eq__(self, other):
+        return self.form == other.form
+
+    def __neq__(self, other):
+        return not (self.form == other.form)
 
     def __str__(self):
         return '{' + self.form + '}'
