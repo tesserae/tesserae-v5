@@ -186,23 +186,16 @@ class TessMongoConnection():
         if not isinstance(entity, list):
             entity = [entity]
 
-        filter_vals = {}
-        for e in entity:
-            for k, v in e.json_encode(exclude=['_id']).items():
-                if k in filter_vals:
-                    filter_vals[k].append(v)
-                else:
-                    filter_vals[k] = [v]
+        ids = [e.id for e in entity]
+        exists = self.find(entity[0].collection, _id=ids)
 
-        exists = self.find(entity[0].collection, **filter_vals)
-
-        if len(exists) == 0:
-            raise ValueError("Entity {} does not exist in the database.".format(e))
+        if len(exists) < len(entity):
+            raise ValueError("Entity {} does not exist in the database.".format([str(e) for e in entity]))
 
         try:
             collection = self.connection[entity[0].__class__.collection]
             result = collection.update_many(
-                self.create_filter(_id=[e.id for e in entity]),
+                self.create_filter(_id=ids),
                 [e.json_encode(exclude=['_id']) for e in entity])
         except IndexError:
             raise ValueError
