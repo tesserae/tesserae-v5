@@ -94,8 +94,7 @@ class TessMongoConnection():
                 entity = tesserae.db.entities.entity_map[collection]
 
             result = [entity.json_decode(doc) for doc in result]
-        else:
-            result = [d for d in result]
+
         return result
 
     def find(self, collection, sort=None, **filter_values):
