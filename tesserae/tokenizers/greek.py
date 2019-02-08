@@ -7,8 +7,8 @@ from tesserae.tokenizers.base import BaseTokenizer
 
 
 class GreekTokenizer(BaseTokenizer):
-    def __init__(self):
-        super(GreekTokenizer, self).__init__()
+    def __init__(self, connection):
+        super(GreekTokenizer, self).__init__(connection)
 
         # Set up patterns that will be reused
         self.vowels = 'αειηουωΑΕΙΗΟΥΩ'
@@ -16,22 +16,23 @@ class GreekTokenizer(BaseTokenizer):
         self.acute = '\u0301'
         self.sigma = 'σ\b'
         self.sigma_alt = 'ς'
+        self.word_characters = 'Ά-ώ' + self.sigma_alt + self.diacriticals
 
         self.diacrit_sub1 = \
-            '^([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
+            '([\s])([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
         self.diacrit_sub2 = \
-            '^([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
+            '([\s])([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
-        self.split_pattern = '( / )|([^\w' + self.diacriticals + '\'])'
+        self.split_pattern = '[<].+[>][\s]| / |[^\w' + self.diacriticals + self.sigma_alt + '\']'
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
-    def normalize(self, tokens):
+    def normalize(self, raw):
         """Normalize a single Greek word.
 
         Parameters
         ----------
-        token : list of str
+        raw : str or list of str
             The word to normalize.
 
         Returns
@@ -40,28 +41,26 @@ class GreekTokenizer(BaseTokenizer):
             The normalized string.
         """
         # Perform the global normalization
-        normalized = super(GreekTokenizer, self).normalize(tokens)
+        normalized = super(GreekTokenizer, self).normalize(raw)
 
         # Convert grave accent to acute
-        normalized = \
-            [re.sub(self.grave, self.acute, n, flags=re.UNICODE)
-             for n in normalized]
+        normalized = re.sub(self.grave, self.acute, normalized,
+                            flags=re.UNICODE)
 
         # Remove diacriticals from vowels
-        normalized = \
-            [re.sub(self.diacrit_sub1, r'\2', n, flags=re.UNICODE)
-             for n in normalized]
-        normalized = \
-            [re.sub(self.diacrit_sub2, r'\2\1', n, flags=re.UNICODE)
-             for n in normalized]
+        normalized = re.sub(self.diacrit_sub1, r'\1\3', normalized,
+                            flags=re.UNICODE)
+        normalized = re.sub(self.diacrit_sub2, r'\1\3\2', normalized,
+                            flags=re.UNICODE)
 
         # Substitute sigmas
-        normalized = \
-            [re.sub(self.sigma, self.sigma_alt, n, flags=re.UNICODE)
-             for n in normalized]
+        normalized = re.sub(self.sigma, self.sigma_alt, normalized,
+                            flags=re.UNICODE)
 
-        normalized = \
-            [re.sub(r'[\'0-9]+|[\s]+[0-9]+$', '', n, flags=re.UNICODE) for n in normalized]
+        normalized = re.sub(r'\'', '', normalized, flags=re.UNICODE)
+
+        normalized = re.sub(r'[\'0-9]+', '', normalized,
+                            flags=re.UNICODE)
 
         return normalized
 

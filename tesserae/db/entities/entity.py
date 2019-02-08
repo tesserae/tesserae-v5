@@ -52,7 +52,7 @@ class Entity():
         return self._id
 
     @id.setter
-    def id(self, value : typing.Optional[typing.Union[str, ObjectId]]):
+    def id(self, value: typing.Optional[typing.Union[str, ObjectId]]):
         self._id = value
 
     def json_encode(self, exclude: typing.Optional[typing.List[str]] = None):
@@ -68,11 +68,37 @@ class Entity():
         AttributeError
             Raised when a non-existent attribute is encountered in ``exclude``.
         """
-        obj = copy.deepcopy(self.__dict__)
+        # obj = copy.deepcopy(self.__dict__)
         exclude = exclude if exclude is not None else []
-        for k in exclude:
-            if k in obj:
-                del obj[k]
+        exclude = exclude + ['_ignore']
+        # for k in exclude:
+        #     if k in obj:
+        #         del obj[k]
+        # if '_ignore' in obj:
+        #     del obj['_ignore']
+
+        obj = {k: v for k, v in self.__dict__.items() if k not in exclude}
+
+        # Nasty code to recursively follow dictionary/list entries to transform
+        # attributes containing Entity instances into ObjectIds
+        # stack = [iter(obj.items())]
+        # obj_stack = [obj]
+        # while stack:
+        #     iterator = stack[-1]
+        #
+        #     try:
+        #         k, v = next(iterator)
+        #         if isinstance(v, dict):
+        #             stack.append(iter(v.items()))
+        #             obj_stack.append(v)
+        #         elif isinstance(v, list):
+        #             stack.append(enumerate(v))
+        #             obj_stack.append(v)
+        #         elif isinstance(v, Entity):
+        #             obj_stack[-1][k] = v.id
+        #     except StopIteration:
+        #         stack.pop()
+
         return obj
 
     @classmethod
@@ -98,4 +124,12 @@ class Entity():
         if '_id' in obj:
             obj['id'] = obj['_id']
             del obj['_id']
-        return cls(**obj)
+        instance = cls()
+        for k, v in obj.items():
+            setattr(instance, k, v)
+        return instance
+
+    def unique_values(self):
+        uniques = copy.deepcopy(self.__dict__)
+        del uniques['_id']
+        return uniques
