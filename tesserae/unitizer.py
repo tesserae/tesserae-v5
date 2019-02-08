@@ -89,12 +89,12 @@ class Unitizer(object):
         # Create initial line/phrase objects
         if len(self.lines) == 0:
             self.lines.append(
-                Unit(text=metadata.path,
+                Unit(text=metadata,
                      index=len(self.lines),
                      unit_type='line'))
         if len(self.phrases) == 0:
             self.phrases.append(
-                Unit(text=metadata.path,
+                Unit(text=metadata,
                      index=len(self.phrases),
                      unit_type='phrase'))
 
@@ -110,19 +110,22 @@ class Unitizer(object):
             word = re.search(r'[\w]', t.display, flags=re.UNICODE)
 
             # Get the current line and phrase
-            self.lines[-1].tokens.append(t.index)
+            self.lines[-1].tokens.append(t)
+            t.line = self.lines[-1]
 
             # Handle seeing multiple phrase delimiters in a row
             if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
-                self.phrases[-2].tokens.append(t.index)
+                self.phrases[-2].tokens.append(t)
+                t.phrase = self.phrases[-2]
             else:
-                self.phrases[-1].tokens.append(t.index)
+                self.phrases[-1].tokens.append(t)
+                t.phrase = self.phrases[-1]
 
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
-            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE):
+            if re.search(r'(\n)|( / )', t.display, flags=re.UNICODE):
                 self.lines.append(
-                    Unit(text=metadata.path,
+                    Unit(text=metadata,
                          index=len(self.lines),
                          unit_type='line'))
 
@@ -130,7 +133,7 @@ class Unitizer(object):
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
                 self.phrases.append(
-                    Unit(text=metadata.path,
+                    Unit(text=metadata,
                          index=len(self.phrases),
                          unit_type='phrase'))
 

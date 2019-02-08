@@ -10,8 +10,8 @@ from tesserae.db.entities import Frequency, Token
 
 
 class LatinTokenizer(BaseTokenizer):
-    def __init__(self):
-        super(LatinTokenizer, self).__init__()
+    def __init__(self, connection):
+        super(LatinTokenizer, self).__init__(connection)
 
         # Set up patterns that will be reused
         self.jv_replacer = JVReplacer()
