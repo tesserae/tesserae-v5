@@ -27,20 +27,43 @@ class Match(Entity):
         Tokens contributing to the match.
     score : float, optional
         The score of this match.
-    metadata : dict, optional
-        Metadata about the match (e.g., scorer method, scorer parameters).
+    match_set : bson.objectid.ObjectId, optional
+        Match set that this match belongs to.
 
     """
 
     collection = 'matches'
 
     def __init__(self, id=None, units=None, tokens=None, score=None,
-                 metadata=None):
+                 match_set=None):
         super(Match, self).__init__(id=id)
         self.units: typing.Optional[typing.List[ObjectId, Unit]] = \
             units if units is not None else []
         self.tokens: typing.Optional[typing.List[ObjectId, Token]] = \
             tokens if tokens is not None else []
         self.score: typing.Optional[float] = score
-        self.metadata: typing.Optional[typing.Dict] = \
-            metadata if metadata is not None else {}
+        self.match_set: typing.Optional[ObjectId] = match_set
+
+    def json_encode(self, exclude=None):
+        self._ignore = [self.match_set, self.units, self.tokens]
+        if isinstance(self.match_set, Entity):
+            self.match_set = self.match_set.id
+        self.units = [u.id if isinstance(u, Entity) else u for u in self.units]
+        self.tokens = [t.id if isinstance(t, Entity) else t
+                       for t in self.tokens]
+
+        obj = super(Match, self).json_encode(exclude=exclude)
+
+        self.match_set, self.units, self.tokens = self._ignore
+        del self._ignore
+
+        return obj
+
+    def unique_values(self):
+        uniques = {
+            'units': [u.id if isinstance(u, Entity) else u
+                      for u in self.units],
+            'score': self.score,
+            'match_set': self.match_set.id
+        }
+        return uniques

@@ -67,6 +67,36 @@ class TessMongoConnection():
         conn = conn[db]
         self.connection = conn
 
+    def aggregate(self, collection, pipeline, encode=True):
+        """Execute a MongoDB aggregation pipeline.
+
+        Parameters
+        ----------
+        collection : str
+            The MongoDB collection to search.
+        pipeline : list of dict
+            The list of pipeline stage commands.
+        encode : bool
+            If True, encode the results as tesserae.db.entities.Entity
+            instances. Set to False if `pipeline` will return documents that
+            do not match any Entity.
+
+        Returns
+        -------
+        entities : list of tesserae.db.entities.Entity or list of dict
+            The documents returned from the database.
+        """
+        result = self.connection[collection].aggregate(pipeline,
+                                                       allowDiskUse=True)
+        if encode:
+            entity = None
+            if collection in tesserae.db.entities.entity_map:
+                entity = tesserae.db.entities.entity_map[collection]
+
+            result = [entity.json_decode(doc) for doc in result]
+
+        return result
+
     def find(self, collection, sort=None, **filter_values):
         """Retrieve database entries.
 
@@ -78,6 +108,7 @@ class TessMongoConnection():
             Keyword arguments with values to filter the database query.
 
         Returns
+        -------
         entities : list of tesserae.db.entities.Entity
             The documents returned from the database.
         """
@@ -121,7 +152,7 @@ class TessMongoConnection():
 
         filter_vals = {}
         for e in entity:
-            for k, v in e.json_encode(exclude=['_id']).items():
+            for k, v in e.unique_values().items():
                 if k in filter_vals:
                     filter_vals[k].append(v)
                 else:
@@ -130,7 +161,12 @@ class TessMongoConnection():
         exists = self.find(entity[0].collection, **filter_vals)
 
         if len(exists) != 0:
-            raise ValueError("Entity {} exists in the database.".format(e))
+            exists = [e.unique_values() for e in exists]
+            new_ents = []
+            for e in entity:
+                if e.unique_values() not in exists:
+                    new_ents.append(e)
+            entity = new_ents
 
         try:
             collection = self.connection[entity[0].__class__.collection]
@@ -149,23 +185,16 @@ class TessMongoConnection():
         if not isinstance(entity, list):
             entity = [entity]
 
-        filter_vals = {}
-        for e in entity:
-            for k, v in e.json_encode(exclude=['_id']).items():
-                if k in filter_vals:
-                    filter_vals[k].append(v)
-                else:
-                    filter_vals[k] = [v]
+        ids = [e.id for e in entity]
+        exists = self.find(entity[0].collection, _id=ids)
 
-        exists = self.find(entity[0].collection, **filter_vals)
-
-        if len(exists) == 0:
-            raise ValueError("Entity {} does not exist in the database.".format(e))
+        if len(exists) < len(entity):
+            raise ValueError("Entity {} does not exist in the database.".format([str(e) for e in entity]))
 
         try:
             collection = self.connection[entity[0].__class__.collection]
             result = collection.update_many(
-                self.create_filter(_id=[e.id for e in entity]),
+                self.create_filter(_id=ids),
                 [e.json_encode(exclude=['_id']) for e in entity])
         except IndexError:
             raise ValueError

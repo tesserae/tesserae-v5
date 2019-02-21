@@ -98,6 +98,7 @@ class TessFile(object):
 
     def read(self):
         if self.buffer:
+            self.file.seek(0)
             return self.file.read()
         else:
             return '\n'.join(self.file)
