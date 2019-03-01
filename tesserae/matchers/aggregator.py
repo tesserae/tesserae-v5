@@ -170,7 +170,8 @@ class AggregationMatcher(object):
             unit_type=unit_type,
             feature=feature,
             parameters={
-                'stopwords': stoplist,
+                # easier to cache and interpret
+                'stopwords': sorted(stopwords_list),
                 'frequency_basis': frequency_basis,
                 'max_distance': max_distance,
                 'distance_metric': distance_metric
