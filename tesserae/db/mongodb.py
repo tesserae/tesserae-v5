@@ -377,6 +377,57 @@ class TessMongoConnection():
         converted = sorted([lower, upper])
         return tuple(converted)
 
+    def get_search_matches(self, matchset_id):
+        """Retrieve all matches associated with a given search
+
+        Parameters
+        ----------
+        matchset_id : str, ObjectId
+            identifier for a specific MatchSet
+
+        Returns
+        -------
+        list of matches
+        """
+        matches = self.aggregate('matches', [
+            {'$match': {'match_set': ObjectId(matchset_id)}},
+            {'$sort': {'score': -1}},
+            {'$lookup': {
+                'from': 'units',
+                'let': {'m_units': '$units'},
+                'pipeline': [
+                    {'$match': {'$expr': {'$in': ['$_id', '$$m_units']}}},
+                    {'$lookup': {
+                        'from': 'tokens',
+                        'localField': '_id',
+                        # TODO fix so that correct unit is displayed
+                        'foreignField': 'phrase',
+                        'as': 'tokens'
+                    }},
+                    {'$sort': {'index': 1}}
+                ],
+                'as': 'units'
+            }},
+            {'$lookup': {
+                'from': 'tokens',
+                'localField': 'tokens',
+                'foreignField': '_id',
+                'as': 'tokens'
+            }},
+            {'$project': {
+                'units': True,
+                'score': True,
+                'tokens': '$tokens.feature_set'
+            }},
+            {'$lookup': {
+                'from': 'feature_sets',
+                'localField': 'tokens',
+                'foreignField': '_id',
+                'as': 'tokens'
+            }}
+        ])
+        return matches
+
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):
     """Connect to a Tesserae db instance.
