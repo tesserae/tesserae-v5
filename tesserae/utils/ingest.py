@@ -32,8 +32,8 @@ def ingest_text(connection, text):
         Raised when unknown language is encountered
 
     """
-    if tessfile.metadata.language not in _tokenizers:
-        raise ValueError('Unknown language: {}'.format(tessfile.metadata.language))
+    if text.language not in _tokenizers:
+        raise ValueError('Unknown language: {}'.format(text.language))
     tessfile = TessFile(text.path, metadata=text)
     tokens, frequencies, feature_sets = \
         _tokenizers[tessfile.metadata.language].tokenize(
