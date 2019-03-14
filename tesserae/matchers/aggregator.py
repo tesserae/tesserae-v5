@@ -127,7 +127,7 @@ class AggregationMatcher(object):
         stoplist = self.connection.aggregate('frequencies', pipeline, encode=False)
         return [s['_id'] for s in stoplist]
 
-    def match(self, texts, unit_type, feature, stopwords_list=[],
+    def match(self, texts, unit_types, feature, stopwords_list=[],
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency'):
         """Find matches between one or more texts.
@@ -140,8 +140,10 @@ class AggregationMatcher(object):
         ----------
         texts : list of tesserae.db.Text
             The texts to match. Texts are matched in
-        unit_type : {'line','phrase'}
-            The type of unit to match on.
+        unit_types : list of strings
+            The type of unit to match on per text; only 'list' and 'phrase' are
+            allowed; the position of an item in texts corresponds to the unit
+            type specified in the corresponding position in this list.
         feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
         stopwords_list : list of str
@@ -167,7 +169,7 @@ class AggregationMatcher(object):
 
         match_set = MatchSet(
             texts=texts,
-            unit_type=unit_type,
+            unit_types=unit_types,
             feature=feature,
             parameters={
                 # easier to cache and interpret
@@ -209,7 +211,8 @@ class AggregationMatcher(object):
             {'$project': {
                 'text': True,
                 'index': True,
-                'unit': '$' + unit_type,
+                # NB this is wrong, but Jeff will be replacing this code
+                'unit': '$' + unit_types[0],
                 'feature': {'$arrayElemAt': ['$feature_set.' + feature, 0]},
                 'frequency': {'$arrayElemAt': ['$frequency.frequency', 0]}
             }}

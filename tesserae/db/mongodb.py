@@ -170,6 +170,8 @@ class TessMongoConnection():
         entity : tesserae.db.entities.Entity or list of Entity
             The entities to insert into the database.
 
+        ValueError
+            Raised when provided entity could not be inserted
 
         """
         if not isinstance(entity, list):
