@@ -11,7 +11,6 @@ setup(
               'tesserae.db',
               'tesserae.db.entities',
               'tesserae.matchers',
-              'tesserae.text_access',
               'tesserae.tokenizers',
               'tesserae.utils'],
     classifiers=[
