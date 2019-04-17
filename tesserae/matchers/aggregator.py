@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 import pymongo
 
-from tesserae.db import Frequency, Match, MatchSet, Token
+from tesserae.db import FeatureSet, Frequency, Match, MatchSet, Token
 
 
 class AggregationMatcher(object):
@@ -38,6 +38,27 @@ class AggregationMatcher(object):
         """Reset this Matcher to its initial state."""
         self.matches = []
 
+    def get_stoplist(self, stopwords_list):
+        """Retrieve ObjectIds for the given stopwords list
+
+        Parameters
+        ----------
+        stopwords_list : list of str
+            Words to consider as stopwords; these must be in normalized form
+
+        Returns
+        -------
+        stoplist : list of ObjectId
+            The `n` most frequent tokens in the basis texts.
+        """
+        pipeline = [{
+            '$match': {
+                'form': {'$in': stopwords_list}
+            }
+        }]
+        stoplist = self.connection.aggregate(FeatureSet.collection, pipeline, encode=False)
+        return [s['_id'] for s in stoplist]
+
     def create_stoplist(self, n, feature, language, basis='corpus'):
         """Compute a stoplist of `n` tokens.
 
@@ -51,7 +72,7 @@ class AggregationMatcher(object):
 
         Returns
         -------
-        stoplist : list of str
+        stoplist : list of ObjectId
             The `n` most frequent tokens in the basis texts.
         """
         pipeline = []
@@ -106,8 +127,7 @@ class AggregationMatcher(object):
         stoplist = self.connection.aggregate('frequencies', pipeline, encode=False)
         return [s['_id'] for s in stoplist]
 
-    def match(self, texts, unit_type, feature, stopwords=10,
-              stopword_basis='corpus', score_basis='word',
+    def match(self, texts, unit_types, feature, stopwords_list=[],
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency'):
         """Find matches between one or more texts.
@@ -120,22 +140,15 @@ class AggregationMatcher(object):
         ----------
         texts : list of tesserae.db.Text
             The texts to match. Texts are matched in
-        unit_type : {'line','phrase'}
-            The type of unit to match on.
+        unit_types : list of strings
+            The type of unit to match on per text; only 'list' and 'phrase' are
+            allowed; the position of an item in texts corresponds to the unit
+            type specified in the corresponding position in this list.
         feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
-        stopwords : int or list of str
-            The number of stopwords to use, to be retrieved from the database,
-            or else a list of words to use as stopwords.
-        stopword_basis : {'corpus','texts'} or slice or tesserae.db.Text
-            Which frequencies to use when calculating the stoplist.
-            - 'corpus': use the combined frequencies of the entire corpus
-            - 'texts': use the combined frequencies of all texts in the match
-            - slice: use the texts returned from `texts` by the slice
-            - Text: use a single text
-        score_basis : {'word','stem'}
-            Whether to score based on the words (normalized text) or stems
-            (lemmata).
+        stopwords_list : list of str
+            A list of words to use as stopwords; these must be in normalized
+            form.
         frequency_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
@@ -146,11 +159,7 @@ class AggregationMatcher(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
-        stoplist = self.create_stoplist(
-            stopwords,
-            'form' if feature == 'form' else 'lemmata',
-            texts[0].language,
-            basis=stopword_basis)
+        stoplist = self.get_stoplist(stopwords_list)
 
         print(stoplist)
         import time
@@ -160,12 +169,11 @@ class AggregationMatcher(object):
 
         match_set = MatchSet(
             texts=texts,
-            unit_type=unit_type,
+            unit_types=unit_types,
             feature=feature,
             parameters={
-                'stopwords': stoplist,
-                'stopword_basis': stopword_basis,
-                'score_basis': score_basis,
+                # easier to cache and interpret
+                'stopwords': sorted(stopwords_list),
                 'frequency_basis': frequency_basis,
                 'max_distance': max_distance,
                 'distance_metric': distance_metric
@@ -203,7 +211,8 @@ class AggregationMatcher(object):
             {'$project': {
                 'text': True,
                 'index': True,
-                'unit': '$' + unit_type,
+                # NB this is wrong, but Jeff will be replacing this code
+                'unit': '$' + unit_types[0],
                 'feature': {'$arrayElemAt': ['$feature_set.' + feature, 0]},
                 'frequency': {'$arrayElemAt': ['$frequency.frequency', 0]}
             }}

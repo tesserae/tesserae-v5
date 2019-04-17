@@ -47,12 +47,12 @@ class MatchSet(Entity):
 
     collection = 'match_sets'
 
-    def __init__(self, id=None, texts=None, unit_type=None, feature=None,
+    def __init__(self, id=None, texts=None, unit_types=None, feature=None,
                  parameters=None):
         super(MatchSet, self).__init__(id=id)
         self.texts: typing.List[typing.Union[ObjectId, Entity]] = \
             texts if texts is not None else []
-        self.unit_type: typing.Optional[str] = unit_type
+        self.unit_types: typing.Optional[typing.List[str]] = unit_types
         self.feature: typing.Optional[str] = feature
         self.parameters: typing.Dict = \
             parameters if parameters is not None else {}
