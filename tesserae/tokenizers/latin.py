@@ -18,7 +18,7 @@ class LatinTokenizer(BaseTokenizer):
         self.lemmatizer = Lemmata('lemmata', 'latin')
 
         self.split_pattern = \
-            '[<].+[>][\s]| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
+            '([<].+[>])| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
 
     # def tokenize(self, raw, record=True, text=None):
     #     normalized = unicodedata.normalize('NFKD', raw).lower()
