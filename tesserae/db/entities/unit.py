@@ -42,6 +42,9 @@ class Unit(Entity):
     index : int
         The order of this unit in the text. This is relative to Units of a
         particular type.
+    tags : list of str
+        The in-text locale tag(s) associated with the unit. Correponds to,
+        e.g., lines of a poem or sentences/paragraphs of prose.
     unit_type : str
         How the chunk of text in this Unit was defined, e.g., "line",
         "phrase", etc.
@@ -52,11 +55,12 @@ class Unit(Entity):
 
     collection = 'units'
 
-    def __init__(self, id=None, text=None, index=None, unit_type=None,
+    def __init__(self, id=None, text=None, index=None, tags=None, unit_type=None,
                  tokens=None):
         super(Unit, self).__init__(id=id)
         self.text: typing.Optional[ObjectId] = text
         self.index: typing.Optional[int] = index
+        self.tags: typing.List[str] = tags if tags is not None else []
         self.unit_type: typing.Optional[str] = unit_type
         self.tokens: typing.List[typing.Union[ObjectId, Entity]] = \
             tokens if tokens is not None else []
