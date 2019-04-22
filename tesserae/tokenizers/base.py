@@ -34,7 +34,7 @@ class BaseTokenizer(object):
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '[<].+[>][\s]| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
+            '([<].+[>])| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
 
         self.clear()
 
@@ -103,9 +103,10 @@ class BaseTokenizer(object):
         normalized = self.normalize(raw)
         normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
         normalized = [n for n in normalized if n]
+        print(normalized[0])
         raw = re.sub(r'<.+>\s', '', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
-        display = [t for t in re.split('( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
+        display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
         featurized = self.featurize(normalized)
 
         # Create the storage for this run of `tokenize`
@@ -136,6 +137,19 @@ class BaseTokenizer(object):
             idx = i + base
             feature_set = None
             frequency = None
+
+            try:
+                if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
+                    tag = re.search(r'([\d]+[.][\d]+)', normalized[norm_i])
+                    tag = tag.group(1)
+
+                    t = Token(text=text, index=-1, display=normalized[norm_i],
+                          feature_set=tag, frequency=frequency)
+                    tokens.append(t)
+                    norm_i += 1
+            except IndexError:
+                pass
+
             if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
                 n = normalized[norm_i]
                 f = featurized[norm_i]
