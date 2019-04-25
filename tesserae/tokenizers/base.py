@@ -103,7 +103,7 @@ class BaseTokenizer(object):
         normalized = self.normalize(raw)
         normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
         normalized = [n for n in normalized if n]
-        print(normalized[0])
+
         raw = re.sub(r'<.+>\s', '', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
         display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
@@ -130,6 +130,8 @@ class BaseTokenizer(object):
         except AttributeError:
             language = None
 
+        tags = []
+
         # Prep the token objects
         base = len(self.tokens)
         norm_i = 0
@@ -140,14 +142,15 @@ class BaseTokenizer(object):
 
             try:
                 if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
-                    tag = re.search(r'([\d]+[.][\d]+)', normalized[norm_i])
+                    tag = re.search('([\d]+[.]*[\d]*[a-zA-Z]*)', normalized[norm_i])
                     tag = tag.group(1)
+                    tags.append(tag)
 
-                    t = Token(text=text, index=-1, display=normalized[norm_i],
-                          feature_set=tag, frequency=frequency)
-                    tokens.append(t)
+                    #t = Token(text=text, index=-1, display=normalized[norm_i],
+                    #      feature_set=tag, frequency=frequency)
+                    #tokens.append(t)
                     norm_i += 1
-            except IndexError:
+            except (IndexError, AttributeError):
                 pass
 
             if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
@@ -184,4 +187,4 @@ class BaseTokenizer(object):
             self.feature_sets.update(feature_sets)
             frequencies = self.frequencies
 
-        return tokens, list(frequency_list.values()), new_feature_sets
+        return tokens, tags, list(frequency_list.values()), new_feature_sets
