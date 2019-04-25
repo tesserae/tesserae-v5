@@ -199,11 +199,11 @@ class TessMongoConnection():
             collection = self.connection[entity[0].__class__.collection]
             result = collection.insert_many(
                 [e.json_encode(exclude=['_id']) for e in entity])
+            for i, e in enumerate(entity):
+                e.id = result.inserted_ids[i]
         except IndexError:
-            raise ValueError("No entities provided.")
+            result = []
 
-        for i, e in enumerate(entity):
-            e.id = result.inserted_ids[i]
         return result
 
     def update(self, entity):
