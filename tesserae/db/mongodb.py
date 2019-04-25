@@ -185,7 +185,11 @@ class TessMongoConnection():
                 else:
                     filter_vals[k] = [v]
 
-        exists = self.find(entity[0].collection, **filter_vals)
+        try:
+            exists = self.find(entity[0].collection, **filter_vals)
+        except IndexError:
+            pass
+            
 
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
