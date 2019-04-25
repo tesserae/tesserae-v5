@@ -79,7 +79,7 @@ class Unit(Entity):
 
     def unique_values(self):
         uniques = {
-            'text': self.text.id,
+            'text': self.text.id if isinstance(self.text, Entity) else self.text,
             'index': self.index,
             'unit_type': self.unit_type}
         return uniques

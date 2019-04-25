@@ -72,7 +72,7 @@ class MatchSet(Entity):
         uniques = {
             'texts': [t.id if isinstance(t, Entity) else t
                       for t in self.texts],
-            'unit_type': self.unit_type,
+            'unit_types': self.unit_types,
             'feature': self.feature,
             'parameters': self.parameters
         }
