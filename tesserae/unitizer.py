@@ -54,7 +54,7 @@ class Unitizer(object):
         self.lines = []
         self.phrases = []
 
-    def unitize(self, tokens, metadata, tokenizer=None, stop=False):
+    def unitize(self, tokens, tags, metadata, tokenizer=None, stop=False):
         """Split a poem into line and phrase units.
 
         Parameters
@@ -98,9 +98,20 @@ class Unitizer(object):
                      index=len(self.phrases),
                      unit_type='phrase'))
 
+        tag_idx = 0
+        try:
+            if tags[tag_idx] not in self.lines[-1].tags:
+                self.lines[-1].tags.append(tags[tag_idx])
+            if tags[tag_idx] not in self.phrases[-1].tags:
+                self.phrases[-1].tags.append(tags[tag_idx])
+        except IndexError:
+            pass
+
+        # tag_indices = []
+
         # Add the token to the current line and phrase and determine if it is
         # a unit delimiter.
-        for t in tokens:
+        for i, t in enumerate(tokens):
             # Ensure that the token is valid
             if not isinstance(t, Token):
                 raise InvalidTokenError(t)
@@ -110,37 +121,61 @@ class Unitizer(object):
             word = re.search(r'[\w]', t.display, flags=re.UNICODE)
 
             # Get the current line and phrase
-            if '<' not in t.display:
-                self.lines[-1].tokens.append(t)
-                t.line = self.lines[-1]
+            # if '<' not in t.display:
+            self.lines[-1].tokens.append(t)
+            t.line = self.lines[-1]
 
-                # Handle seeing multiple phrase delimiters in a row
-                if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
-                    self.phrases[-2].tokens.append(t)
-                    t.phrase = self.phrases[-2]
-                else:
-                    self.phrases[-1].tokens.append(t)
-                    t.phrase = self.phrases[-1]
+            # Handle seeing multiple phrase delimiters in a row
+            if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
+                self.phrases[-2].tokens.append(t)
+                t.phrase = self.phrases[-2]
+            else:
+                self.phrases[-1].tokens.append(t)
+                t.phrase = self.phrases[-1]
 
-                # If this token contains a newline or the Tesserae line delimiter,
-                # create a new line unit and append it for the next iteration.
-                if re.search(r'(\n)|( / )', t.display, flags=re.UNICODE):
-                    self.lines.append(
-                        Unit(text=metadata,
-                             index=len(self.lines),
-                             unit_type='line'))
+            # If this token contains a newline or the Tesserae line delimiter,
+            # create a new line unit and append it for the next iteration.
+            if re.search(r'(\n)|( / )', t.display, flags=re.UNICODE):
+                try:
+                    if len(self.phrases[-1].tags) == 0:
+                        self.phrases[-1].tags.append(tags[tag_idx])
+                except IndexError:
+                    pass
 
-                # If this token contains a phrasee delimiter (one of .?!;:),
-                # create a new phrase unit and append it for the next iteration.
-                if phrase_delim and len(self.phrases[-1].tokens) > 0:
-                    self.phrases.append(
-                        Unit(text=metadata,
-                             index=len(self.phrases),
-                             unit_type='phrase'))
-            
-            if isinstance(t.feature_set, str):
-                self.lines[-1].tags.append(t.feature_set)
-                self.phrases[-1].tags.append(t.feature_set)
+                self.lines.append(
+                    Unit(text=metadata,
+                         index=len(self.lines),
+                         unit_type='line'))
+                tag_idx += 1
+                try:
+                    if tags[tag_idx] not in self.lines[-1].tags:
+                        self.lines[-1].tags.append(tags[tag_idx])
+                    if tags[tag_idx] not in self.phrases[-1].tags:
+                        self.phrases[-1].tags.append(tags[tag_idx])
+                except IndexError:
+                    pass
+
+            # If this token contains a phrasee delimiter (one of .?!;:),
+            # create a new phrase unit and append it for the next iteration.
+            if phrase_delim and len(self.phrases[-1].tokens) > 0:
+                try:
+                    if tags[tag_idx] not in self.phrases[-1].tags:
+                        self.phrases[-1].tags.append(tags[tag_idx])
+                except IndexError:
+                    pass
+
+                self.phrases.append(
+                    Unit(text=metadata,
+                         index=len(self.phrases),
+                         unit_type='phrase'))
+
+            # if isinstance(t.feature_set, str):
+            #     tag_indices.append(i)
+            #     self.lines[-1].tags.append(t.feature_set)
+            #     self.phrases[-1].tags.append(t.feature_set)
+
+        # for idx in tag_indices[::-1]:
+        #     del tokens[idx]
 
         if stop and len(self.lines[-1].tokens) == 0:
             self.lines.pop()
