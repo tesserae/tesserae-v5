@@ -104,7 +104,7 @@ class BaseTokenizer(object):
         normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
         normalized = [n for n in normalized if n]
 
-        raw = re.sub(r'<.+>\s', '', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<].+[>]\s', '', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
         display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
         featurized = self.featurize(normalized)
@@ -142,13 +142,9 @@ class BaseTokenizer(object):
 
             try:
                 if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
-                    tag = re.search('([\d]+[.]*[\d]*[a-zA-Z]*)', normalized[norm_i])
+                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', normalized[norm_i], flags=re.UNICODE)
                     tag = tag.group(1)
                     tags.append(tag)
-
-                    #t = Token(text=text, index=-1, display=normalized[norm_i],
-                    #      feature_set=tag, frequency=frequency)
-                    #tokens.append(t)
                     norm_i += 1
             except (IndexError, AttributeError):
                 pass
