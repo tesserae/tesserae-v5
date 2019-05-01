@@ -59,8 +59,8 @@ class GreekTokenizer(BaseTokenizer):
 
         normalized = re.sub(r'\'', '', normalized, flags=re.UNICODE)
 
-        normalized = re.sub(r'[\'0-9]+', '', normalized,
-                            flags=re.UNICODE)
+        # normalized = re.sub('(?<![<])([0-9]+)(?![>])', '', normalized,
+        #                     flags=re.UNICODE)
 
         return normalized
 
