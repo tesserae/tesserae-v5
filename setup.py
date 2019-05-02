@@ -22,35 +22,49 @@ class InstallLemmataModels(install):
         """
         latin = 'https://github.com/cltk/latin_models_cltk/archive/master.zip'
         greek = 'https://github.com/cltk/greek_models_cltk/archive/master.zip'
-
         home = str(Path.home())
-        base = os.path.join(home, 'cltk_data', 'latin', 'model')
-        if not os.path.isdir(base):
-            os.makedirs(base, exist_ok=True)
 
-        fname = os.path.join(base, 'latin_models_cltk.zip')
-        with urllib.request.urlopen(latin) as response, open(fname, 'wb') as out_file:
-            shutil.copyfileobj(response, out_file)
+        try:
+            # Set up the file paths and directories for the Latin models
+            base = os.path.join(home, 'cltk_data', 'latin', 'model')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
 
-        with zipfile.ZipFile(fname, mode='r') as zf:
-            zf.extractall(base)
+            # Download the Latin models and move the ZIP archive
+            fname = os.path.join(base, 'latin_models_cltk.zip')
+            with urllib.request.urlopen(latin) as response, open(fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
 
-        fname, _ = os.path.splitext(fname)
-        os.rename(fname + '-master', fname)
+            # Extract all files from the ZIP archive
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
 
-        base = os.path.join(home, 'cltk_data', 'greek', 'model')
-        if not os.path.isdir(base):
-            os.makedirs(base, exist_ok=True)
+            # Rename the extracted directory to match the expected name
+            fname, _ = os.path.splitext(fname)
+            os.rename(fname + '-master', fname)
+        except OSError:
+            pass
 
-        fname = os.path.join(base, 'greek_models_cltk.zip')
-        with urllib.request.urlopen(greek) as response, open(fname, 'wb') as out_file:
-            shutil.copyfileobj(response, out_file)
+        try:
+            # Repeat the process with Greek models
+            base = os.path.join(home, 'cltk_data', 'greek', 'model')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
 
-        with zipfile.ZipFile(fname, mode='r') as zf:
-            zf.extractall(base)
+            fname = os.path.join(base, 'greek_models_cltk.zip')
+            with urllib.request.urlopen(greek) as response, open(fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
 
-        fname, _ = os.path.splitext(fname)
-        os.rename(fname + '-master', fname)
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
+
+            fname, _ = os.path.splitext(fname)
+            os.rename(fname + '-master', fname)
+        except OSError:
+            pass
+
+        # Run the standard installer
+        install.run(self)
 
 
 setup(
