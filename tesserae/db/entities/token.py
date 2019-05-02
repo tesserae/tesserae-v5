@@ -112,5 +112,8 @@ class Token(Entity):
         return obj
 
     def unique_values(self):
-        uniques = {'text': self.text.id, 'index': self.index}
+        uniques = {
+            'text': self.text.id if isinstance(self.text, Entity) else self.text,
+            'index': self.index
+        }
         return uniques

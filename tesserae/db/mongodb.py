@@ -24,6 +24,7 @@ use the `pymongo`_ library.
 
 """
 
+import collections
 import datetime
 from typing import Iterable
 try:
@@ -37,6 +38,30 @@ import pymongo
 
 import tesserae.db.entities
 from tesserae.db.entities import Entity
+
+
+def _extract_embedded_docs(doc):
+    """Recursive function to build dot notation for MongoDB $set operation
+    """
+    result_keys = []
+    result_vals = []
+    for key, val in doc.items():
+        if isinstance(val, collections.Mapping):
+            dotted_keys, dotted_vals = _extract_embedded_docs(val)
+            for d_key, d_val in zip(dotted_keys, dotted_vals):
+                result_keys.append(key + '.' + d_key)
+                result_vals.append(d_val)
+        else:
+            result_keys.append(key)
+            result_vals.append(val)
+    return result_keys, result_vals
+
+
+def _dot_notate(doc):
+    """Flatten embedded documents for MongoDB $set operation
+    """
+    dotted_keys, dotted_vals = _extract_embedded_docs(doc)
+    return {k: v for k, v in zip(dotted_keys, dotted_vals)}
 
 
 class TessMongoConnection():
@@ -145,6 +170,8 @@ class TessMongoConnection():
         entity : tesserae.db.entities.Entity or list of Entity
             The entities to insert into the database.
 
+        ValueError
+            Raised when provided entity could not be inserted
 
         """
         if not isinstance(entity, list):
@@ -158,7 +185,11 @@ class TessMongoConnection():
                 else:
                     filter_vals[k] = [v]
 
-        exists = self.find(entity[0].collection, **filter_vals)
+        try:
+            exists = self.find(entity[0].collection, **filter_vals)
+        except IndexError:
+            pass
+            
 
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
@@ -172,32 +203,39 @@ class TessMongoConnection():
             collection = self.connection[entity[0].__class__.collection]
             result = collection.insert_many(
                 [e.json_encode(exclude=['_id']) for e in entity])
+            for i, e in enumerate(entity):
+                e.id = result.inserted_ids[i]
         except IndexError:
-            raise ValueError("No entities provided.")
+            result = []
 
-        for i, e in enumerate(entity):
-            e.id = result.inserted_ids[i]
         return result
 
     def update(self, entity):
         """Update an existing entry in the database.
+
+        Only one entity can be updated at a time
+
+        Raises
+        ------
+        ValueError
+            Raised when provided entity could not be updated
         """
-        if not isinstance(entity, list):
-            entity = [entity]
+        if not isinstance(entity, Entity):
+            raise ValueError('Unknown entity: ' + str(entity))
 
-        ids = [e.id for e in entity]
-        exists = self.find(entity[0].collection, _id=ids)
+        exists = self.find(entity.collection, _id=entity.id)
 
-        if len(exists) < len(entity):
-            raise ValueError("Entity {} does not exist in the database.".format([str(e) for e in entity]))
+        if len(exists) < 1:
+            raise ValueError("Entity {} does not exist in the database.".format(entity))
 
         try:
-            collection = self.connection[entity[0].__class__.collection]
+            collection = self.connection[entity.__class__.collection]
+            # TODO figure out fix for update
             result = collection.update_many(
-                self.create_filter(_id=ids),
-                [e.json_encode(exclude=['_id']) for e in entity])
+                self.create_filter(_id=entity.id),
+                {'$set': _dot_notate(entity.json_encode(exclude=['_id']))})
         except IndexError:
-            raise ValueError
+            raise ValueError('Update failed')
         return result
 
     def create_filter(self, **kwargs):
@@ -344,6 +382,57 @@ class TessMongoConnection():
         """
         converted = sorted([lower, upper])
         return tuple(converted)
+
+    def get_search_matches(self, matchset_id):
+        """Retrieve all matches associated with a given search
+
+        Parameters
+        ----------
+        matchset_id : str, ObjectId
+            identifier for a specific MatchSet
+
+        Returns
+        -------
+        list of matches
+        """
+        matches = self.aggregate('matches', [
+            {'$match': {'match_set': ObjectId(matchset_id)}},
+            {'$sort': {'score': -1}},
+            {'$lookup': {
+                'from': 'units',
+                'let': {'m_units': '$units'},
+                'pipeline': [
+                    {'$match': {'$expr': {'$in': ['$_id', '$$m_units']}}},
+                    {'$lookup': {
+                        'from': 'tokens',
+                        'localField': '_id',
+                        # TODO fix so that correct unit is displayed
+                        'foreignField': 'phrase',
+                        'as': 'tokens'
+                    }},
+                    {'$sort': {'index': 1}}
+                ],
+                'as': 'units'
+            }},
+            {'$lookup': {
+                'from': 'tokens',
+                'localField': 'tokens',
+                'foreignField': '_id',
+                'as': 'tokens'
+            }},
+            {'$project': {
+                'units': True,
+                'score': True,
+                'tokens': '$tokens.feature_set'
+            }},
+            {'$lookup': {
+                'from': 'feature_sets',
+                'localField': 'tokens',
+                'foreignField': '_id',
+                'as': 'tokens'
+            }}
+        ])
+        return matches
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):

@@ -34,7 +34,7 @@ class BaseTokenizer(object):
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '[<].+[>][\s]| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
+            '([<].+[>])| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
 
         self.clear()
 
@@ -103,9 +103,10 @@ class BaseTokenizer(object):
         normalized = self.normalize(raw)
         normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
         normalized = [n for n in normalized if n]
-        raw = re.sub(r'<.+>\s', '', raw, flags=re.UNICODE)
+
+        raw = re.sub(r'[<].+[>]\s', '', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
-        display = [t for t in re.split('( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
+        display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
         featurized = self.featurize(normalized)
 
         # Create the storage for this run of `tokenize`
@@ -129,6 +130,8 @@ class BaseTokenizer(object):
         except AttributeError:
             language = None
 
+        tags = []
+
         # Prep the token objects
         base = len(self.tokens)
         norm_i = 0
@@ -136,6 +139,16 @@ class BaseTokenizer(object):
             idx = i + base
             feature_set = None
             frequency = None
+
+            try:
+                if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
+                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', normalized[norm_i], flags=re.UNICODE)
+                    tag = tag.group(1)
+                    tags.append(tag)
+                    norm_i += 1
+            except (IndexError, AttributeError):
+                pass
+
             if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
                 n = normalized[norm_i]
                 f = featurized[norm_i]
@@ -170,4 +183,4 @@ class BaseTokenizer(object):
             self.feature_sets.update(feature_sets)
             frequencies = self.frequencies
 
-        return tokens, list(frequency_list.values()), new_feature_sets
+        return tokens, tags, list(frequency_list.values()), new_feature_sets
