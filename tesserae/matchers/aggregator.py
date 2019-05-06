@@ -173,7 +173,7 @@ class AggregationMatcher(object):
                 texts[0].language,
                 basis=stopword_basis)
         else:
-            stoplist = get_stoplist(stoplist)
+            stoplist = get_stoplist(stopwords)
 
         print(stoplist)
         import time
