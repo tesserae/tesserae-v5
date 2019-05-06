@@ -165,11 +165,15 @@ class AggregationMatcher(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
-        stoplist = self.create_stoplist(
-            stopwords,
-            'form' if feature == 'form' else 'lemmata',
-            texts[0].language,
-            basis=stopword_basis)
+
+        if isinstance(stopwords, int):
+            stoplist = self.create_stoplist(
+                stopwords,
+                'form' if feature == 'form' else 'lemmata',
+                texts[0].language,
+                basis=stopword_basis)
+        else:
+            stoplist = get_stoplist(stoplist)
 
         print(stoplist)
         import time
