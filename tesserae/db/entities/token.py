@@ -56,12 +56,13 @@ class Token(Entity):
     collection = 'tokens'
 
     def __init__(self, id=None, text=None, index=None, display=None,
-                 feature_set=None, line=None, phrase=None, frequency=None):
+                 features=None, line=None, phrase=None, frequency=None):
         super(Token, self).__init__(id=id)
         self.text: typing.Optional[typing.Union[Entity, ObjectId]] = text
         self.index: typing.Optional[int] = index
         self.display: typing.Optional[str] = display
-        self.feature_set: typing.Optional[typing.Union[Entity, ObjectId]] = feature_set
+        self.features: typing.Dict[str, ObjectId] = \
+            features if features is not None else {}
         self.line: typing.Optional[typing.Union[Entity, ObjectId]] = line
         self.phrase: typing.Optional[typing.Union[Entity, ObjectId]] = phrase
         self.frequency: typing.Optional[typing.Union[Entity, ObjectId]] = frequency
