@@ -1,8 +1,9 @@
 import collections
+import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db import FeatureSet, Frequency, Token
+from tesserae.db import Feature, Frequency, Token
 
 
 class BaseTokenizer(object):
@@ -184,3 +185,159 @@ class BaseTokenizer(object):
             frequencies = self.frequencies
 
         return tokens, tags, list(frequency_list.values()), new_feature_sets
+
+    def tokenize2(self, raw, record=True, text=None):
+        """Normalize and featurize the words in a string.
+
+        Tokens are comprised of the raw string, normalized form, and features
+        related to the words under study. This computes all of the relevant
+        data and tracks token frequencies in one shot.
+
+        Parameters
+        ----------
+        raw : str or list of str
+            The string(s) to process. If a list, assumes that the string
+            members of the list have already been split as intended (e.g.
+            list elements were split on whitespace).
+        record : bool
+            If True, record tokens and frequencies in `self.tokens` and
+            `self.frequencies`, respectively. Pass False to prevent recording
+            in the event that the string is re-processed.
+        text : tesserae.Text, optional
+            Text metadata for associating tokens and frequencies with a
+            particular text.
+
+        Returns
+        -------
+        tokens : list of tesserae.db.Token
+        frequencies : list of tesserae.db.Frequency
+        """
+        normalized = self.normalize(raw)
+        normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
+        normalized = [n for n in normalized if n]
+
+        raw = re.sub(r'[<].+[>]\s', '', raw, flags=re.UNICODE)
+        raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
+        display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
+        featurized = self.featurize(normalized)
+        featurized['form'] = normalized
+
+        # Create the storage for this run of `tokenize`
+        tokens = []
+
+        # Get the text id from the metadata if it was passed in
+        try:
+            text_id = text
+        except AttributeError:
+            text_id = None
+
+        try:
+            language = text.language
+        except AttributeError:
+            language = None
+
+        tags = []
+
+        with mp.Pool() as p:
+            result = p.starmap(
+                create_features,
+                [(self.connection, text, f, featurized[f])
+                 for f in featurized.keys()])
+
+        for feature_list, feature in result:
+            featurized[feature] = feature_list
+
+        normalized = featurized['form']
+
+        # Prep the token objects
+        base = len(self.tokens)
+        norm_i = 0
+        for i, d in enumerate(display):
+            idx = i + base
+            feature_set = None
+            frequency = None
+
+            try:
+                if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
+                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', normalized[norm_i], flags=re.UNICODE)
+                    tag = tag.group(1)
+                    tags.append(tag)
+                    norm_i += 1
+            except (IndexError, AttributeError):
+                pass
+
+            if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
+                n = normalized[norm_i]
+                f = featurized[norm_i]
+
+                if n in feature_sets:
+                    feature_set = feature_sets[n]
+                else:
+                    feature_set = FeatureSet(form=n, language=language, **f)
+                    feature_sets[n] = feature_set
+                    new_feature_sets.append(feature_set)
+
+                if n in frequency_list:
+                    frequency = frequency_list[n]
+                else:
+                    frequency = Frequency(text=text,
+                                          feature_set=feature_set,
+                                          frequency=frequencies[n])
+                    frequency_list[n] = frequency
+
+                norm_i += 1
+
+            t = Token(text=text, index=idx, display=d,
+                      feature_set=feature_set, frequency=frequency)
+            tokens.append(t)
+
+        return tokens, tags, features
+
+
+def feature_wrapper(*args, **kwargs):
+    return create_features(*args, **kwargs)
+
+
+def create_features(connection, text, feature, feature_list):
+    """Create feature entities and register frequencies.
+
+
+    """
+    db_features = conn('features', feature=feature)
+    db_features = {f.token: f for f in db_features}
+
+    out_features = []
+    for f in feature_list:
+        if isinstance(f, collections.Sequence) and not isinstance(f, basestring):
+            feature_group = []
+            for sub_f in f:
+                if sub_f in db_features:
+                    sub_f = db_features[sub_f]
+                    try:
+                        sub_f.frequency[text] += 1
+                    except KeyError:
+                        sub_f.frequency[text] = 1
+                    feature_group.append(sub_f)
+                else:
+                    sub_f = Feature(feature=feature, token=sub_f,
+                                    index=len(db_features),
+                                    frequency={text: 1})
+                    db_features[sub_f.token] = sub_f
+                    feature_group.append(sub_f)
+            out_features.append(feature_group)
+
+        else:
+            if f in db_features:
+                f = db_features[f]
+                try:
+                    f.frequency[text] += 1
+                except KeyError:
+                    f.frequency[text] = 1
+                out_features.append(f)
+            else:
+                f = Feature(feature=feature, token=f, index=len(db_features),
+                            frequency={text: 1})
+                db_features[f.token] = f
+                out_features.append(f)
+
+    return out_features, feature
