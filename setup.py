@@ -1,4 +1,71 @@
+from pathlib import Path
+import os
 from setuptools import setup
+from setuptools.command.install import install
+import shutil
+import sys
+import urllib.request
+import zipfile
+
+
+class InstallLemmataModels(install):
+    """Helper to install CLTK lemmatization models."""
+    description = "Install CLTK lemmatization models to $HOME/cltk_tools"
+
+    def run(self):
+        """Install CLTK lemmatization models.
+
+        Tesserae uses the CLTK lemmatizers for each language, and these have
+        accompanying data that must be installed separately. This function
+        installs them to `$HOME/cltk_data` where they may be found by the
+        lemmatizer.
+        """
+        latin = 'https://github.com/cltk/latin_models_cltk/archive/master.zip'
+        greek = 'https://github.com/cltk/greek_models_cltk/archive/master.zip'
+        home = str(Path.home())
+
+        try:
+            # Set up the file paths and directories for the Latin models
+            base = os.path.join(home, 'cltk_data', 'latin', 'model')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
+
+            # Download the Latin models and move the ZIP archive
+            fname = os.path.join(base, 'latin_models_cltk.zip')
+            with urllib.request.urlopen(latin) as response, open(fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            # Extract all files from the ZIP archive
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
+
+            # Rename the extracted directory to match the expected name
+            fname, _ = os.path.splitext(fname)
+            os.rename(fname + '-master', fname)
+        except OSError:
+            pass
+
+        try:
+            # Repeat the process with Greek models
+            base = os.path.join(home, 'cltk_data', 'greek', 'model')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
+
+            fname = os.path.join(base, 'greek_models_cltk.zip')
+            with urllib.request.urlopen(greek) as response, open(fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
+
+            fname, _ = os.path.splitext(fname)
+            os.rename(fname + '-master', fname)
+        except OSError:
+            pass
+
+        # Run the standard installer
+        install.run(self)
+
 
 setup(
     name='tesserae',
@@ -33,5 +100,6 @@ setup(
         'nltk>=3.2.5',
         'numpy>=1.14.0',
         'pymongo>=3.6.1',
-    ]
+    ],
+    cmdclass={'install': InstallLemmataModels}
 )
