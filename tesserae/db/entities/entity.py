@@ -27,6 +27,11 @@ class Entity():
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
+    def __hash__(self):
+        vals = self.unique_values()
+        return hash(str(vals)) if not isinstance(vals, dict) \
+            else hash(' '.join([str(vals[key]) for key in sorted(list(vals.keys()))]))
+
     def copy(self):
         """Create a deep copy of this Entity.
 
@@ -110,6 +115,4 @@ class Entity():
         return instance
 
     def unique_values(self):
-        uniques = copy.deepcopy(self.__dict__)
-        del uniques['_id']
-        return uniques
+        return {'id': self.id}
