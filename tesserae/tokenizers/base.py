@@ -3,7 +3,7 @@ import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db import Feature, Frequency, Token
+from tesserae.db.entities import Feature, Frequency, Token
 
 
 class BaseTokenizer(object):
@@ -238,14 +238,18 @@ class BaseTokenizer(object):
 
         tags = []
 
-        with mp.Pool() as p:
-            result = p.starmap(
-                create_features,
-                [(self.connection, text, f, featurized[f])
-                 for f in featurized.keys()])
+        p = mp.Pool()
+        results = p.starmap(
+            create_features,
+            [(list(self.connection.find(Feature.collection, language=language, feature=f)),
+              text_id, f, featurized[f])
+              for f in featurized.keys()])
+        p.close()
+        p.join()
 
-        for feature_list, feature in result:
+        for feature_list, feature in results:
             featurized[feature] = feature_list
+        features_list = []
 
         normalized = featurized['form']
 
@@ -254,12 +258,9 @@ class BaseTokenizer(object):
         norm_i = 0
         for i, d in enumerate(display):
             idx = i + base
-            feature_set = None
-            frequency = None
-
             try:
-                if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
-                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', normalized[norm_i], flags=re.UNICODE)
+                if re.search(r'<', featurized['form'][norm_i].token, flags=re.UNICODE):
+                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', featurized['form'][norm_i].token, flags=re.UNICODE)
                     tag = tag.group(1)
                     tags.append(tag)
                     norm_i += 1
@@ -267,61 +268,76 @@ class BaseTokenizer(object):
                 pass
 
             if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
-                n = normalized[norm_i]
-                f = featurized[norm_i]
-
-                if n in feature_sets:
-                    feature_set = feature_sets[n]
-                else:
-                    feature_set = FeatureSet(form=n, language=language, **f)
-                    feature_sets[n] = feature_set
-                    new_feature_sets.append(feature_set)
-
-                if n in frequency_list:
-                    frequency = frequency_list[n]
-                else:
-                    frequency = Frequency(text=text,
-                                          feature_set=feature_set,
-                                          frequency=frequencies[n])
-                    frequency_list[n] = frequency
-
+                features = {}
+                for key, val in featurized.items():
+                    features[key] = val[norm_i]
+                    # if isinstance(val, Feature):
+                    #     feature_list.append(val)
+                    # else:
+                    #     feature_list.extend(val)
                 norm_i += 1
 
-            t = Token(text=text, index=idx, display=d,
-                      feature_set=feature_set, frequency=frequency)
+            else:
+                features = None
+                # n = normalized[norm_i]
+                # f = featurized[norm_i]
+
+                # if n in feature_sets:
+                #     feature_set = feature_sets[n]
+                # else:
+                #     feature_set = FeatureSet(form=n, language=language, **f)
+                #     feature_sets[n] = feature_set
+                #     new_feature_sets.append(feature_set)
+                #
+                # if n in frequency_list:
+                #     frequency = frequency_list[n]
+                # else:
+                #     frequency = Frequency(text=text,
+                #                           feature_set=feature_set,
+                #                           frequency=frequencies[n])
+                #     frequency_list[n] = frequency
+
+            t = Token(text=text, index=idx, display=d, features=features)
             tokens.append(t)
 
-        return tokens, tags, features
+        features = set()
+        for val in featurized.values():
+            if isinstance(val[0], collections.Sequence):
+                for v in val:
+                    features |= set(v)
+            else:
+                features |= set(val)
+
+        return tokens, tags, list(features)
 
 
 def feature_wrapper(*args, **kwargs):
     return create_features(*args, **kwargs)
 
 
-def create_features(connection, text, feature, feature_list):
+def create_features(db_features, text, feature, feature_list):
     """Create feature entities and register frequencies.
 
 
     """
-    db_features = conn('features', feature=feature)
     db_features = {f.token: f for f in db_features}
 
     out_features = []
     for f in feature_list:
-        if isinstance(f, collections.Sequence) and not isinstance(f, basestring):
+        if isinstance(f, collections.Sequence) and not isinstance(f, str):
             feature_group = []
             for sub_f in f:
                 if sub_f in db_features:
                     sub_f = db_features[sub_f]
                     try:
-                        sub_f.frequency[text] += 1
+                        sub_f.frequencies[text] += 1
                     except KeyError:
-                        sub_f.frequency[text] = 1
+                        sub_f.frequencies[text] = 1
                     feature_group.append(sub_f)
                 else:
                     sub_f = Feature(feature=feature, token=sub_f,
                                     index=len(db_features),
-                                    frequency={text: 1})
+                                    frequencies={text: 1})
                     db_features[sub_f.token] = sub_f
                     feature_group.append(sub_f)
             out_features.append(feature_group)
@@ -330,13 +346,13 @@ def create_features(connection, text, feature, feature_list):
             if f in db_features:
                 f = db_features[f]
                 try:
-                    f.frequency[text] += 1
+                    f.frequencies[text] += 1
                 except KeyError:
-                    f.frequency[text] = 1
+                    f.frequencies[text] = 1
                 out_features.append(f)
             else:
                 f = Feature(feature=feature, token=f, index=len(db_features),
-                            frequency={text: 1})
+                            frequencies={text: 1})
                 db_features[f.token] = f
                 out_features.append(f)
 
