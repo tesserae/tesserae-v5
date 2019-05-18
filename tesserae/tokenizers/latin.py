@@ -115,7 +115,13 @@ class LatinTokenizer(BaseTokenizer):
         if not isinstance(tokens, list):
             tokens = [tokens]
         lemmata = self.lemmatizer.lookup(tokens)
-        features = []
-        for i, l in enumerate(lemmata):
-            features.append({'lemmata': [lem[0] for lem in l[1]]})
+        fixed_lemmata = []
+        for lem in lemmata:
+            lem_lemmata = [l[0] for l in lem[1]]
+            fixed_lemmata.append(lem_lemmata)
+        features = {
+            'lemmata': fixed_lemmata
+        }
+        # for i, l in enumerate(lemmata):
+        #     features.append({'lemmata': [lem[0] for lem in l[1]]})
         return features
