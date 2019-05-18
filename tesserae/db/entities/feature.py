@@ -37,9 +37,12 @@ class Feature(Entity):
         Sound trigram data tied to the form or lemma.
     """
 
-    def __init__(self, id=None, feature=None, token=None, index=None,
-                 frequencies=None, semantic=None, sound=None):
+    collection = 'features'
+
+    def __init__(self, id=None, language=None, feature=None, token=None,
+                 index=None, frequencies=None):
         super(Feature, self).__init__(id=id)
+        self.language: typing.Optional[str] = language
         self.feature: typing.Optional[str] = feature
         self.token: typing.Optional[str] = token
         self.index: typing.Optional[int] = index
@@ -60,3 +63,10 @@ class Feature(Entity):
         del self._ignore
 
         return obj
+
+    def unique_values(self):
+        return {
+            'language': self.language,
+            'feature': self.feature,
+            'token': self.token
+        }
