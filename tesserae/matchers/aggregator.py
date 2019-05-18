@@ -127,28 +127,34 @@ class AggregationMatcher(object):
         stoplist = self.connection.aggregate('frequencies', pipeline, encode=False)
         return [s['_id'] for s in stoplist]
 
-    def match(self, texts, unit_types, feature, stopwords_list=[],
+    def match(self, texts, unit_type, feature, stopwords=10,
+              stopword_basis='corpus', score_basis='word',
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency'):
         """Find matches between one or more texts.
-
         Texts will contain lines or phrases with matching tokens, with varying
         degrees of strength to the match. If one text is provided, each unit in
         the text will be matched with every subsequent unit.
-
         Parameters
         ----------
         texts : list of tesserae.db.Text
             The texts to match. Texts are matched in
-        unit_types : list of strings
-            The type of unit to match on per text; only 'list' and 'phrase' are
-            allowed; the position of an item in texts corresponds to the unit
-            type specified in the corresponding position in this list.
+        unit_type : {'line','phrase'}
+            The type of unit to match on.
         feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
-        stopwords_list : list of str
-            A list of words to use as stopwords; these must be in normalized
-            form.
+        stopwords : int or list of str
+            The number of stopwords to use, to be retrieved from the database,
+            or else a list of words to use as stopwords.
+        stopword_basis : {'corpus','texts'} or slice or tesserae.db.Text
+            Which frequencies to use when calculating the stoplist.
+            - 'corpus': use the combined frequencies of the entire corpus
+            - 'texts': use the combined frequencies of all texts in the match
+            - slice: use the texts returned from `texts` by the slice
+            - Text: use a single text
+        score_basis : {'word','stem'}
+            Whether to score based on the words (normalized text) or stems
+            (lemmata).
         frequency_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
@@ -159,7 +165,15 @@ class AggregationMatcher(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
-        stoplist = self.get_stoplist(stopwords_list)
+
+        if isinstance(stopwords, int):
+            stoplist = self.create_stoplist(
+                stopwords,
+                'form' if feature == 'form' else 'lemmata',
+                texts[0].language,
+                basis=stopword_basis)
+        else:
+            stoplist = get_stoplist(stopwords)
 
         print(stoplist)
         import time
@@ -169,11 +183,12 @@ class AggregationMatcher(object):
 
         match_set = MatchSet(
             texts=texts,
-            unit_types=unit_types,
+            unit_types=unit_type,
             feature=feature,
             parameters={
-                # easier to cache and interpret
-                'stopwords': sorted(stopwords_list),
+                'stopwords': stoplist,
+                'stopword_basis': stopword_basis,
+                'score_basis': score_basis,
                 'frequency_basis': frequency_basis,
                 'max_distance': max_distance,
                 'distance_metric': distance_metric
@@ -211,8 +226,7 @@ class AggregationMatcher(object):
             {'$project': {
                 'text': True,
                 'index': True,
-                # NB this is wrong, but Jeff will be replacing this code
-                'unit': '$' + unit_types[0],
+                'unit': '$' + unit_type,
                 'feature': {'$arrayElemAt': ['$feature_set.' + feature, 0]},
                 'frequency': {'$arrayElemAt': ['$frequency.frequency', 0]}
             }}
@@ -248,12 +262,18 @@ class AggregationMatcher(object):
         target = agg_matches[str(texts[1].id)]
 
         p = mp.Pool()
-        results = p.map(score_wrapper, [(unit, target, distance_metric, match_set) for unit in source])
+        results = p.map(score_wrapper, [(unit, target, distance_metric, max_distance, match_set) for unit in source])
         p.close()
         p.join()
 
         for r in results:
             matches.extend(r)
+        min_score = np.min([match.score for match in matches])
+        max_score = np.max([match.score for match in matches]) - min_score
+        for match in matches:
+            match.score = np.abs(np.ceil(10.0 * (match.score - min_score) / max_score))
+            # if match.score > 10:
+            #     match.score = 10.000
 
         return sorted(matches, key=lambda x: x.score, reverse=True), match_set
 
@@ -262,7 +282,7 @@ def score_wrapper(args):
     return score(*args)
 
 
-def score(source_unit, target_units, distance_metric, match_set):
+def score(source_unit, target_units, distance_metric, max_distance, match_set):
     matches = []
     for t in target_units:
         intersect = set(source_unit['features']) & set(t['features'])
@@ -277,22 +297,25 @@ def score(source_unit, target_units, distance_metric, match_set):
             target_frequencies = np.array(t['frequencies'], dtype=np.float32)[target_matches]
 
             if distance_metric == 'frequency':
-                source_dist = np.sum(source_indices[np.argsort(source_frequencies)[:1]])
-                target_dist = np.sum(target_indices[np.argsort(target_frequencies)[:1]])
+                source_dist = source_indices[np.argsort(source_frequencies)[:1]]
+                source_dist = np.abs(source_dist[1] - source_dist[0]) + 1
+                target_dist = target_indices[np.argsort(target_frequencies)[:1]]
+                target_dist = np.abs(target_dist[1] - target_dist[0]) + 1
             else:
-                source_dist = np.abs(np.max(source_matches) - np.min(source_matches))
-                target_dist = np.abs(np.max(target_matches) - np.min(target_matches))
+                source_dist = np.abs(np.max(source_matches) - np.min(source_matches)) + 1
+                target_dist = np.abs(np.max(target_matches) - np.min(target_matches)) + 1
 
-            score = np.log(
-                (np.sum(np.power(source_frequencies, -1)) +
-                 np.sum(np.power(target_frequencies, -1))) /
-                (source_dist + target_dist))
-            matches.append(
-                Match(
-                    units=[source_unit['_id'], t['_id']],
-                    tokens=[source_unit['tokens'][i] for i in source_matches] +
-                           [t['tokens'][i] for i in target_matches],
-                    score=score,
-                    match_set=match_set
-                ))
+            if source_dist < max_distance and target_dist <= max_distance:
+                score = np.log(
+                    (np.sum(np.power(source_frequencies, -1)) +
+                     np.sum(np.power(target_frequencies, -1))) /
+                    (source_dist + target_dist))
+                matches.append(
+                    Match(
+                        units=[source_unit['_id'], t['_id']],
+                        tokens=[source_unit['tokens'][i] for i in source_matches] +
+                               [t['tokens'][i] for i in target_matches],
+                        score=score,
+                        match_set=match_set
+                    ))
     return matches

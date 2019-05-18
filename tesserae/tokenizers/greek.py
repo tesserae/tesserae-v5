@@ -23,7 +23,7 @@ class GreekTokenizer(BaseTokenizer):
         self.diacrit_sub2 = \
             '([\s])([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
-        self.split_pattern = '[<].+[>][\s]| / |[^\w' + self.diacriticals + self.sigma_alt + '\']'
+        self.split_pattern = '([<].+[>])| / |[^\w' + self.diacriticals + self.sigma_alt + '\']'
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
@@ -59,8 +59,8 @@ class GreekTokenizer(BaseTokenizer):
 
         normalized = re.sub(r'\'', '', normalized, flags=re.UNICODE)
 
-        normalized = re.sub(r'[\'0-9]+', '', normalized,
-                            flags=re.UNICODE)
+        # normalized = re.sub('(?<![<])([0-9]+)(?![>])', '', normalized,
+        #                     flags=re.UNICODE)
 
         return normalized
 
