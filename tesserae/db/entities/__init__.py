@@ -1,4 +1,5 @@
 from .entity import Entity
+from .feature import Feature
 from .feature_set import FeatureSet
 from .frequency import Frequency
 from .match import Match
@@ -9,6 +10,7 @@ from .token import Token
 from .swlist import StopwordsList
 
 entity_map = {}
+entity_map[Feature.collection] = Feature
 entity_map[FeatureSet.collection] = FeatureSet
 entity_map[Frequency.collection] = Frequency
 entity_map[Match.collection] = Match
