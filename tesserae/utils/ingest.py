@@ -30,19 +30,21 @@ def ingest_text(connection, text):
     ------
     ValueError
         Raised when unknown language is encountered
-
     """
     if text.language not in _tokenizers:
         raise ValueError('Unknown language: {}'.format(text.language))
     tessfile = TessFile(text.path, metadata=text)
-    tokens, frequencies, feature_sets = \
+    print('Ingesting')
+    tokens, tags, frequencies, feature_sets = \
         _tokenizers[tessfile.metadata.language](connection).tokenize(
             tessfile.read(), text=tessfile.metadata)
+
     unitizer = Unitizer()
-    lines, phrases = unitizer.unitize(tokens, tessfile.metadata)
+    lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
     result = connection.insert(text)
     text_id = result.inserted_ids[0]
+
     if feature_sets:
         result = connection.insert(feature_sets)
     if frequencies:
@@ -51,4 +53,5 @@ def ingest_text(connection, text):
         result = connection.insert(lines + phrases)
     if tokens:
         result = connection.insert(tokens)
+
     return text_id
