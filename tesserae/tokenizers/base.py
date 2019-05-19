@@ -3,7 +3,7 @@ import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db.entities import Feature, Frequency, Token
+from tesserae.db.entities import Entity, Feature, Frequency, Token
 
 
 class BaseTokenizer(object):
@@ -320,6 +320,8 @@ def create_features(db_features, text, feature, feature_list):
 
 
     """
+    if isinstance(text, Entity):
+        text = text.id
     db_features = {f.token: f for f in db_features}
 
     out_features = []
@@ -330,14 +332,14 @@ def create_features(db_features, text, feature, feature_list):
                 if sub_f in db_features:
                     sub_f = db_features[sub_f]
                     try:
-                        sub_f.frequencies[text] += 1
+                        sub_f.frequencies[str(text)] += 1
                     except KeyError:
-                        sub_f.frequencies[text] = 1
+                        sub_f.frequencies[str(text)] = 1
                     feature_group.append(sub_f)
                 else:
                     sub_f = Feature(feature=feature, token=sub_f,
                                     index=len(db_features),
-                                    frequencies={text: 1})
+                                    frequencies={str(text): 1})
                     db_features[sub_f.token] = sub_f
                     feature_group.append(sub_f)
             out_features.append(feature_group)
@@ -346,13 +348,13 @@ def create_features(db_features, text, feature, feature_list):
             if f in db_features:
                 f = db_features[f]
                 try:
-                    f.frequencies[text] += 1
+                    f.frequencies[str(text)] += 1
                 except KeyError:
-                    f.frequencies[text] = 1
+                    f.frequencies[str(text)] = 1
                 out_features.append(f)
             else:
                 f = Feature(feature=feature, token=f, index=len(db_features),
-                            frequencies={text: 1})
+                            frequencies={str(text): 1})
                 db_features[f.token] = f
                 out_features.append(f)
 
