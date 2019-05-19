@@ -302,11 +302,11 @@ class BaseTokenizer(object):
 
         features = set()
         for val in featurized.values():
-            if isinstance(val[0], collections.Sequence):
+            if isinstance(val[0], list):
                 for v in val:
-                    features |= set(v)
+                    features = features.union(set(v))
             else:
-                features |= set(val)
+                features = features.union(set(val))
 
         return tokens, tags, list(features)
 
