@@ -56,7 +56,7 @@ class Unit(Entity):
     collection = 'units'
 
     def __init__(self, id=None, text=None, index=None, tags=None, unit_type=None,
-                 tokens=None):
+                 tokens=None, features=None):
         super(Unit, self).__init__(id=id)
         self.text: typing.Optional[ObjectId] = text
         self.index: typing.Optional[int] = index
@@ -64,6 +64,8 @@ class Unit(Entity):
         self.unit_type: typing.Optional[str] = unit_type
         self.tokens: typing.List[typing.Union[ObjectId, Entity]] = \
             tokens if tokens is not None else []
+        self.features: typing.Dict[str, typing.List] = \
+            features if features is not None else {}
 
     def json_encode(self, exclude=None):
         self._ignore = [self.text, self.tokens]

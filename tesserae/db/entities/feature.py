@@ -49,20 +49,20 @@ class Feature(Entity):
         self.frequencies: typing.Dict[ObjectId, int] = \
             frequencies if frequencies is not None else {}
 
-    def json_encode(self):
-        self._ignore = [self.semantic, self.sound]
+    # def json_encode(self, exclude):
+    #    self._ignore = []
 
-        if isinstance(self.semantic, Entity):
-            self.semantic = self.semantic.id
-        if isinstance(self.sound, Entity):
-            self.sound = self.sound.id
+    #    if isinstance(self.semantic, Entity):
+    #        self.semantic = self.semantic.id
+    #    if isinstance(self.sound, Entity):
+    #        self.sound = self.sound.id
 
-        obj = super(Feature, self).json_encode()
+    #     obj = super(Feature, self).json_encode()
 
-        self.semantic, self.sound = self._ignore
-        del self._ignore
+    #     self.semantic, self.sound = self._ignore
+    #     del self._ignore
 
-        return obj
+    #     return obj
 
     def unique_values(self):
         return {

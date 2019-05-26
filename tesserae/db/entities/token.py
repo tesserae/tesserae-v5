@@ -5,6 +5,8 @@ Classes
 Token
     Text token data model with matching-related features.
 """
+import collections
+import copy
 import typing
 
 from bson.objectid import ObjectId
@@ -94,20 +96,23 @@ class Token(Entity):
                    len(set(self.semantic) & set(other.semantic)) > 0
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.text, self.feature_set, self.line, self.phrase, self.frequency]
+        self._ignore = [self.text, self.line, self.phrase, copy.deepcopy(self.features)]
+
         self.text = self.text.id if self.text is not None else None
-        self.feature_set = self.feature_set.id if self.feature_set is not None else None
         self.line = self.line.id if self.line is not None else None
         self.phrase = self.phrase.id if self.phrase is not None else None
-        self.frequency = self.frequency.id if self.frequency is not None else None
+        for key, val in self.features.items():
+            if isinstance(val, Entity):
+                self.features[key] = val.id
+            elif isinstance(val, collections.Sequence):
+                self.features[key] = [v.id for v in val]
 
         obj = super(Token, self).json_encode(exclude=exclude)
 
         self.text = self._ignore[0]
-        self.feature_set = self._ignore[1]
-        self.line = self._ignore[2]
-        self.phrase = self._ignore[3]
-        self.frequency = self._ignore[4]
+        self.line = self._ignore[1]
+        self.phrase = self._ignore[2]
+        self.frequency = self._ignore[3]
         del self._ignore
 
         return obj
