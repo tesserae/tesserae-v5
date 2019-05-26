@@ -82,8 +82,12 @@ class GreekTokenizer(BaseTokenizer):
         Input should be sanitized with `greek_normalizer` prior to using this
         method.
         """
-        features = []
         lemmata = self.lemmatizer.lookup(tokens)
-        for i, l in enumerate(lemmata):
-            features.append({'lemmata': [lem[0] for lem in l[1]]})
+        fixed_lemmata = []
+        for lem in lemmata:
+            lem_lemmata = [l[0] for l in lem[1]]
+            fixed_lemmata.append(lem_lemmata)
+        features = {
+            'lemmata': fixed_lemmata
+        }
         return features
