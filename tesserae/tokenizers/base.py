@@ -236,13 +236,15 @@ class BaseTokenizer(object):
         except AttributeError:
             language = None
 
+        print(language)
+
         tags = []
 
         p = mp.Pool()
         results = p.starmap(
             create_features,
             [(list(self.connection.find(Feature.collection, language=language, feature=f)),
-              text_id, f, featurized[f])
+              text_id, language, f, featurized[f])
               for f in featurized.keys()])
         p.close()
         p.join()
@@ -315,7 +317,7 @@ def feature_wrapper(*args, **kwargs):
     return create_features(*args, **kwargs)
 
 
-def create_features(db_features, text, feature, feature_list):
+def create_features(db_features, text, language, feature, feature_list):
     """Create feature entities and register frequencies.
 
 
@@ -338,6 +340,7 @@ def create_features(db_features, text, feature, feature_list):
                     feature_group.append(sub_f)
                 else:
                     sub_f = Feature(feature=feature, token=sub_f,
+                                    language=language,
                                     index=len(db_features),
                                     frequencies={str(text): 1})
                     db_features[sub_f.token] = sub_f
@@ -353,8 +356,8 @@ def create_features(db_features, text, feature, feature_list):
                     f.frequencies[str(text)] = 1
                 out_features.append(f)
             else:
-                f = Feature(feature=feature, token=f, index=len(db_features),
-                            frequencies={str(text): 1})
+                f = Feature(feature=feature, token=f, language=language,
+                            index=len(db_features), frequencies={str(text): 1})
                 db_features[f.token] = f
                 out_features.append(f)
 
