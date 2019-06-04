@@ -1,3 +1,4 @@
+import collections
 import re
 
 from tesserae.db import Text, Token, Unit
@@ -118,18 +119,40 @@ class Unitizer(object):
             phrase_delim = re.search(r'[.?!;:]', t.display, flags=re.UNICODE)
             word = re.search(r'[\w]', t.display, flags=re.UNICODE)
 
+            line = self.lines[-1]
+            if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
+                phrase = self.phrases[-2]
+            else:
+                phrase = self.phrases[-1]
+
             # Get the current line and phrase
             # if '<' not in t.display:
-            self.lines[-1].tokens.append(t)
-            t.line = self.lines[-1]
+            line.tokens.append(t)
+            t.line = line
+            phrase.tokens.append(t)
+            t.phrase = phrase
+            
+            if isinstance(t.features, dict):
+                for key, val in t.features.items():
+                    if key not in line.features:
+                        line.features[key] = []
+                    if key not in phrase.features:
+                        phrase.features[key] = []
+                    if isinstance(val, collections.Sequence) and not isinstance(val, str):
+                        line.features[key].extend([v.index for v in val])
+                        phrase.features[key].extend([v.index for v in val])
+                    else:
+                        line.features[key].append(val.index)
+                        phrase.features[key].append(val.index)
+
 
             # Handle seeing multiple phrase delimiters in a row
-            if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
-                self.phrases[-2].tokens.append(t)
-                t.phrase = self.phrases[-2]
-            else:
-                self.phrases[-1].tokens.append(t)
-                t.phrase = self.phrases[-1]
+            # if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
+            #     self.phrases[-2].tokens.append(t)
+            #     t.phrase = self.phrases[-2]
+            # else:
+            #     self.phrases[-1].tokens.append(t)
+            #     t.phrase = self.phrases[-1]
 
             # If this token contains a phrasee delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.

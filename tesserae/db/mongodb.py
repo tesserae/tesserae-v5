@@ -188,7 +188,7 @@ class TessMongoConnection():
         try:
             exists = self.find(entity[0].collection, **filter_vals)
         except IndexError:
-            pass
+            exists = []
             
 
         if len(exists) != 0:

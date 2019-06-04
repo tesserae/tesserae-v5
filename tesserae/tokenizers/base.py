@@ -3,7 +3,7 @@ import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db.entities import Feature, Frequency, Token
+from tesserae.db.entities import Entity, Feature, Frequency, Token
 
 
 class BaseTokenizer(object):
@@ -236,13 +236,15 @@ class BaseTokenizer(object):
         except AttributeError:
             language = None
 
+        print(language)
+
         tags = []
 
         p = mp.Pool()
         results = p.starmap(
             create_features,
             [(list(self.connection.find(Feature.collection, language=language, feature=f)),
-              text_id, f, featurized[f])
+              text_id, language, f, featurized[f])
               for f in featurized.keys()])
         p.close()
         p.join()
@@ -302,11 +304,11 @@ class BaseTokenizer(object):
 
         features = set()
         for val in featurized.values():
-            if isinstance(val[0], collections.Sequence):
+            if isinstance(val[0], list):
                 for v in val:
-                    features |= set(v)
+                    features = features.union(set(v))
             else:
-                features |= set(val)
+                features = features.union(set(val))
 
         return tokens, tags, list(features)
 
@@ -315,11 +317,13 @@ def feature_wrapper(*args, **kwargs):
     return create_features(*args, **kwargs)
 
 
-def create_features(db_features, text, feature, feature_list):
+def create_features(db_features, text, language, feature, feature_list):
     """Create feature entities and register frequencies.
 
 
     """
+    if isinstance(text, Entity):
+        text = text.id
     db_features = {f.token: f for f in db_features}
 
     out_features = []
@@ -330,14 +334,15 @@ def create_features(db_features, text, feature, feature_list):
                 if sub_f in db_features:
                     sub_f = db_features[sub_f]
                     try:
-                        sub_f.frequencies[text] += 1
+                        sub_f.frequencies[str(text)] += 1
                     except KeyError:
-                        sub_f.frequencies[text] = 1
+                        sub_f.frequencies[str(text)] = 1
                     feature_group.append(sub_f)
                 else:
                     sub_f = Feature(feature=feature, token=sub_f,
+                                    language=language,
                                     index=len(db_features),
-                                    frequencies={text: 1})
+                                    frequencies={str(text): 1})
                     db_features[sub_f.token] = sub_f
                     feature_group.append(sub_f)
             out_features.append(feature_group)
@@ -346,13 +351,13 @@ def create_features(db_features, text, feature, feature_list):
             if f in db_features:
                 f = db_features[f]
                 try:
-                    f.frequencies[text] += 1
+                    f.frequencies[str(text)] += 1
                 except KeyError:
-                    f.frequencies[text] = 1
+                    f.frequencies[str(text)] = 1
                 out_features.append(f)
             else:
-                f = Feature(feature=feature, token=f, index=len(db_features),
-                            frequencies={text: 1})
+                f = Feature(feature=feature, token=f, language=language,
+                            index=len(db_features), frequencies={str(text): 1})
                 db_features[f.token] = f
                 out_features.append(f)
 

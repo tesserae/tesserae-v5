@@ -72,9 +72,10 @@ class SparseMatrixSearch(object):
             pipeline.append(
                 {'$project': {
                     '_id': False,
+                    'index': True,
                     'frequency': {
                         '$reduce': {
-                            'input': {'$objectToArray': '$$frequencies'},
+                            'input': {'$objectToArray': '$frequencies'},
                             'initialValue': 0,
                             'in': {'$sum': ['$$value', '$$this.v']}
                         }
@@ -148,15 +149,15 @@ class SparseMatrixSearch(object):
                 basis=stopword_basis)
         else:
             stoplist = get_stoplist(stopwords)
-
+        print(stoplist)
         match_matrices = []
 
         pipeline = [
             {'$match': {'feature': feature}},
             {'$count': 'count'}
         ]
-        feature_count = self.collection.aggregate(Feature.collection, pipeline)
-        feature_count = feature_count['count']
+        feature_count = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        feature_count = next(feature_count)['count']
 
         unit_matrices = []
         unit_lists = []
@@ -172,38 +173,39 @@ class SparseMatrixSearch(object):
                 {'$project': {
                     '_id': False,
                     'index': True,
-                    'tokens': True
+                    'features': '$features.' + feature
                 }},
                 # Create one document per token, preserving unit data
                 # {{'$unwind': 'tokens'}},
                 # Look up the intended features for eahc token
-                {'$lookup': {
-                    'from': 'tokens',
-                    'let': {'t_id': '$tokens'},
-                    'pipeline': [
-                        {'$match': {'$exec': {'$eq': ['$_id', '$$t_id']}}},
-                        {'$project': {
-                            '_id': False,
-                            'token_index': True,
-                            'feature': '$feature.' + feature
-                        }},
-                        {'$lookup': {
-                            'from': 'features',
-                            'let': {'fids': '$tokens'},
-                            'pipeline': [
-                                {'$match': {'$expr': {'$in': ['_id', '$$fids']}}},
-                                {'$project': {
-                                    '_id': False,
-                                    'index': True,
-                                    'token': True,
-                                    'frequency': '$frequencies.' + t.id
-                                }}
-                            ],
-                            'as': 'feature'
-                        }}
-                    ],
-                    'as': 'tokens'
-                }}
+                #{'$lookup': {
+                #    'from': 'tokens',
+                #    'let': {'u_id': '$_id'},
+                #   'pipeline': [
+                #        {'$match': {'$expr': {'$eq': ['$' + unit_type, '$$u_id']}}},
+                #        {'$project': {
+                #            '_id': False,
+                #            'token_index': True,
+                #            'feature': '$feature.' + feature
+                #        }},
+                #        {'$lookup': {
+                #            'from': 'features',
+                #            'let': {'fids': '$tokens'},
+                #            'pipeline': [
+                #                {'$match': {'$expr': {'$in': ['_id', '$$fids']}}},
+                #                {'$project': {
+                #                    '_id': False,
+                #                    'index': True,
+                #                    'token': True,
+                #                    'frquency': '$frequencies.' + str(t.id)
+                #                }}
+                #
+                #            ],
+                #            'as': 'feature'
+                #        }}
+                #    ],
+                #    'as': 'tokens'
+                #}}
             ]
 
             # The returned documents should look like:
@@ -224,26 +226,51 @@ class SparseMatrixSearch(object):
 
             unit_indices = []
             feature_indices = []
+            print(len(units))
 
             for unit in units:
-                unit_index = unit['index']
-                for token in unit['tokens']:
-                    feature = token['feature']
-                    if isinstance(feature['token'], str):
-                        unit_indices.append(unit_index)
-                        feature_indices.append(token['feature']['index'])
-                    else:
-                        unit_indices.extend([unit_index for _ in range(len(feature['token']))])
-                        feature_indices.extend(feature['index'])
+                if 'features' in unit: 
+                    unit_indices.extend([unit['index'] for _ in range(len(unit['features']))])
+                    feature_indices.extend(unit['features'])
+            #    for token in unit['tokens']:
+            #        feature = token['feature']
+            #        if isinstance(feature['token'], str):
+            #            unit_indices.append(unit_index)
+            #            feature_indices.append(token['feature']['index'])
+            #        else:
+            #            unit_indices.extend([unit_index for _ in range(len(feature['token']))])
+            #            feature_indices.extend(feature['index'])
 
-            feature_matrix = dok_matrix((unit_indices[-1], feature_count))
+            print(len(unit_indices), len(feature_indices))
+            feature_matrix = dok_matrix((len(unit_indices), feature_count))
+            print(feature_matrix.shape)
             feature_matrix[(np.asarray(unit_indices), np.asarray(feature_indices))] = 1
 
             del unit_indices, feature_indices
-
+            
+            feature_matrix = feature_matrix.tolil()
+            feature_matrix[:, np.asarray(stoplist)] = 0
+            feature_matrix = feature_matrix.tocsr()
+            feature_matrix.eliminate_zeros()
             unit_matrices.append(feature_matrix)
             unit_lists.append(units)
 
-        matches = np.nonzero(np.matmul(unit_matrices[1], unit_matrices[0].T) > 1)
+        
+        matches = unit_matrices[1].dot(unit_matrices[0].T)
+        matches[matches == 1] = 0
+        matches.eliminate_zeros()
 
         print(matches)
+
+
+def score_wrapper(*args, **kwargs):
+    return score(*args, **kwargs)
+
+
+def score(source, targets, frequencies, distance_metric, maximum_distance, min_score):
+       pass 
+
+
+
+
+    
