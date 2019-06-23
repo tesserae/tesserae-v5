@@ -171,9 +171,9 @@ class BaseTokenizer(object):
 
                 norm_i += 1
 
-            t = Token(text=text, index=idx, display=d,
-                      feature_set=feature_set, frequency=frequency)
-            tokens.append(t)
+                t = Token(text=text, index=idx, display=d,
+                          feature_set=feature_set, frequency=frequency)
+                tokens.append(t)
 
         # Update the internal record if necessary
         if record:
