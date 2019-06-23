@@ -127,23 +127,22 @@ class Unitizer(object):
 
             # Get the current line and phrase
             # if '<' not in t.display:
-            line.tokens.append(t)
-            t.line = line
-            phrase.tokens.append(t)
-            t.phrase = phrase
+            # line.tokens.append(t)
+            # t.line = line
+            # phrase.tokens.append(t)
+            # t.phrase = phrase
             
-            if isinstance(t.features, dict):
+            if isinstance(t.features, dict) and len(t.features) > 0:
+                tok =  {'_id': t.id, 'index': t.index, 'display': t.display, 'features': {}}
                 for key, val in t.features.items():
-                    if key not in line.features:
-                        line.features[key] = []
-                    if key not in phrase.features:
-                        phrase.features[key] = []
+                    if key not in tok['features']:
+                        tok['features'][key] = []
                     if isinstance(val, collections.Sequence) and not isinstance(val, str):
-                        line.features[key].extend([v.index for v in val])
-                        phrase.features[key].extend([v.index for v in val])
+                        tok['features'][key].extend([v.index for v in val])
                     else:
-                        line.features[key].append(val.index)
-                        phrase.features[key].append(val.index)
+                        tok['features'][key].append(val.index)
+                line.tokens.append(tok)
+                phrase.tokens.append(tok)
 
 
             # Handle seeing multiple phrase delimiters in a row
