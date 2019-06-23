@@ -7,6 +7,7 @@ Classes
 import multiprocessing as mp
 
 import numpy as np
+import pymongo
 from scipy.sparse import dok_matrix
 
 from tesserae.db.entities import Entity, Feature, Match, MatchSet, Unit
@@ -97,9 +98,47 @@ class SparseMatrixSearch(object):
             {'$project': {'index': True}}
         ])
 
-
         stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
+
+    def get_frequencies(self, feature, language, basis='corpus', count=None):
+        """Get frequency data for a given feature.
+        """
+        pipeline = [
+            {'$match': {'feature': feature, 'language': language}}
+        ]
+
+        if basis == 'corpus':
+            pipeline.append(
+                {'$project': {
+                    '_id': False,
+                    'index': True,
+                    'frequency': {
+                        '$reduce': {
+                            'input': {'$objectToArray': '$frequencies'},
+                            'initialValue': 0,
+                            'in': {'$sum': ['$$value', '$$this.v']}
+                        }
+                    }
+                }})
+        else:
+            basis = [t if not isinstance(t, Entity) else str(t.id) for t in basis]
+            pipeline.extend([
+                {'$project': {
+                    '_id': False,
+                    'index': True,
+                    'frequency': {'$sum': ['$frequencies.' + text for text in basis]}
+                }}
+            ])
+
+        pipeline.extend([
+            {'$sort': {'index': 1}}
+        ])
+        
+        freqs = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        freqs = list(freqs)
+        freqs = np.array([freq['frequency'] for freq in freqs])
+        return freqs / sum(freqs)
 
     def match(self, texts, unit_type, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
@@ -149,6 +188,9 @@ class SparseMatrixSearch(object):
                 basis=stopword_basis)
         else:
             stoplist = get_stoplist(stopwords)
+
+        frequency_basis = frequency_basis if frequency_basis != 'texts' \
+                          else texts
         print(stoplist)
         match_matrices = []
 
@@ -171,79 +213,29 @@ class SparseMatrixSearch(object):
                 }},
                 # Convert the tokens to their features
                 {'$project': {
-                    '_id': False,
                     'index': True,
-                    'features': '$features.' + feature
+                    'features': [{
+                        'index': '$tokens.index',
+                        'features': '$tokens.features.' + feature
+                    }]
                 }},
-                # Create one document per token, preserving unit data
-                # {{'$unwind': 'tokens'}},
-                # Look up the intended features for eahc token
-                #{'$lookup': {
-                #    'from': 'tokens',
-                #    'let': {'u_id': '$_id'},
-                #   'pipeline': [
-                #        {'$match': {'$expr': {'$eq': ['$' + unit_type, '$$u_id']}}},
-                #        {'$project': {
-                #            '_id': False,
-                #            'token_index': True,
-                #            'feature': '$feature.' + feature
-                #        }},
-                #        {'$lookup': {
-                #            'from': 'features',
-                #            'let': {'fids': '$tokens'},
-                #            'pipeline': [
-                #                {'$match': {'$expr': {'$in': ['_id', '$$fids']}}},
-                #                {'$project': {
-                #                    '_id': False,
-                #                    'index': True,
-                #                    'token': True,
-                #                    'frquency': '$frequencies.' + str(t.id)
-                #                }}
-                #
-                #            ],
-                #            'as': 'feature'
-                #        }}
-                #    ],
-                #    'as': 'tokens'
-                #}}
             ]
-
-            # The returned documents should look like:
-            # {
-            #      index: <int>,             # Unit index in text
-            #      tokens: [{
-            #          token_index: <int>,   # Token index in text
-            #          feature: {
-            #              index: <int>,     # Sparse matrix index of feature
-            #              token: <str>,     # String representation of feature
-            #              frequency: <int>  # Frequency of the feature
-            #          }
-            #      }]
-            # }
 
             units = list(self.connection.aggregate(
                 Unit.collection, pipeline, encode=False))
+            
+            print(units[0])
 
             unit_indices = []
             feature_indices = []
-            print(len(units))
 
             for unit in units:
-                if 'features' in unit: 
-                    unit_indices.extend([unit['index'] for _ in range(len(unit['features']))])
-                    feature_indices.extend(unit['features'])
-            #    for token in unit['tokens']:
-            #        feature = token['feature']
-            #        if isinstance(feature['token'], str):
-            #            unit_indices.append(unit_index)
-            #            feature_indices.append(token['feature']['index'])
-            #        else:
-            #            unit_indices.extend([unit_index for _ in range(len(feature['token']))])
-            #            feature_indices.extend(feature['index'])
+                if 'features' in unit:
+                    all_features = list(np.array(unit['features'][0]['features']).ravel()) 
+                    unit_indices.extend([unit['index'] for _ in range(len(all_features))])
+                    feature_indices.extend(all_features)
 
-            print(len(unit_indices), len(feature_indices))
-            feature_matrix = dok_matrix((len(unit_indices), feature_count))
-            print(feature_matrix.shape)
+            feature_matrix = dok_matrix((len(units), feature_count))
             feature_matrix[(np.asarray(unit_indices), np.asarray(feature_indices))] = 1
 
             del unit_indices, feature_indices
@@ -256,21 +248,66 @@ class SparseMatrixSearch(object):
             unit_lists.append(units)
 
         
-        matches = unit_matrices[1].dot(unit_matrices[0].T)
+        matches = unit_matrices[0].dot(unit_matrices[1].T)
         matches[matches == 1] = 0
         matches.eliminate_zeros()
+        print(matches.shape)
 
-        print(matches)
+        frequencies = self.get_frequencies(feature, texts[0].language, basis=frequency_basis)
+        features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
+
+        match_ents = []
+        match_set = MatchSet(texts=texts)
+        # with mp.Pool() as p:
+        #    result = p.map(score_wrapper, [(source_unit, units[1], frequencies, distance_metric, max_distance, -np.inf) for source_unit in units[0]])
+        for i in range(matches.shape[0]):
+            source_unit = unit_lists[0][i]
+            target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
+            match_ents.extend(score(source_unit, target_units, frequencies, features, distance_metric, max_distance, -np.inf, match_set))
+        
+        return match_ents, match_set
+
+def score_wrapper(args):
+    return score(*args)
 
 
-def score_wrapper(*args, **kwargs):
-    return score(*args, **kwargs)
+def score(source, targets, frequencies, features, distance_metric, maximum_distance, min_score, match_set):
+    matches = []
+    source_features = list(np.array(source['features'][0]['features']).ravel())
+    source_indices = list([[source['features'][0]['index'][i] for _ in range(len(source['features'][0]['features'][i]))] for i in range(len(source['features'][0]['index']))])
+    source_indices = list(np.array(source_indices).ravel())
+    source_frequencies = np.array([frequencies[i] for i in source_features])
 
+    for target in targets:
+        target_features = list(np.array(target['features'][0]['features']).ravel())
+        target_indices = list([[target['features'][0]['index'][i] for _ in range(len(target['features'][0]['features'][i]))] for i in range(len(target['features'][0]['index']))])
+        target_indices = list(np.array(target_indices).ravel())
+        target_frequencies = np.array([frequencies[i] for i in target_features])
 
-def score(source, targets, frequencies, distance_metric, maximum_distance, min_score):
-       pass 
+        match_features = set(source_features).intersection(set(target_features))
 
+        match_frequencies = [frequencies[i] for i in match_features]
 
+        if distance_metric == 'span':
+            source_idx = np.array([source_indices[i] for i in [source_features.index(f) for f in match_features]])
+            target_idx = np.array([target_indices[i] for i in [target_features.index(f) for f in match_features]])
+            distance = np.abs(np.max(source_idx) - np.min(source_idx)) + np.abs(np.max(target_idx) - np.min(target_idx)) + 2
+        else:
+            source_idx = np.array([source['index'][i] for i in np.argsort(source_frequencies)[:2]])
+            target_idx = np.array([target['index'][i] for i in np.argsort(target_frequencies)[:2]])
+            distance = np.abs(source_idx[1] - source_idx[0]) + np.abs(target_idx[1] - target_idx[1]) + 2
+        
+        score = -np.inf
+        if distance < maximum_distance:
+            score = np.log((np.power(np.sum(match_frequencies), -1) * 2) / distance)
 
-
+        if score >= min_score:
+            matches.append(
+                Match(
+                    units=[source['_id'], target['_id']],
+                    tokens=[features[int(mf)] for mf in match_features],
+                    score=score,
+                    match_set=match_set))
+            
+    return matches
     
