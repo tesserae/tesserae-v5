@@ -220,22 +220,28 @@ class TessMongoConnection():
         ValueError
             Raised when provided entity could not be updated
         """
-        if not isinstance(entity, Entity):
-            raise ValueError('Unknown entity: ' + str(entity))
+        # if not isinstance(entity, Entity):
+        #    raise ValueError('Unknown entity: ' + str(entity))
 
-        exists = self.find(entity.collection, _id=entity.id)
-
-        if len(exists) < 1:
-            raise ValueError("Entity {} does not exist in the database.".format(entity))
-
-        try:
-            collection = self.connection[entity.__class__.collection]
-            # TODO figure out fix for update
-            result = collection.update_many(
-                self.create_filter(_id=entity.id),
-                {'$set': _dot_notate(entity.json_encode(exclude=['_id']))})
-        except IndexError:
-            raise ValueError('Update failed')
+        # TODO figure out fix for update
+        collection = None
+        bulk = []
+        for e in entity:
+            if e.id is not None:
+                bulk.append(
+                    pymongo.operations.UpdateOne(
+                        {'_id': e.id},
+                        {'$set': e.json_encode(exclude=['_id'])}))
+            else:
+                bulk.append(
+                    pymongo.operations.InsertOne(
+                        e.json_encode(exclude=['_id'])))
+        if len(bulk) > 0:
+            collection = self.connection[e.collection]
+            result = collection.bulk_write(bulk)
+        else:
+            result = None
+        
         return result
 
     def create_filter(self, **kwargs):
