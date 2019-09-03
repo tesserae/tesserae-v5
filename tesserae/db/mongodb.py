@@ -24,9 +24,8 @@ use the `pymongo`_ library.
 
 """
 
-import collections
+from collections import Iterable, Mapping
 import datetime
-from typing import Iterable
 try:
     # Python 3.x
     from urllib.parse import quote_plus
@@ -35,6 +34,7 @@ except ImportError:
     from urllib import quote_plus
 
 import pymongo
+import six
 
 import tesserae.db.entities
 from tesserae.db.entities import Entity
@@ -46,7 +46,7 @@ def _extract_embedded_docs(doc):
     result_keys = []
     result_vals = []
     for key, val in doc.items():
-        if isinstance(val, collections.Mapping):
+        if isinstance(val, Mapping):
             dotted_keys, dotted_vals = _extract_embedded_docs(val)
             for d_key, d_val in zip(dotted_keys, dotted_vals):
                 result_keys.append(key + '.' + d_key)
@@ -578,7 +578,7 @@ def create_filter(**kwargs):
 
 
 def to_query_list(item):
-    if isinstance(item, str) or not isinstance(item, Iterable):
+    if isinstance(item, six.string_types) or not isinstance(item, Iterable):
         item = [item]
     else:
         item = list(item)
