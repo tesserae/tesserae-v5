@@ -189,13 +189,13 @@ class TessMongoConnection():
             exists = self.find(entity[0].collection, **filter_vals)
         except IndexError:
             exists = []
-            
+
 
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
             new_ents = []
             for e in entity:
-                if e.unique_values() not in exists:
+                if e.id is None or not any([e.unique_values() == ex for ex in exists]):
                     new_ents.append(e)
             entity = new_ents
 
@@ -241,7 +241,7 @@ class TessMongoConnection():
             result = collection.bulk_write(bulk)
         else:
             result = None
-        
+
         return result
 
     def create_filter(self, **kwargs):
