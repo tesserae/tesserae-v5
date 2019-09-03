@@ -75,3 +75,10 @@ class Text(Entity):
         self.hash: typing.Optional[str] = hash
         self.extras: typing.Dict[typing.Any, typing.Any] = \
             extras if extras is not None else {}
+
+    def unique_values(self):
+        return {
+            'language': self.language,
+            'title': self.title,
+            'author': self.author
+        }
