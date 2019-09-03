@@ -44,7 +44,7 @@ def connection(request):
 
 
 @pytest.fixture(scope='session')
-def populate(connection, tessfiles):
+def test_data(connection, tessfiles):
     # Load in test entries from tests/test_db_entries.json
     directory = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(directory, 'test_db_entries.json'), 'r') as f:
@@ -54,9 +54,9 @@ def populate(connection, tessfiles):
         text['path'] = os.path.join(tessfiles, text['path'])
 
     # Insert all of the docs
-    for collection, docs in test_entries.items():
-        if len(docs) > 0:
-            connection[collection].insert_many(docs)
+    # for collection, docs in test_entries.items():
+    #     if len(docs) > 0:
+    #         connection[collection].insert_many(docs)
 
     yield test_entries
 
