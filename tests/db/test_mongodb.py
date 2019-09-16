@@ -23,6 +23,8 @@ test_create_filter
 """
 
 import pytest
+import random
+import string
 
 from tesserae.db.mongodb import TessMongoConnection, to_query_list, \
                                 to_query_range
@@ -34,6 +36,8 @@ import pymongo.results
 
 from tesserae.db.entities import entity_map
 
+def gen_chars():
+    return ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
 
 @pytest.fixture(scope='module')
 def depopulate(connection):
@@ -291,16 +295,31 @@ def test_update(request, populate):
 
     for key, val in populate.items():
         entity = entity_map[key]
-        ents = [entity(**entry) for entry in val]
-        for e in ents:
-            e.foo = 'bar'
 
+        # test updating one entity at a time
+        guinea_pig = entity(**val[0])
+        guinea_pig.eats = 'pellet'
+        result = conn.update(guinea_pig)
+        assert result.matched_count == 1
+        assert result.modified_count == 1
+        assert conn.connection[key].count_documents({'_id': guinea_pig.id}) == 1
+        found = conn.connection[key].find({'_id': guinea_pig.id})
+        assert found[0]['eats'] == 'pellet'
+
+        # test updating multiple entities at a time
+        ents = [entity(**entry) for entry in val]
+        changes = { e.id : ( gen_chars(), gen_chars() ) for e in ents }
+        for e in ents:
+            k, v = changes[e.id]
+            setattr(e, k, v)
         result = conn.update(ents)
         assert result.matched_count == len(val)
         assert result.modified_count == len(val)
-
         found = conn.connection[key].find()
-        assert all(['foo' in doc and doc['foo'] == 'bar' for doc in found])
+        assert all([
+            changes[doc['_id']][0] in doc and
+            doc[changes[doc['_id']][0]] == changes[doc['_id']][1]
+            for doc in found])
 
 
 def test_delete(request, populate):
@@ -322,11 +341,10 @@ def test_delete(request, populate):
         result = conn.delete([ents[0]])
         assert result.deleted_count == 1
 
-        found = conn.connection[key].find({'_id': ents[0].id})
-        assert found.count() == 0
+        assert conn.connection[key].count_documents({'_id': ents[0].id}) == 0
         found = conn.connection[key].find()
         print(list(found))
-        assert found.count() == len(val) - 1
+        assert conn.connection[key].count_documents({}) == len(val) - 1
 
         # Test deleting the collection's entries
         result = conn.delete(ents)
@@ -334,7 +352,7 @@ def test_delete(request, populate):
 
         # Ensure that the collection is empty
         found = conn.connection[key].find()
-        assert found.count() == 0
+        assert conn.connection[key].count_documents({}) == 0
 
 
 def test_to_query_list():
