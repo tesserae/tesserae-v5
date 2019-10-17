@@ -1,4 +1,4 @@
-from nltk.stemmer.snowball import EnglishStemmer
+from nltk.stem import WordNetStemmer
 
 from tesserae.tokenizers.base import BaseTokenizer
 
@@ -6,7 +6,7 @@ from tesserae.tokenizers.base import BaseTokenizer
 class EnglishTokenizer(BaseTokenizer):
     def __init__(self, connection):
         super(EnglishTokenizer, self).__init__(connection)
-        self.lemmatizer = EnglishStemmer()
+        self.lemmatizer = WordNetStemmer()
 
     def normalize(self, raw):
         """Normalize an English word.
@@ -54,6 +54,6 @@ class EnglishTokenizer(BaseTokenizer):
         if not isinstance(tokens, list):
             tokens = [tokens]
         features = {
-            'lemmata': [self.lemmatizer.stem(token) for token in tokens]
+            'lemmata': [self.lemmatizer.lemmatize(token) for token in tokens]
         }
         return features

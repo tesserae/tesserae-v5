@@ -9,8 +9,8 @@ import zipfile
 
 
 class InstallLemmataModels(install):
-    """Helper to install CLTK lemmatization models."""
-    description = "Install CLTK lemmatization models to $HOME/cltk_tools"
+    """Helper to install CLTK and NLTK lemmatization models."""
+    description = "Install CLTK lemmatization models to $HOME/cltk_data; NLTK models to $HOME/nltk_data"
 
     def run(self):
         """Install CLTK lemmatization models.
@@ -22,6 +22,7 @@ class InstallLemmataModels(install):
         """
         latin = 'https://github.com/cltk/latin_models_cltk/archive/master.zip'
         greek = 'https://github.com/cltk/greek_models_cltk/archive/master.zip'
+        english = 'https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/wordnet.zip'
         home = str(Path.home())
 
         try:
@@ -62,6 +63,23 @@ class InstallLemmataModels(install):
             os.rename(fname + '-master', fname)
         except OSError:
             pass
+
+        try:
+            # Repeat the process with English models
+            base = os.path.join(home, 'nltk_data', 'corpora')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
+
+            fname = os.path.join(base, 'wordnet.zip')
+            with urllib.request.urlopen(english) as response, open(fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
+
+        except OSError:
+            pass
+
 
         # Run the standard installer
         install.run(self)
