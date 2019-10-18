@@ -6,7 +6,7 @@
             "author": "vergil",
             "year": -19,
             "unit_types": ["line", "phrase"],
-            "path": "la/vergil.aeneid.part.1.tess",
+            "path": "la/vergil.aeneid.tess",
             "is_prose": false,
             "hash": "265386d760c39b01f17d640f167d388a",
             "extras": {}
@@ -17,7 +17,29 @@
             "author": "lucan",
             "year": 61,
             "unit_types": ["line", "phrase"],
-            "path": "la/lucan.bellum_civile.tess",
+            "path": "la/lucan.bellum_civile.part.1.tess",
+            "is_prose": false,
+            "hash": "9777e8cf1abacec70a22735131ebed4c",
+            "extras": {}
+        },
+        {
+            "language": "greek",
+            "title": "iliad",
+            "author": "homer",
+            "year": -1260,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/homer.iliad.tess",
+            "is_prose": false,
+            "hash": "9777e8cf1abacec70a22735131ebed4c",
+            "extras": {}
+        },
+        {
+            "language": "greek",
+            "title": "gorgias",
+            "author": "plato",
+            "year": -283,
+            "unit_types": ["line", "phrase"],
+            "path": "grc/plato.gorgias.tess",
             "is_prose": false,
             "hash": "9777e8cf1abacec70a22735131ebed4c",
             "extras": {}
