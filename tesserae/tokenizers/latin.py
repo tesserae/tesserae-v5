@@ -18,7 +18,7 @@ class LatinTokenizer(BaseTokenizer):
         self.lemmatizer = Lemmata('lemmata', 'latin')
 
         self.split_pattern = \
-            '([<].+[>])| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
+            '[\\s]+|[^\\w' + self.diacriticals + ']+'
 
     def normalize(self, raw, split=True):
         """Normalize a Latin word.
@@ -45,7 +45,7 @@ class LatinTokenizer(BaseTokenizer):
         normalized = self.jv_replacer.replace(normalized)
 
         if split:
-            normalized = re.split(self.split_pattern, normalized, re.UNICODE)
+            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
             normalized = [t for t in normalized if t]
 
         return normalized, tags

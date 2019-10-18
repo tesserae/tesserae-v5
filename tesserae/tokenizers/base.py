@@ -35,20 +35,12 @@ class BaseTokenizer(object):
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '([<].+[>])| / | \. \. \.|\.\~\.\~\.|[^\w' + self.diacriticals + ']'
-
-        self.clear()
-
-    def clear(self):
-        """Reset the token list and frequency counter in this tokenizer."""
-        self.tokens = []
-        self.frequencies = collections.Counter()
-        self.feature_sets = {}
+            '[\\s]+|[^\\w\\d' + self.diacriticals + ']+'
 
     def featurize(self, tokens):
         raise NotImplementedError
 
-    def normalize(self, raw):
+    def normalize(self, raw, split=False):
         """Standardize token representation for further processing.
 
         The global version of this function removes whitespace, non-word
@@ -70,12 +62,21 @@ class BaseTokenizer(object):
         if isinstance(raw, list):
             raw = ' '.join(raw)
 
+        # Extract .tess file markup and remove from the normalized string
+        tags = re.findall(r'([<][^>]+[>])', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
+
         # Apply lowercase and NKFD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
-        #normalized = re.sub(r'[\n\r\r\n]', ' / ', normalized, flags=re.UNICODE)
-        return normalized
 
-    def tokenize(self, raw, record=True, text=None):
+        # If requested, split based on the language's split pattern.
+        if split:
+            normalized = re.split(self.split_pattern, normalized,
+                                  flags=re.UNICODE)
+
+        return normalized, tags
+
+    def tokenize(self, raw, text=None):
         """Normalize and featurize the words in a string.
 
         Tokens are comprised of the raw string, normalized form, and features
@@ -88,10 +89,6 @@ class BaseTokenizer(object):
             The string(s) to process. If a list, assumes that the string
             members of the list have already been split as intended (e.g.
             list elements were split on whitespace).
-        record : bool
-            If True, record tokens and frequencies in `self.tokens` and
-            `self.frequencies`, respectively. Pass False to prevent recording
-            in the event that the string is re-processed.
         text : tesserae.Text, optional
             Text metadata for associating tokens and frequencies with a
             particular text.
@@ -99,207 +96,83 @@ class BaseTokenizer(object):
         Returns
         -------
         tokens : list of tesserae.db.Token
-        frequencies : list of tesserae.db.Frequency
+            The token entities to insert into the database.
+        tags : list of str
+            Metadata about the source text for unit bookeeping.
+        features list of tesserae.db.Feature
+            Features associated with the tokens to be inserted into the
+            database.
         """
-        normalized = self.normalize(raw)
-        normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-        normalized = [n for n in normalized if n]
+        # Compute the normalized forms of the input tokens, splitting the
+        # result based on a regex pattern and discarding None values.
+        normalized, tags = self.normalize(raw)
+        tags = [re.search(r'([\d]+[.a-z\d]*)', t).groups()[0] for t in tags]
 
-        raw = re.sub(r'[<].+[>]\s', '', raw, flags=re.UNICODE)
+        # Compute the display version of each token by stripping the metadata
+        # tags and converting newlines to their symbolic form.
+        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
-        display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
-        featurized = self.featurize(normalized)
 
-        # Create the storage for this run of `tokenize`
-        tokens = []
-        frequencies = collections.Counter(
-            [n for i, n in enumerate(normalized)])
-        frequency_list = {}
-        feature_sets = self.connection.find('feature_sets',
-                                            language=text.language)
-        feature_sets = {fs.form: fs for fs in feature_sets}
-        new_feature_sets = []
+        # Split the display form into independent strings for each token,
+        # discarding any None values.
+        display = re.split(self.split_pattern, raw, flags=re.UNICODE)
+        display = [t for t in display if t]
 
-        # Get the text id from the metadata if it was passed in
-        try:
-            text_id = text
-        except AttributeError:
-            text_id = None
-
-        try:
-            language = text.language
-        except AttributeError:
-            language = None
-
-        tags = []
-
-        # Prep the token objects
-        base = len(self.tokens)
-        norm_i = 0
-        for i, d in enumerate(display):
-            idx = i + base
-            feature_set = None
-            frequency = None
-
-            try:
-                if re.search(r'<', normalized[norm_i], flags=re.UNICODE):
-                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', normalized[norm_i], flags=re.UNICODE)
-                    tag = tag.group(1)
-                    tags.append(tag)
-                    norm_i += 1
-            except (IndexError, AttributeError):
-                pass
-
-            if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
-                n = normalized[norm_i]
-                f = featurized[norm_i]
-
-                if n in feature_sets:
-                    feature_set = feature_sets[n]
-                else:
-                    feature_set = FeatureSet(form=n, language=language, **f)
-                    feature_sets[n] = feature_set
-                    new_feature_sets.append(feature_set)
-
-                if n in frequency_list:
-                    frequency = frequency_list[n]
-                else:
-                    frequency = Frequency(text=text,
-                                          feature_set=feature_set,
-                                          frequency=frequencies[n])
-                    frequency_list[n] = frequency
-
-                norm_i += 1
-
-                t = Token(text=text, index=idx, display=d,
-                          feature_set=feature_set, frequency=frequency)
-                tokens.append(t)
-
-        # Update the internal record if necessary
-        if record:
-            if '' in self.frequencies:
-                del self.frequencies['']
-            self.tokens.extend([t for t in tokens])
-            self.frequencies.update(frequencies)
-            self.feature_sets.update(feature_sets)
-            frequencies = self.frequencies
-
-        return tokens, tags, list(frequency_list.values()), new_feature_sets
-
-    def tokenize2(self, raw, record=True, text=None):
-        """Normalize and featurize the words in a string.
-
-        Tokens are comprised of the raw string, normalized form, and features
-        related to the words under study. This computes all of the relevant
-        data and tracks token frequencies in one shot.
-
-        Parameters
-        ----------
-        raw : str or list of str
-            The string(s) to process. If a list, assumes that the string
-            members of the list have already been split as intended (e.g.
-            list elements were split on whitespace).
-        record : bool
-            If True, record tokens and frequencies in `self.tokens` and
-            `self.frequencies`, respectively. Pass False to prevent recording
-            in the event that the string is re-processed.
-        text : tesserae.Text, optional
-            Text metadata for associating tokens and frequencies with a
-            particular text.
-
-        Returns
-        -------
-        tokens : list of tesserae.db.Token
-        frequencies : list of tesserae.db.Frequency
-        """
-        normalized = self.normalize(raw)
-        normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-        normalized = [n for n in normalized if n]
-
-        raw = re.sub(r'[<].+[>]\s', '', raw, flags=re.UNICODE)
-        raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
-        display = [t for t in re.split('(<.+>)|( / )|([^' + self.word_characters + '])', raw, flags=re.UNICODE) if t]
+        # Compute the language-specific features of each token and add the
+        # normalized forms as additional results.
         featurized = self.featurize(normalized)
         featurized['form'] = normalized
 
-        # Create the storage for this run of `tokenize`
-        tokens = []
-
         # Get the text id from the metadata if it was passed in
         try:
             text_id = text
         except AttributeError:
             text_id = None
 
+        # Get the token language from the metadata if it was passed in
         try:
             language = text.language
         except AttributeError:
             language = None
 
-        print(language)
+        tokens = []
 
-        tags = []
-
+        # Convert all computed features into entities, discarding duplicates.
         p = mp.Pool()
         results = p.starmap(
             create_features,
-            [(list(self.connection.find(Feature.collection, language=language, feature=f)),
-              text_id, language, f, featurized[f])
-              for f in featurized.keys()])
+            [(list(
+                self.connection.find(Feature.collection,
+                                     language=language,
+                                     feature=f)),
+                text_id, language, f, featurized[f])
+             for f in featurized.keys()])
         p.close()
         p.join()
 
         for feature_list, feature in results:
             featurized[feature] = feature_list
-        features_list = []
-
-        normalized = featurized['form']
 
         # Prep the token objects
-        base = len(self.tokens)
         norm_i = 0
+
+        try:
+            punctuation = self.connection.find('features', feature='punctuation')[0]
+        except IndexError:
+            punctuation = Feature(feature='punctuation', token='', index=-1)
+
         for i, d in enumerate(display):
-            idx = i + base
-            try:
-                if re.search(r'<', featurized['form'][norm_i].token, flags=re.UNICODE):
-                    tag = re.search('([\d]+[.]*[\d]*[a-z]*)', featurized['form'][norm_i].token, flags=re.UNICODE)
-                    tag = tag.group(1)
-                    tags.append(tag)
-                    norm_i += 1
-            except (IndexError, AttributeError):
-                pass
-
-            if re.search('[' + self.word_characters + ']', d, flags=re.UNICODE):
-                features = {}
-                for key, val in featurized.items():
-                    features[key] = val[norm_i]
-                    # if isinstance(val, Feature):
-                    #     feature_list.append(val)
-                    # else:
-                    #     feature_list.extend(val)
+            if re.search('[' + self.word_characters + ']+', d, flags=re.UNICODE):
+                features = {key: val[norm_i]
+                            for key, val in featurized.items()}
                 norm_i += 1
-
+            elif re.search(r'^[\d]+$', d, flags=re.UNICODE):
+                features = {key: punctuation if key == 'form' else [punctuation]
+                            for key in featurized.keys()}
             else:
                 features = None
-                # n = normalized[norm_i]
-                # f = featurized[norm_i]
 
-                # if n in feature_sets:
-                #     feature_set = feature_sets[n]
-                # else:
-                #     feature_set = FeatureSet(form=n, language=language, **f)
-                #     feature_sets[n] = feature_set
-                #     new_feature_sets.append(feature_set)
-                #
-                # if n in frequency_list:
-                #     frequency = frequency_list[n]
-                # else:
-                #     frequency = Frequency(text=text,
-                #                           feature_set=feature_set,
-                #                           frequency=frequencies[n])
-                #     frequency_list[n] = frequency
-
-            t = Token(text=text, index=idx, display=d, features=features)
+            t = Token(text=text, index=i, display=d, features=features)
             tokens.append(t)
 
         features = set()
@@ -313,10 +186,6 @@ class BaseTokenizer(object):
         return tokens, tags, list(features)
 
 
-def feature_wrapper(*args, **kwargs):
-    return create_features(*args, **kwargs)
-
-
 def create_features(db_features, text, language, feature, feature_list):
     """Create feature entities and register frequencies.
 
@@ -326,9 +195,12 @@ def create_features(db_features, text, language, feature, feature_list):
         text = text.id
     db_features = {f.token: f for f in db_features}
 
+
     out_features = []
     for f in feature_list:
         if isinstance(f, collections.Sequence) and not isinstance(f, str):
+            if f[0][0] == '<':
+                continue
             feature_group = []
             for sub_f in f:
                 if sub_f in db_features:
@@ -348,6 +220,8 @@ def create_features(db_features, text, language, feature, feature_list):
             out_features.append(feature_group)
 
         else:
+            if f[0] == '<':
+                continue
             if f in db_features:
                 f = db_features[f]
                 try:
