@@ -20,5 +20,5 @@ entity_map[Token.collection] = Token
 entity_map[Unit.collection] = Unit
 entity_map[StopwordsList.collection] = StopwordsList
 
-__all__ = ['Entity', 'FeatureSet', 'Frequency', 'Match', 'MatchSet', 'Text',
+__all__ = ['Entity', 'Feature', 'Frequency', 'Match', 'MatchSet', 'Text',
            'Token', 'Unit']
