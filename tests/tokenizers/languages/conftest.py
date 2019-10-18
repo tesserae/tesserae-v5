@@ -4,6 +4,21 @@ import json
 import glob
 import os
 
+from tesserae.db.mongodb import TessMongoConnection
+
+
+@pytest.fixture(scope='session')
+def token_connection(request):
+    conf = request.config
+    conn = TessMongoConnection(conf.getoption('db_host'),
+                               conf.getoption('db_port'),
+                               conf.getoption('db_user'),
+                               password=conf.getoption('db_passwd',
+                                                       default=None),
+                               db=conf.getoption('db_name',
+                                                 default=None))
+    return conn
+
 
 def file_grabber(base):
     token_files = []

@@ -1,7 +1,5 @@
 import pytest
 
-from test_base_tokenizer import TestBaseTokenizer
-
 import json
 import os
 import re
@@ -10,217 +8,126 @@ import sys
 
 from cltk.semantics.latin.lookup import Lemmata
 
+from tesserae.db.entities.text import Text
 from tesserae.tokenizers import GreekTokenizer
 from tesserae.utils import TessFile
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
+def greek_tessfiles(test_data, token_connection):
+    # Get the test data and filter for Greek texts only.
+    tessfiles = [t for t in test_data['texts'] if t['language'] == 'greek']
+    tessfiles = [Text(**text) for text in tessfiles]
+
+    # Prep the database with the text metadata
+    token_connection.insert(tessfiles)
+
+    # Create file readers for each text
+    tessfiles = [TessFile(text.path, metadata=text) for text in tessfiles]
+
+    yield sorted(tessfiles, key=lambda x: x.metadata.path)
+
+    token_connection.delete([t.metadata for t in tessfiles])
+
+
+@pytest.fixture(scope='module')
 def greek_tokens(greek_files):
-    tokens = []
-    for f in greek_files:
-        root, ext = os.path.splitext(f)
-        fname = root + '.tokens' + '.json'
-        with open(fname, 'r') as f:
-            ts = [t for t in json.load(f) if t['TYPE'] == 'WORD']
-            tokens.append(ts)
-    return tokens
+    greek_tokens = []
+
+    tessfiles = sorted(
+                    filter(lambda x: os.path.splitext(x)[1] == '.tess',
+                           greek_files))
+
+    for fname in tessfiles:
+        text = os.path.splitext(fname)[0]
+
+        with open(text + '.token.json', 'r') as f:
+            tokens = json.load(f)
+
+        with open(text + '.index_word.json', 'r') as f:
+            forms = json.load(f)
+
+        with open(text + '.index_stem.json', 'r') as f:
+            stems = json.load(f)
+
+        with open(text + '.index_3gr.json', 'r') as f:
+            trigrams = json.load(f)
+
+        idx = 0
+        text_tokens = []
+        for i in range(len(tokens)):
+            if tokens[i]['TYPE'] == 'WORD':
+                text_tokens.append({
+                    'display': tokens[i]['DISPLAY'],
+                    'form': forms[idx][0],
+                    'lemmata': stems[idx] if forms[idx][0] else ['']
+                    })
+                idx += 1
+        greek_tokens.append(text_tokens)
+    return greek_tokens
 
 
 @pytest.fixture(scope='module')
 def greek_word_frequencies(greek_files):
     freqs = []
-    grc = GreekTokenizer()
     for fname in greek_files:
         freq = {}
         fname = os.path.splitext(fname)[0] + '.freq_score_word'
         with open(fname, 'r') as f:
             for line in f.readlines():
                 if '#' not in line:
-                    word, n = re.split('[^\w' + grc.diacriticals + ']+', line,
-                                       flags=re.UNICODE)[:-1]
+                    word, n = line.strip().split()
                     freq[word] = int(n)
         freqs.append(freq)
     return freqs
 
 
-class TestGreekTokenizer(TestBaseTokenizer):
-    __test_class__ = GreekTokenizer
+def test_init(token_connection):
+    t = GreekTokenizer(token_connection)
+    assert t.connection is token_connection
+    assert hasattr(t, 'lemmatizer')
+    assert isinstance(t.lemmatizer, Lemmata)
 
-    def test_init(self):
-        t = self.__test_class__()
-        assert hasattr(t, 'diacriticals')
-        assert isinstance(t.diacriticals, str)
-        assert hasattr(t, 'vowels')
-        assert isinstance(t.vowels, str)
-        assert hasattr(t, 'grave')
-        assert isinstance(t.grave, str)
-        assert hasattr(t, 'acute')
-        assert isinstance(t.acute, str)
-        assert hasattr(t, 'diacrit_sub1')
-        assert isinstance(t.diacrit_sub1, str)
-        assert hasattr(t, 'diacrit_sub2')
-        assert isinstance(t.diacrit_sub2, str)
-        assert hasattr(t, 'lemmatizer')
-        assert isinstance(t.lemmatizer, Lemmata)
 
-    def test_normalize(self, greek_files, greek_tokens):
-        grc = self.__test_class__()
+def test_normalize(token_connection, greek_tessfiles, greek_tokens):
+    grc = GreekTokenizer(token_connection)
 
-        for i in range(len(greek_files)):
-            fname = greek_files[i]
-            ref_tokens = [t for t in greek_tokens[i] if t['FORM'] != '']
+    for i, tessfile in enumerate(greek_tessfiles):
+        correct_tokens = [t for t in greek_tokens[i] if t['form']]
+        tokens, tags = grc.normalize(tessfile.read())
+        correct = map(lambda x: x[0] == x[1]['form'],
+                      zip(tokens, correct_tokens))
+        for j, c in enumerate(correct):
+            if not c:
+                print(j, tokens[j], correct_tokens[j])
+                break
+        assert all(correct)
 
-            t = TessFile(fname)
+        for i, line in enumerate(tessfile.readlines()):
+            correct_tag = line[:line.find('>') + 1]
+            assert tags[i] == correct_tag
 
-            token_idx = 0
 
-            for i, line in enumerate(t.readlines(include_tag=False)):
-                tokens = [t for t in grc.normalize(line)]
-                tokens = [t for t in tokens
-                          if re.search('[' + grc.word_characters + ']+',
-                                       t, flags=re.UNICODE)]
+def test_tokenize(token_connection, greek_tessfiles, greek_tokens):
+    grc = GreekTokenizer(token_connection)
 
-                offset = token_idx + len(tokens)
+    for i, tessfile in enumerate(greek_tessfiles):
+        print(tessfile.metadata.title)
+        tokens, tags, features = grc.tokenize(
+            tessfile.read(), text=tessfile.metadata)
 
-                correct = map(lambda x: x[0] == x[1]['FORM'],
-                              zip(tokens, ref_tokens[token_idx:offset]))
+        for j, token in enumerate(tokens):
+            # Detect all connected
+            assert token.display == greek_tokens[i][j]['display']
+            if tessfile.metadata.title == 'gorgias':
+                print(token.display, greek_tokens[i][j])
+            assert token.features['form'].token == greek_tokens[i][j]['form']
+            assert all([
+                any(
+                    map(lambda x: lemma.token == x,
+                        greek_tokens[i][j]['lemmata']))
+                for lemma in token.features['lemmata']])
 
-                if not all(correct):
-                    print(fname, i, line)
-                    print(ref_tokens[token_idx:offset])
-                    for j in range(len(tokens)):
-                        if tokens[j] != ref_tokens[token_idx + j]['FORM']:
-                            print('{}->{}'.format(tokens[j], ref_tokens[token_idx + j]['FORM']))
 
-                assert all(correct)
-
-                token_idx = offset
-
-            # token_idx = 0
-            # for i, token in enumerate(t.read_tokens(include_tag=False)):
-            #     tokens = [t for t in grc.normalize(token)]
-            #
-            #     offset = token_idx + len(tokens)
-            #
-            #     correct = map(lambda x: x[0] == x[1]['FORM'],
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #     assert all(correct)
-            #
-            #     token_idx = offset
-
-    def test_tokenize(self, greek_files, greek_tokens, greek_word_frequencies):
-        grc = self.__test_class__()
-
-        for k in range(len(greek_files)):
-            fname = greek_files[k]
-            ref_tokens = [t for t in greek_tokens[k] if 'FORM' in t]
-            ref_freqs = greek_word_frequencies[k]
-
-            t = TessFile(fname)
-
-            tokens, frequencies = grc.tokenize(t.read())
-            tokens = [t for t in tokens
-                      if re.search('[\w]',
-                                   t.display, flags=re.UNICODE)]
-
-            correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-                          zip(tokens, ref_tokens))
-
-            if not all(correct):
-                print(fname)
-                for j in range(len(tokens)):
-                    if tokens[j].display != ref_tokens[j]['DISPLAY']:
-                        print(ref_tokens[j])
-                        print('{}->{}'.format(tokens[j].display, ref_tokens[j]['DISPLAY']))
-                        print('{}->{}'.format(tokens[j].form, ref_tokens[j]['FORM']))
-
-            assert all(correct)
-
-            correct = map(lambda x: x[0].form == x[1]['FORM'],
-                          zip(tokens, ref_tokens))
-
-            if not all(correct):
-                print(fname)
-                for j in range(len(tokens)):
-                    if tokens[j].form != ref_tokens[j]['FORM']:
-                        print(ref_tokens[j])
-                        print('{}->{}'.format(tokens[j].form, ref_tokens[j]['FORM']))
-
-            assert all(correct)
-
-            # token_idx = 0
-            #
-            # for i, line in enumerate(t.readlines(include_tag=False)):
-            #     tokens, frequencies = grc.tokenize(line)
-            #     tokens = [t for t in tokens
-            #               if re.search('[\w]',
-            #                            t.display, flags=re.UNICODE)]
-            #     offset = token_idx + len(tokens)
-            #
-            #     correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #
-            #     if not all(correct):
-            #         print(fname, i, line)
-            #         for j in range(len(tokens)):
-            #             if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
-            #                 print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
-            #                 print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-            #
-            #     assert all(correct)
-            #
-            #     correct = map(lambda x: x[0].form == x[1]['FORM'],
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #
-            #     if not all(correct):
-            #         print(fname, i, line)
-            #         for j in range(len(tokens)):
-            #             if tokens[j].form != ref_tokens[token_idx + j]['FORM']:
-            #                 print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-            #
-            #     assert all(correct)
-            #
-            #     token_idx = offset
-            #
-            # grc_tokens = [t for t in grc.tokens
-            #               if re.search('[\w]',
-            #                            t.display, flags=re.UNICODE)]
-            #
-            # print(len(grc_tokens), len(ref_tokens))
-            #
-            # correct = map(lambda x: x[0].form == x[1]['FORM'],
-            #               zip(grc_tokens, ref_tokens))
-            #
-            # if not all(correct):
-            #     for j in range(len(grc_tokens)):
-            #         if grc_tokens[j].form != ref_tokens[j]['FORM']:
-            #             print('{}->{}'.format(grc_tokens[j].form, ref_tokens[j]['FORM']))
-            #             print('{}->{}'.format(grc_tokens[j].display, ref_tokens[j]['DISPLAY']))
-            #
-            # assert all(correct)
-            #
-            # if '' in ref_freqs:
-            #     del ref_freqs['']
-            #
-            # for key in ref_freqs:
-            #     assert key in grc.frequencies
-            #     assert grc.frequencies[key] == ref_freqs[key]
-            #
-            # diff = []
-            # for word in frequencies:
-            #     if word.form not in ref_freqs and word.form != '':
-            #         diff.append(word.form)
-            # print(diff)
-            # assert len(diff) == 0
-            #
-            # assert len(frequencies) == len(ref_freqs)
-            # keys = sorted(list(ref_freqs.keys()))
-            # frequencies.sort(key=lambda x: x.form)
-            # correct = map(
-            #     lambda x: x[0].form == x[1] and
-            #               x[0].frequency == ref_freqs[x[1]],
-            #     zip(frequencies, keys))
-            #
-            # assert all(correct)
-            #
-            # grc.clear()
+def test_featurize(token_connection):
+    pass
