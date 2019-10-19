@@ -1,36 +1,37 @@
-from test_base_tokenizer import TestBaseTokenizer
 from tesserae.tokenizers import EnglishTokenizer
 
 
-class TestEnglishTokenizer(TestBaseTokenizer):
-    __test_class_ = EnglishTokenizer
+def test_normalize(token_connection):
+    eng = EnglishTokenizer(token_connection)
 
-    def test_normalize(self):
-        eng = self.__test_class__()
+    raw_lines = [
+        '<English Test 1> Will this work as expected?',
+        '<English Test 2> Porcupine',
+        '<English Test 3> Old McDonald had a farm',
+    ]
 
-        raw_tokens = [
-            'aardvark',
-            'Porcupine',
-            'McDonald',
-        ]
+    ref_tokens = [
+        'will', 'this', 'work', 'as', 'expected',
+        'porcupine',
+        'old', 'mcdonald', 'had', 'a', 'farm',
+    ]
 
-        ref_tokens = [
-            'aardvark',
-            'porcupine',
-            'mcdonald',
-        ]
+    tokens, tags = eng.normalize(raw_lines)
 
-        tokens = eng.normalize(raw_tokens)
+    correct = map(lambda x: x[0] == x[1], zip(tokens, ref_tokens))
 
-        correct = map(lambda x: x[0] == x[1], zip(raw_tokens, ref_tokens))
+    if not all(correct):
+        for raw, actual, ref in zip(correct, raw_tokens, tokens, ref_tokens):
+            if actual != ref:
+                print('{}->{} (should be "{}")'.format(raw, actual, ref))
 
-        if not all(correct):
-            for raw, actual, ref in zip(correct, raw_tokens, tokens, ref_tokens):
-                if actual != ref:
-                    print('{}->{} (should be "{}")'.format(raw, actual, ref))
+    assert all(correct)
 
-        assert all(correct)
+    for tag, line in zip(tags, raw_lines):
+        correct_tag = line[:line.find('>') + 1]
+        assert tag == correct_tag
 
-    def test_tokenize(self):
-        # TODO implement once BaseTokenizer.tokenize is finalized
-        assert False
+
+def test_tokenize(token_connection):
+    # TODO implement once BaseTokenizer.tokenize is finalized
+    assert False

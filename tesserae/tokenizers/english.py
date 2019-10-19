@@ -1,4 +1,6 @@
-from nltk.stem import WordNetStemmer
+import re
+
+from nltk.stem import WordNetLemmatizer
 
 from tesserae.tokenizers.base import BaseTokenizer
 
@@ -6,9 +8,13 @@ from tesserae.tokenizers.base import BaseTokenizer
 class EnglishTokenizer(BaseTokenizer):
     def __init__(self, connection):
         super(EnglishTokenizer, self).__init__(connection)
-        self.lemmatizer = WordNetStemmer()
 
-    def normalize(self, raw):
+        self.lemmatizer = WordNetLemmatizer()
+
+        self.split_pattern = \
+            r'[^\w]+'
+
+    def normalize(self, raw, split=True):
         """Normalize an English word.
 
         Parameters
@@ -28,9 +34,13 @@ class EnglishTokenizer(BaseTokenizer):
 
         """
         # Apply the global normalizer
-        normalized = super(EnglishTokenizer, self).normalize(raw)
+        normalized, tags = super(EnglishTokenizer, self).normalize(raw)
 
-        return normalized
+        if split:
+            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
+            normalized = [t for t in normalized if t]
+
+        return normalized, tags
 
     def featurize(self, tokens):
         """Lemmatize an English token.
