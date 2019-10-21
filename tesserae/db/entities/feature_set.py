@@ -76,3 +76,10 @@ class FeatureSet(Entity):
     def unique_values(self):
         uniques = {'form': self.form}
         return uniques
+
+    def __repr__(self):
+        return (
+            f'FeatureSet(form={self.form}, lemmata={self.lemmata}, '
+            f'semantic={self.semantic}, sound={self.sound}, '
+            f'language={self.language})'
+        )

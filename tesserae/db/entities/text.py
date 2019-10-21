@@ -82,3 +82,12 @@ class Text(Entity):
             'title': self.title,
             'author': self.author
         }
+
+    def __repr__(self):
+        return (
+            f'Text(language={self.language}, title={self.title}, '
+            f'author={self.author}, year={self.year}, '
+            f'unit_types={self.unit_types}, path={self.path}, '
+            f'is_prose={self.is_prose}, hash={self.hash}, '
+            f'extras={self.extras})'
+        )

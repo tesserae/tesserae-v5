@@ -67,3 +67,9 @@ class Match(Entity):
             'match_set': self.match_set.id
         }
         return uniques
+
+    def __repr__(self):
+        return (
+            f'Match(units={self.units}, tokens={self.tokens}, '
+            f'score={self.score}, match_set={self.match_set})'
+        )

@@ -55,8 +55,8 @@ class Unit(Entity):
 
     collection = 'units'
 
-    def __init__(self, id=None, text=None, index=None, tags=None, unit_type=None,
-                 tokens=None, features=None):
+    def __init__(self, id=None, text=None, index=None, tags=None,
+                 unit_type=None, tokens=None, features=None):
         super(Unit, self).__init__(id=id)
         self.text: typing.Optional[ObjectId] = text
         self.index: typing.Optional[int] = index
@@ -85,3 +85,10 @@ class Unit(Entity):
             'index': self.index,
             'unit_type': self.unit_type}
         return uniques
+
+    def __repr__(self):
+        return (
+            f'Unit(text={self.text}, index={self.index}, tags={self.tags}, '
+            f'unit_type={self.unit_type}, tokens={self.tokens}, '
+            f'features={self.features})'
+        )

@@ -77,3 +77,9 @@ class MatchSet(Entity):
             'parameters': self.parameters
         }
         return uniques
+
+    def __repr__(self):
+        return (
+            f'MatchSet(texts={self.texts}, unit_types={self.unit_types}, '
+            f'feature={self.feature}, parameters={self.parameters})'
+        )

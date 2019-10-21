@@ -75,3 +75,9 @@ class Frequency(Entity):
     def unique_values(self):
         uniques = {'text': self.text.id, 'feature_set': self.feature_set.id}
         return uniques
+
+    def __repr__(self):
+        return (
+            f'Frequency(text={self.text}, feature_set={self.feature_set}, '
+            f'frequency={self.frequency})'
+        )
