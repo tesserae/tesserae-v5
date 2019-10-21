@@ -51,22 +51,44 @@ class LatinTokenizer(BaseTokenizer):
         return normalized, tags
 
     def featurize(self, tokens):
-        """Lemmatize a Latin token.
+        """Lemmatize Latin tokens.
 
         Parameters
         ----------
         tokens : list of str
-            The token to featurize.
+            The tokens to featurize.
 
         Returns
         -------
-        lemmata : dict
-            The features for the token.
+        result : dict
+            The features for the tokens. Every feature type should be listed as
+            a key. For every key, the value should be a list of lists. Every
+            position in the outer list corresponds to the same position in the
+            tokens list passed in. Every inner list contains all instances of
+            the feature type associated with the corresponding token.
+
+        Example
+        -------
+        Suppose we have the following tokens to featurize:
+        >>> tokens = ['arma', 'cano']
+
+        Then the result would look something like this:
+        >>> result = {
+        >>>     'lemmata': [
+        >>>         ['arma', 'armo'],
+        >>>         ['canus', 'cano']
+        >>>     ]
+        >>> }
+
+        Note that `result['lemmata'][0]` is a list containing the lemmata for
+        `tokens[0]`; similarly, `result['lemmata'][1]` is a list containing the
+        lemmata for `tokens[1]`.
 
         Notes
         -----
         Input should be sanitized with `LatinTokenizer.normalize` prior to
         using this method.
+
         """
         if not isinstance(tokens, list):
             tokens = [tokens]
@@ -78,6 +100,4 @@ class LatinTokenizer(BaseTokenizer):
         features = {
             'lemmata': fixed_lemmata
         }
-        # for i, l in enumerate(lemmata):
-        #     features.append({'lemmata': [lem[0] for lem in l[1]]})
         return features
