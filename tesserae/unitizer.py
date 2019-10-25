@@ -1,7 +1,7 @@
 import collections
 import re
 
-from tesserae.db import Text, Token, Unit
+from tesserae.db import Feature, Text, Token, Unit
 from tesserae.tokenizers import BaseTokenizer
 
 
@@ -131,16 +131,16 @@ class Unitizer(object):
             # t.line = line
             # phrase.tokens.append(t)
             # t.phrase = phrase
-            
+
             if isinstance(t.features, dict) and len(t.features) > 0:
                 tok =  {'_id': t.id, 'index': t.index, 'display': t.display, 'features': {}}
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
                     if isinstance(val, collections.Sequence) and not isinstance(val, str):
-                        tok['features'][key].extend([v.index for v in val])
+                        tok['features'][key].extend([v.index if isinstance(v, Feature) else '' for v in val])
                     else:
-                        tok['features'][key].append(val.index)
+                        tok['features'][key].append(val.index if isinstance(val, Feature) else '')
                 line.tokens.append(tok)
                 phrase.tokens.append(tok)
 
@@ -153,7 +153,7 @@ class Unitizer(object):
             #     self.phrases[-1].tokens.append(t)
             #     t.phrase = self.phrases[-1]
 
-            # If this token contains a phrasee delimiter (one of .?!;:),
+            # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
                 self.phrases.append(
@@ -169,7 +169,7 @@ class Unitizer(object):
 
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
-            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE) and len(self.lines[-1].tokens) > 1:
+            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE): # and len(self.lines[-1].tokens) > 1:
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
 
@@ -186,6 +186,18 @@ class Unitizer(object):
                         self.phrases[-1].tags.append(tags[tag_idx])
                 except IndexError:
                     pass
+
+        for i in range(len(self.lines) - 1, -1, -1):
+            if len(self.lines[i].tokens) < 2:
+                self.lines.pop(i)
+            else:
+                break
+
+        for i in range(len(self.phrases) - 1, -1, -1):
+            if len(self.phrases[i].tokens) < 2:
+                self.phrases.pop(i)
+            else:
+                break
 
         if stop and len(self.lines[-1].tokens) == 0:
             self.lines.pop()

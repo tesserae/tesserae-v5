@@ -1,169 +1,180 @@
-import pytest
-
-from tesserae.unitizer import Unitizer
-
 import json
 import os
 import re
 
-from tesserae.db import Text
+import pytest
+
+from tesserae.db import TessMongoConnection, Unit, Text
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
+from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile
 
 
 @pytest.fixture(scope='module')
-def units(tessfiles):
-    data = []
-    for root, dirs, files in os.walk(tessfiles):
-        if 'new' not in root and re.search(r'poetry|prose', root):
-            fdata = {}
-            for fname in files:
-                parts = fname.split('.')
-                if '.tess' in fname:
-                    metadata = Text(
-                        title=parts[0],
-                        author=parts[1],
-                        language='greek' if 'grc' in root else 'latin',
-                        path=os.path.join(root, fname))
-                    fdata['metadata'] = metadata
-                if '.json' in fname:
-                    feature = parts[2]
-                    with open(os.path.join(root, fname), 'r') as f:
-                        fdata[feature] = json.load(f)
-            data.append(fdata)
-    return data
+def unit_connection(request):
+    """Create a new TessMongoConnection for this task.
+
+    Fixtures
+    --------
+    request
+        The configuration to connect to the MongoDB test server.
+    """
+    conf = request.config
+    conn = TessMongoConnection(conf.getoption('db_host'),
+                               conf.getoption('db_port'),
+                               conf.getoption('db_user'),
+                               password=conf.getoption('db_passwd',
+                                                       default=None),
+                               db=conf.getoption('db_name',
+                                                 default=None))
+    return conn
 
 
-class TestUnitizer(object):
-    def test_init(self):
-        u = Unitizer()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
+@pytest.fixture(scope='module')
+def unit_tessfiles(test_data):
+    """Create text entities for the test texts.
 
-    def test_clear(self):
-        u = Unitizer()
+    Fixtures
+    --------
+    test_data
+        A small set of sample texts and other entities.
+    """
+    tessfiles = [Text(**text) for text in test_data['texts']]
+    tessfiles.sort(key=lambda x: x.path)
+    return tessfiles
 
-        vals = list(range(0, 100))
 
-        u.lines.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
+@pytest.fixture(scope='module')
+def unitizer_inputs(unit_tessfiles, unit_connection):
+    inputs = []
+    for t in unit_tessfiles:
+        tessfile = TessFile(t.path, metadata=t)
+        if t.language == 'latin':
+            tok = LatinTokenizer(unit_connection)
+        if t.language == 'greek':
+            tok = GreekTokenizer(unit_connection)
+        tokens, tags, features = tok.tokenize(tessfile.read(), text=t)
+        features.sort(key=lambda x: x.index)
+        inputs.append((tokens, tags, features))
+    yield inputs
 
-        u.lines.extend(vals)
-        u.phrases.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
 
-        u.lines.extend(vals)
-        u.phrases.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
 
-        for i in [None, 'a', 1, 1.0, True, False, b'a', r'a']:
-            u.lines = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
+@pytest.fixture(scope='module')
+def correct_lines(unit_tessfiles):
+    line_data = []
+    for t in unit_tessfiles:
+        base, _ = os.path.splitext(t.path)
+        with open(base + '.line.json', 'r') as f:
+            lines = json.load(f)
+        with open(base + '.token.json', 'r') as f:
+            tokens = json.load(f)
+        with open(base + '.index_word.json', 'r') as f:
+            forms = json.load(f)
+        with open(base + '.index_stem.json', 'r') as f:
+            stems = json.load(f)
 
-            u.phrases = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
+        test_lines = []
+        feature_idx = 0
+        for line in lines:
+            test_line = {
+                'locus': line['LOCUS'],
+                'tokens': []
+            }
 
-            u.lines = i
-            u.phrases = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
+            for t in line['TOKEN_ID']:
+                if tokens[t]['TYPE'] == 'WORD':
+                    if re.search(r'[\d]', tokens[t]['DISPLAY']):
+                        print(tokens[t])
+                    test_line['tokens'].append({
+                        'display': tokens[t]['DISPLAY'].strip("'"),
+                        'form': forms[feature_idx][0],
+                        'stem': stems[feature_idx] if not re.search(r'^[\d]+$', tokens[t]['DISPLAY']) else ['']
+                    })
+                    feature_idx += 1
+            test_lines.append(test_line)
+        line_data.append(test_lines)
+    return line_data
 
-    def test_unitize(self, units):
-        for unit in units:
-            u = Unitizer()
-            metadata = unit['metadata']
-            tess = TessFile(metadata.path, metadata=metadata)
-            tokens = unit['tokens']
-            lines = unit['lines']
-            phrases = unit['phrases']
 
-            if metadata.language == 'greek':
-                tokenizer = GreekTokenizer()
-            elif metadata.language == 'latin':
-                tokenizer = LatinTokenizer()
+@pytest.fixture(scope='module')
+def correct_phrases(unit_tessfiles):
+        phrase_data = []
+        for t in unit_tessfiles:
+            base, _ = os.path.splitext(t.path)
+            with open(base + '.phrase.json', 'r') as f:
+                phrases = json.load(f)
+            with open(base + '.token.json', 'r') as f:
+                tokens = json.load(f)
+            with open(base + '.index_word.json', 'r') as f:
+                forms = json.load(f)
+            with open(base + '.index_stem.json', 'r') as f:
+                stems = json.load(f)
 
-            tokenizer.clear()
+            test_phrases = []
+            feature_idx = 0
+            for phrase in phrases:
+                test_phrase = {
+                    'locus': phrase['LOCUS'],
+                    'tokens': []
+                }
 
-            for i, line in enumerate(tess.readlines(include_tag=False)):
-                stop = (i == len(tess) - 1)
-                u.unitize(line, metadata, tokenizer=tokenizer, stop=stop)
+                for t in phrase['TOKEN_ID']:
+                    if tokens[t]['TYPE'] == 'WORD':
+                        if re.search(r'[\d]', tokens[t]['DISPLAY']):
+                            print(tokens[t])
+                        test_phrase['tokens'].append({
+                            'display': tokens[t]['DISPLAY'],
+                            'form': forms[feature_idx][0],
+                            'stem': stems[feature_idx]
+                        })
+                        feature_idx += 1
+                test_phrases.append(test_phrase)
+            phrase_data.append(test_phrases)
+        return phrase_data
 
-            print(metadata.path)
 
-            assert len(u.lines) == len(lines)
-            for i in range(len(lines)):
-                line_tokens = \
-                    [tokenizer.tokens[j].form for j in u.lines[i].tokens
-                     if re.search(r'[\w\d]', tokenizer.tokens[j].display,
-                                  flags=re.UNICODE) and
-                        tokenizer.tokens[j].form]
+def test_unitize(unitizer_inputs, correct_lines, correct_phrases):
+    for i, indata in enumerate(unitizer_inputs):
+        tokens, tags, features = indata
 
-                correct_tokens = \
-                    [tokens[j]['FORM'] for j in lines[i]['TOKEN_ID']
-                     if 'FORM' in tokens[j] and tokens[j]['FORM']]
+        feature_dict = {}
+        for feature in features:
+            if feature.feature in feature_dict:
+                feature_dict[feature.feature].append(feature)
+            else:
+                feature_dict[feature.feature] = [feature]
 
-                if line_tokens != correct_tokens:
-                    print('Line {}'.format(i))
-                    print(line_tokens)
-                    print(correct_tokens)
+        features = feature_dict
 
-                assert line_tokens == correct_tokens
+        unitizer = Unitizer()
+        lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
 
-            print(u.phrases[-1].tokens)
-            assert len(u.phrases) == len(phrases)
-            for i in range(len(u.phrases)):
-                phrase_tokens = \
-                    [tokenizer.tokens[j].form for j in u.phrases[i].tokens
-                     if re.search(r'[\w\d]', tokenizer.tokens[j].display,
-                                  flags=re.UNICODE) and
-                        tokenizer.tokens[j].form]
+        text_correct_lines = correct_lines[i]
+        for j, line in enumerate(lines[:-1]):
+            if isinstance(text_correct_lines[j]['locus'], str):
+                assert line.tags[0] == text_correct_lines[j]['locus']
+            else:
+                assert line.tags == text_correct_lines[j]['locus']
+            if len(line.tokens) != len(text_correct_lines[j]['tokens']):
+                print(list(zip([t['display'] for t in line.tokens] + [''], [t['display'] for t in text_correct_lines[j]['tokens']])))
+            assert len(line.tokens) == len(text_correct_lines[j]['tokens'])
+            predicted = [t for t in line.tokens if re.search(r'[\w]', t['display'])]
+            for k in range(len(predicted)):
+                token = predicted[k]
+                correct = text_correct_lines[j]['tokens'][k]
 
-                correct_tokens = \
-                    [tokens[j]['FORM'] for j in phrases[i]['TOKEN_ID']
-                     if 'FORM' in tokens[j] and tokens[j]['FORM']]
+                assert token['display'] == correct['display']
 
-                if phrase_tokens != correct_tokens:
-                    print('Phrase {}'.format(i))
-                    phrase_tokens = \
-                        [tokenizer.tokens[j].form for j in u.phrases[i - 1].tokens
-                         if re.search(r'[\w]', tokenizer.tokens[j].display,
-                                      flags=re.UNICODE) and
-                            tokenizer.tokens[j].form]
-
-                    correct_tokens = \
-                        [tokens[j]['FORM'] for j in phrases[i - 1]['TOKEN_ID']
-                         if 'FORM' in tokens[j]]
-                    print(phrase_tokens)
-                    print(correct_tokens)
-
-                assert phrase_tokens == correct_tokens
-
-            assert len(u.phrases) == len(phrases)
-
-            u.clear()
-            tokenizer.clear()
+                if token['features']['form'][0] > -1:
+                    form = feature_dict['form'][token['features']['form'][0]].token
+                    lemmata = [feature_dict['lemmata'][l].token for l in token['features']['lemmata']]
+                else:
+                    form = ''
+                    lemmata = ['']
+                if form != correct['form']:
+                    print(token, correct)
+                    print(form, correct['form'])
+                assert form == correct['form']
+                assert len(lemmata) == len(correct['stem'])
+                assert all(map(lambda x: x in correct['stem'], lemmata))
