@@ -27,7 +27,7 @@ class GreekTokenizer(BaseTokenizer):
             '( / )|([\\s]+)|([^\\w\\d',
             self.diacriticals,
             self.sigma_alt,
-            '\'])'])
+            r"])"])
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
