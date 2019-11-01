@@ -35,20 +35,20 @@ def ingest_text(connection, text):
         raise ValueError('Unknown language: {}'.format(text.language))
     tessfile = TessFile(text.path, metadata=text)
     print('Ingesting')
-    tokens, tags, frequencies, feature_sets = \
+    tokens, tags, features = \
         _tokenizers[tessfile.metadata.language](connection).tokenize(
             tessfile.read(), text=tessfile.metadata)
 
     unitizer = Unitizer()
     lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
+    print(len(lines), len(phrases))
+
     result = connection.insert(text)
     text_id = result.inserted_ids[0]
 
-    if feature_sets:
-        result = connection.insert(feature_sets)
-    if frequencies:
-        result = connection.insert(frequencies)
+    if features:
+        result = connection.insert(features)
     if lines or phrases:
         result = connection.insert(lines + phrases)
     if tokens:
