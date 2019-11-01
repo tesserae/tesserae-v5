@@ -35,7 +35,7 @@ class BaseTokenizer(object):
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '[\\s]+|[^\\w\\d' + self.diacriticals + ']+'
+            '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
 
     def featurize(self, tokens):
         raise NotImplementedError

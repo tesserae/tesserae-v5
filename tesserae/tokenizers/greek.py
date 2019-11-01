@@ -24,10 +24,10 @@ class GreekTokenizer(BaseTokenizer):
             r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
         self.split_pattern = ''.join([
-            '[\\s]+|[^\\w\\d',
+            '( / )|([\\s]+)|([^\\w\\d',
             self.diacriticals,
             self.sigma_alt,
-            '\']'])
+            '\'])'])
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
@@ -62,13 +62,14 @@ class GreekTokenizer(BaseTokenizer):
                             flags=re.UNICODE)
 
         # Remove digits and single-quotes from the normalized output
-        normalized = re.sub("['\d]+", r'', normalized, flags=re.UNICODE)
+        normalized = re.sub(r"['\d]+", r'', normalized, flags=re.UNICODE)
 
         # Split the output into a list of normalized tokens if requested
         if split:
             normalized = re.split(self.split_pattern, normalized,
                                   flags=re.UNICODE)
-            normalized = [t for t in normalized if t]
+            normalized = [t for t in normalized
+                          if t and re.search(r'[\w]+', t)]
 
         return normalized, tags
 
