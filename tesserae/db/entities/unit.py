@@ -69,7 +69,7 @@ class Unit(Entity):
 
     def json_encode(self, exclude=None):
         self._ignore = [self.text, self.tokens]
-        self.text = self.text.id
+        self.text = self.text.id if isinstance(self.text, Entity) else self.text
         # self.tokens = [t.id for t in self.tokens]
 
         obj = super(Unit, self).json_encode(exclude=exclude)
