@@ -18,7 +18,7 @@ class SparseMatrixSearch(object):
     def __init__(self, connection):
         self.connection = connection
 
-    def get_stoplist(self, stopwords_list, language=None, feature=None):
+    def get_stoplist(self, stopwords_list, feature=None, language=None):
         """Retrieve ObjectIds for the given stopwords list
 
         Parameters
@@ -85,25 +85,26 @@ class SparseMatrixSearch(object):
                     }
                 }})
         else:
-            basis = [t if not isinstance(t, Entity) else t.id for t in basis]
+            basis = [t if not isinstance(t, Entity) else str(t.id) for t in basis]
             pipeline.extend([
                 {'$project': {
                     '_id': False,
                     'index': True,
                     'token': True,
-                    'frequency': {'$sum': ['$frequencies.' + text for text in basis]}
+                    'frequency': {
+                        '$sum': ['$frequencies.' + text for text in basis]}
                 }}
             ])
 
         pipeline.extend([
             {'$sort': {'frequency': -1}},
             {'$limit': n},
-            {'$project': {'token': True, 'index': True}}
+            {'$project': {'token': True, 'index': True, 'frequency': True}}
         ])
 
         stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
         stoplist = list(stoplist)
-        print([s['token'] for s in stoplist])
+        print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
     def get_frequencies(self, feature, language, basis='corpus', count=None):
@@ -187,13 +188,17 @@ class SparseMatrixSearch(object):
             - 'span': the greatest distance between any two matching words
         """
         if isinstance(stopwords, int):
+            stopword_basis = stopword_basis if stopword_basis != 'texts' \
+                    else texts
             stoplist = self.create_stoplist(
                 stopwords,
                 'form' if feature == 'form' else 'lemmata',
                 texts[0].language,
                 basis=stopword_basis)
         else:
-            stoplist = get_stoplist(stopwords)
+            stoplist = self.get_stoplist(stopwords,
+                    'form' if feature == 'form' else 'lemmata',
+                    texts[0].language)
 
         frequency_basis = frequency_basis if frequency_basis != 'texts' \
                           else texts
