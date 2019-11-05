@@ -330,46 +330,14 @@ def score(source, targets, in_source_frequencies, in_target_frequencies,
                 source_distance = np.abs(np.max(source_idx) - np.min(source_idx))
                 target_distance = np.abs(np.max(target_idx) - np.min(target_idx))
             else:
-                matched_source_frequencies = [
-                        source_frequencies[i]
-                        for i, feature in enumerate(source_features)
-                        if feature in match_features]
-                matched_source_indices = [
-                        source_indices[i]
-                        for i, feature in enumerate(source_features)
-                        if feature in match_features]
-                freq_sort = np.argsort(matched_source_frequencies)
-                # print(freq_sort.shape[0], len(source_features), len(source_indices))
-                source_idx = np.array([matched_source_indices[i] for i in freq_sort])
-                print('source_idx', source_idx)
-                # try:
-                if source_idx.shape[0] >= 2:
-                    s_end = [s for s in source_idx if s != source_idx[0]][0]
-                else:
+                source_distance = _get_distance_by_least_frequency(
+                        source_frequencies,
+                        source_indices, source_features, match_features)
+                target_distance = _get_distance_by_least_frequency(
+                        target_frequencies,
+                        target_indices, target_features, match_features)
+                if source_distance <= 0 or target_distance <= 0:
                     continue
-                # except IndexError:
-                #     s_end = 1
-                matched_target_frequencies = [
-                        target_frequencies[i]
-                        for i, feature in enumerate(target_features)
-                        if feature in match_features]
-                matched_target_indices = [
-                        target_indices[i]
-                        for i, feature in enumerate(target_features)
-                        if feature in match_features]
-                freq_sort = np.argsort(matched_target_frequencies)
-                # print(freq_sort.shape[0], len(target_features), len(target_indices))
-                target_idx = np.array([matched_target_indices[i] for i in freq_sort])
-                print('target_idx', target_idx)
-                # try:
-                if target_idx.shape[0] >= 2:
-                    t_end = [t for t in target_idx if t != target_idx[0]][0]
-                else:
-                    continue
-                # except IndexError:
-                #     t_end = 1
-                source_distance = np.abs(s_end - source_idx[0])
-                target_distance = np.abs(t_end - target_idx[0])
 
             score = -np.inf
             if source_distance < maximum_distance and target_distance < maximum_distance:
@@ -440,3 +408,21 @@ def _get_token_count(connection, language, basis):
             {'text': {'$in': text_ids},
                 # https://stackoverflow.com/a/6838057
                 'features': {'$gt': {}}})
+
+
+def _get_distance_by_least_frequency(frequencies, indices, features,
+        match_features):
+    matched_frequencies = [
+            frequencies[i]
+            for i, feature in enumerate(features)
+            if feature in match_features]
+    matched_indices = [
+            indices[i]
+            for i, feature in enumerate(features)
+            if feature in match_features]
+    freq_sort = np.argsort(matched_frequencies)
+    idx = np.array([matched_indices[i] for i in freq_sort])
+    if idx.shape[0] >= 2:
+        end = [s for s in idx if s != idx[0]][0]
+        return np.abs(end - idx[0])
+    return 0
