@@ -399,6 +399,7 @@ def _get_feature_counts(connection, feature, language, basis):
 
 
 def _get_token_count(connection, language, basis):
+    print(basis)
     if basis == 'corpus':
         text_ids = [ObjectId(t.id) for t in connection.find(Text.collection,
             language=language)]

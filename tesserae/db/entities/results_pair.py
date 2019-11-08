@@ -31,7 +31,7 @@ class ResultsPair(Entity):
     collection = 'results_pairs'
 
     def __init__(self, id=None, match_set_id=None, results_id=None):
-        super(Match, self).__init__(id=id)
+        super(ResultsPair, self).__init__(id=id)
         self.match_set_id: typing.Optional[ObjectId] = match_set_id
         self.results_id: typing.Optional[str] = results_id
 
