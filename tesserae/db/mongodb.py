@@ -65,7 +65,7 @@ def _dot_notate(doc):
 
 
 class TessMongoConnection():
-    """Connection to a MongoDB instace configured for Tesserae.
+    """Connection to a MongoDB instance configured for Tesserae.
 
     Parameters
     ----------
