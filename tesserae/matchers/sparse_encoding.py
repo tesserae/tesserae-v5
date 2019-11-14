@@ -319,10 +319,10 @@ def score(source, targets, in_source_frequencies, in_target_frequencies,
                     [in_target_frequencies[i] for i in match_features] + \
                     [in_source_frequencies[i] for i in match_features]
 
-            print('target frequencies', [(in_target_frequencies[i], i) for i in match_features])
-            print('target positions', target['features'][0]['features'])
-            print('source frequencies', [(in_source_frequencies[i], i) for i in match_features])
-            print('source positions', source['features'][0]['features'])
+            # print('target frequencies', [(in_target_frequencies[i], i) for i in match_features])
+            # print('target positions', target['features'][0]['features'])
+            # print('source frequencies', [(in_source_frequencies[i], i) for i in match_features])
+            # print('source positions', source['features'][0]['features'])
 
             if distance_metric == 'span':
                 source_idx = np.array([source_indices[i] for i in [source_features.index(f) for f in match_features]])
@@ -424,6 +424,8 @@ def _get_distance_by_least_frequency(frequencies, indices, features,
     freq_sort = np.argsort(matched_frequencies)
     idx = np.array([matched_indices[i] for i in freq_sort])
     if idx.shape[0] >= 2:
-        end = [s for s in idx if s != idx[0]][0]
-        return np.abs(end - idx[0])
+        not_first_pos = [s for s in idx if s != idx[0]]
+        if not_first_pos:
+            end = not_first_pos[0]
+            return np.abs(end - idx[0])
     return 0
