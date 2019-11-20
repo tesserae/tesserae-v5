@@ -7,6 +7,7 @@ Classes
 import itertools
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
+import time
 
 import numpy as np
 import pymongo
@@ -186,6 +187,7 @@ class SparseMatrixSearch(object):
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
         """
+        start = time.time()
         if isinstance(stopwords, int):
             stoplist = self.create_stoplist(
                 stopwords,
@@ -194,23 +196,27 @@ class SparseMatrixSearch(object):
                 basis=stopword_basis)
         else:
             stoplist = get_stoplist(stopwords)
+        print('Stoplist creation: {}s'.format(time.time() - start))
 
         frequency_basis = frequency_basis if frequency_basis != 'texts' \
                           else texts
 
         match_matrices = []
 
+        start = time.time()
         pipeline = [
             {'$match': {'feature': feature}},
             {'$count': 'count'}
         ]
         feature_count = self.connection.aggregate(Feature.collection, pipeline, encode=False)
         feature_count = next(feature_count)['count']
+        print('Get total feature count: {}s'.format(time.time() - start))
 
         unit_matrices = []
         unit_lists = []
 
         for t in texts:
+            start = time.time()
             pipeline = [
                 # Get the units from text t with the specified unit type
                 {'$match': {
@@ -229,10 +235,12 @@ class SparseMatrixSearch(object):
 
             units = list(self.connection.aggregate(
                 Unit.collection, pipeline, encode=False))
+            print('Look up {} units: {}s'.format(t.title, time.time() - start))
 
             unit_indices = []
             feature_indices = []
 
+            start = time.time()
             for unit in units:
                 if 'features' in unit:
                     all_features = list(itertools.chain.from_iterable(unit['features'][0]['features'])) # list(np.array(unit['features'][0]['features']).ravel())
@@ -250,17 +258,23 @@ class SparseMatrixSearch(object):
             feature_matrix.eliminate_zeros()
             unit_matrices.append(feature_matrix)
             unit_lists.append(units)
+            print('Create {} sparse matrix: {}s'.format(t.title, time.time() - start))
 
-
+        start = time.time()
         matches = unit_matrices[0].dot(unit_matrices[1].T)
         matches[matches == 1] = 0
         matches.eliminate_zeros()
+        print('Sparse matmul: {}s'.format(time.time() - start))
 
+        start = time.time()
         frequencies = self.get_frequencies(feature, texts[0].language, basis=frequency_basis)
         features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
+        print('Get frequencies and features for scoring: {}s'.format(time.time() - start))
 
         match_ents = []
         match_set = MatchSet(texts=texts)
+
+        start = time.time()
         if parallel:
             with ThreadPool() as p:
                 match_ents = p.starmap(score, [(unit_lists[0][i], [unit_lists[1][j] for j in matches[i].nonzero()[1]],
@@ -273,13 +287,18 @@ class SparseMatrixSearch(object):
                 source_unit = unit_lists[0][i]
                 target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
                 match_ents.extend(score(source_unit, target_units, frequencies, features, distance_metric, max_distance, min_score, match_set))
+        print('Compute scores {}: {}s'.format('serial' if not parallel else 'parallel', time.time() - start))
 
+        start = time.time()
         entmax = np.max([m.score for m in match_ents])
         entmin = np.min([m.score for m in match_ents])
         for ent in match_ents:
             ent.score = int(np.ceil(10 * (ent.score - entmin) / (entmax - entmin)))
+        print('Normalize scores: {}s'.format(time.time() - start))
 
+        start = time.time()
         match_ents = [m for m in match_ents if m.score >= min_score]
+        print('Filter by min score: {}s'.format(time.time() - start))
 
         return match_ents, match_set
 
