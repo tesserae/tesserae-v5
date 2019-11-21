@@ -97,32 +97,31 @@ class SearchProcess(multiprocessing.Process):
             mechanism for receiving search requests
 
         """
-        super().__init__(target=self.await_job)
-        self.connection = TessMongoConnection(**db_cred)
-        self.queue = queue
+        super().__init__(target=self.await_job, args=(db_cred, queue))
 
-    def await_job(self):
+    def await_job(self, db_cred, queue):
         """Waits for search job"""
+        connection = TessMongoConnection(**db_cred)
         while True:
-            results_id, search_type, search_params = self.queue.get(block=True)
+            results_id, search_type, search_params = queue.get(block=True)
             if results_id is None:
                 break
-            self.run_search(results_id, search_type, search_params)
+            self.run_search(connection, results_id, search_type, search_params)
 
-    def run_search(self, results_id, search_type, search_params):
+    def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
         try:
-            matcher = tesserae.matchers.search_types[search_type](self.connection)
+            matcher = tesserae.matchers.search_types[search_type](connection)
             matches, match_set = matcher.match(**search_params)
-            self.connection.insert(matches)
-            self.connection.insert(match_set)
+            connection.insert(matches)
+            connection.insert(match_set)
             results_status = ResultsStatus(results_id=results_id,
                     status=ResultsStatus.DONE,
                     match_set_id=match_set.id,
                     msg='Done in {} seconds'.format(time.time()-start_time))
-            self.connection.insert(results_status)
+            connection.insert(results_status)
         except:
             results_status = ResultsStatus(results_id=results_id,
                     status=ResultsStatus.FAILED, msg=traceback.format_exc())
-            self.connection.insert(results_status)
+            connection.insert(results_status)

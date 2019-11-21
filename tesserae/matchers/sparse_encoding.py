@@ -161,6 +161,11 @@ class SparseMatrixSearch(object):
             The methods used to compute distance.
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
+
+        Raises
+        ------
+        ValueError
+            Raised when parameter was poorly specified
         """
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
@@ -181,8 +186,12 @@ class SparseMatrixSearch(object):
             {'$match': {'feature': feature}},
             {'$count': 'count'}
         ]
-        feature_count = self.connection.aggregate(Feature.collection, pipeline, encode=False)
-        feature_count = next(feature_count)['count']
+        feature_types = self.connection.find(Feature.collection,
+                feature=feature)
+        feature_count = len(feature_types)
+        if feature_count <= 0:
+            raise ValueError(
+                f'Feature type "{feature}" was not found in the database.')
 
         unit_matrices = []
         unit_lists = []
