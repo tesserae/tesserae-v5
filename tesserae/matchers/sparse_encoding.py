@@ -16,6 +16,8 @@ from tesserae.db.entities import Entity, Feature, Match, MatchSet, Token, Text, 
 
 
 class SparseMatrixSearch(object):
+    matcher_type = 'original'
+
     def __init__(self, connection):
         self.connection = connection
 
@@ -257,7 +259,23 @@ class SparseMatrixSearch(object):
         stoplist_set = set(stoplist)
 
         match_ents = []
-        match_set = MatchSet(texts=texts)
+        match_set = MatchSet(texts=texts,
+            unit_types=[unit_type for _ in range(len(texts))],
+            parameters={
+                'method': {
+                    'name': self.matcher_type,
+                    'feature': feature,
+                    'stopwords': [
+                        self.connection.find(
+                            Feature.collection, index=int(index),
+                            language=texts[0].language, feature=feature)[0].token
+                        for index in stoplist],
+                    'freq_basis': frequency_basis,
+                    'max_distance': max_distance,
+                    'distance_basis': distance_metric
+                }
+            }
+        )
         # with mp.Pool() as p:
         #    result = p.map(score_wrapper, [(source_unit, units[1], frequencies, distance_metric, max_distance, -np.inf) for source_unit in units[0]])
         for i in range(matches.shape[0]):
