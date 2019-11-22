@@ -114,8 +114,9 @@ class SearchProcess(multiprocessing.Process):
         try:
             matcher = tesserae.matchers.search_types[search_type](connection)
             matches, match_set = matcher.match(**search_params)
-            connection.insert(matches)
+            print(matches)
             connection.insert(match_set)
+            connection.insert(matches)
             results_status = ResultsStatus(results_id=results_id,
                     status=ResultsStatus.DONE,
                     match_set_id=match_set.id,
