@@ -353,7 +353,7 @@ def score(source, targets, in_source_frequencies, in_target_frequencies,
                 score = np.log((np.sum(np.power(match_frequencies, -1))) / (source_distance + target_distance))
                 # print('Score: {}'.format(score))
 
-            print(score, target_distance, source_distance)
+            # print(score, target_distance, source_distance)
             if score >= min_score:
                 # print('Adding match')
                 matches.append(

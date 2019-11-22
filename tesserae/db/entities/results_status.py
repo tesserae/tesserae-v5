@@ -36,6 +36,7 @@ class ResultsStatus(Entity):
     collection = 'results_statuses'
 
     INIT = 'Initialized'
+    RUN = 'Running'
     DONE = 'Done'
     FAILED = 'Failed'
 

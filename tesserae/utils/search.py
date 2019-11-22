@@ -111,18 +111,23 @@ class SearchProcess(multiprocessing.Process):
     def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
+        results_status = ResultsStatus(results_id=results_id,
+                status=ResultsStatus.INIT, msg='')
         try:
+            connection.insert(results_status)
+
             matcher = tesserae.matchers.search_types[search_type](connection)
+            results_status.status = ResultsStatus.RUN
+            connection.update(results_status)
             matches, match_set = matcher.match(**search_params)
-            print(matches)
             connection.insert(match_set)
             connection.insert(matches)
-            results_status = ResultsStatus(results_id=results_id,
-                    status=ResultsStatus.DONE,
-                    match_set_id=match_set.id,
-                    msg='Done in {} seconds'.format(time.time()-start_time))
-            connection.insert(results_status)
+
+            results_status.status = ResultsStatus.DONE
+            results_status.match_set_id=match_set.id
+            results_status.msg='Done in {} seconds'.format(time.time()-start_time)
+            connection.update(results_status)
         except:
-            results_status = ResultsStatus(results_id=results_id,
-                    status=ResultsStatus.FAILED, msg=traceback.format_exc())
-            connection.insert(results_status)
+            results_status.status = ResultsStatus.FAILED
+            results_status.msg=traceback.format_exc()
+            connection.update(results_status)
