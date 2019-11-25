@@ -23,25 +23,15 @@ class MatchResult:
         return {k: v for k, v in self.__dict__.items()}
 
 
-def _get_display_tag(connection, unit, text_cache):
+def _get_display_tag(unit, text_cache):
     """Construct a display tag based on the Unit
 
     Parameters
     ----------
-    connection : tesserae.db.mongodb.TessMongoConnection
     unit : tesserae.db.entities.Unit
     text_cache : dict [ObjectId, str]
         Cache for text information in display tag
     """
-    if unit.text not in text_cache:
-        text = connection.find(Text.collection, _id=unit.text)[0]
-        tmp = []
-        if text.author:
-            tmp.append(text.author)
-        if text.title:
-            tmp.append(text.title)
-        text_cache[unit.text] = ' '.join(tmp)
-
     tag_parts = []
     tag_parts.append(text_cache[unit.text])
     if unit.tags:
@@ -49,22 +39,16 @@ def _get_display_tag(connection, unit, text_cache):
     return ' '.join(tag_parts)
 
 
-def _get_display_features(connection, feature_ids, feature_cache):
+def _get_display_features(feature_ids, feature_cache):
     """Construct display features by ObjectId
 
     Parameters
     ----------
-    connection : tesserae.db.mongodb.TessMongoConnection
     feature_ids : list of bson.objectid.ObjectId
         List of ObjectIds for Tokens whose display information is wanted
     text_cache : dict [ObjectId, str]
         Cache for display features
     """
-    not_in_cache = [f_id for f_id in feature_ids if f_id not in feature_cache]
-    if not_in_cache:
-        grabbed_from_db = connection.find(Feature.collection, _id=not_in_cache)
-        for f in grabbed_from_db:
-            feature_cache[f.id] = f.token
     return [feature_cache[f_id] for f_id in feature_ids]
 
 
@@ -88,6 +72,27 @@ def _gen_target_units(conn, db_matches):
         yield x
 
 
+def _create_text_cache(conn, db_match_set):
+    text_cache = {}
+    texts = conn.find(Text.collection, _id=[text_id
+        for text_id in db_match_set.texts])
+    for text in texts:
+        tmp = []
+        if text.author:
+            tmp.append(text.author)
+        if text.title:
+            tmp.append(text.title)
+        text_cache[text.id] = ' '.join(tmp)
+    return text_cache
+
+
+def _create_feature_cache(conn, db_matches):
+    feature_id_set = {f_id for db_m in db_matches for f_id in db_m.tokens}
+    features_found = conn.find(Feature.collection,
+            _id=[f_id for f_id in feature_id_set])
+    return {f.id: f.token for f in features_found}
+
+
 def get_results(connection, match_set_id):
     """Retrive results with associated MatchSet
 
@@ -103,16 +108,15 @@ def get_results(connection, match_set_id):
     result = []
     db_match_set = connection.find(MatchSet.collection, _id=match_set_id)[0]
     db_matches = connection.find(Match.collection, _id=db_match_set.matches)
-    text_cache = {}
-    feature_cache = {}
+    text_cache = _create_text_cache(connection, db_match_set)
+    feature_cache = _create_feature_cache(connection, db_matches)
     for db_m, source_unit, target_unit in zip(db_matches,
             _gen_source_units(connection, db_matches),
             _gen_target_units(connection, db_matches)):
         result.append(MatchResult(
-            source=_get_display_tag(connection, source_unit, text_cache),
-            target=_get_display_tag(connection, target_unit, text_cache),
-            match_features=_get_display_features(connection, db_m.tokens,
-                feature_cache),
+            source=_get_display_tag(source_unit, text_cache),
+            target=_get_display_tag(target_unit, text_cache),
+            match_features=_get_display_features(db_m.tokens, feature_cache),
             score=db_m.score,
             # TODO figure out how to retrieve raw text
             source_raw='',
