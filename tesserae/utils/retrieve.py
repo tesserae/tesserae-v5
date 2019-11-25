@@ -23,19 +23,16 @@ class MatchResult:
         return {k: v for k, v in self.__dict__.items()}
 
 
-def _get_display_tag(connection, unit_id, text_cache):
+def _get_display_tag(connection, unit, text_cache):
     """Construct a display tag based on the Unit
 
     Parameters
     ----------
     connection : tesserae.db.mongodb.TessMongoConnection
-    unit_id : bson.objectid.ObjectId
-        ObjectId for Unit whose display information is wanted
+    unit : tesserae.db.entities.Unit
     text_cache : dict [ObjectId, str]
         Cache for text information in display tag
     """
-    unit = connection.find(Unit.collection, _id=unit_id)[0]
-
     if unit.text not in text_cache:
         text = connection.find(Text.collection, _id=unit.text)[0]
         tmp = []
@@ -71,6 +68,26 @@ def _get_display_features(connection, feature_ids, feature_cache):
     return [feature_cache[f_id] for f_id in feature_ids]
 
 
+def _gen_units(conn, db_matches, pos):
+    found_units = conn.find(Unit.collection,
+            _id=[db_m.units[pos] for db_m in db_matches])
+    units_cache = {}
+    for unit in found_units:
+        units_cache[unit.id] = unit
+    for db_m in db_matches:
+        yield units_cache[db_m.units[pos]]
+
+
+def _gen_source_units(conn, db_matches):
+    for x in _gen_units(conn, db_matches, 0):
+        yield x
+
+
+def _gen_target_units(conn, db_matches):
+    for x in _gen_units(conn, db_matches, 1):
+        yield x
+
+
 def get_results(connection, match_set_id):
     """Retrive results with associated MatchSet
 
@@ -87,10 +104,12 @@ def get_results(connection, match_set_id):
     db_matches = connection.find(Match.collection, match_set=match_set_id)
     text_cache = {}
     feature_cache = {}
-    for db_m in db_matches:
+    for db_m, source_unit, target_unit in zip(db_matches,
+            _gen_source_units(connection, db_matches),
+            _gen_target_units(connection, db_matches)):
         result.append(MatchResult(
-            source=_get_display_tag(connection, db_m.units[0], text_cache),
-            target=_get_display_tag(connection, db_m.units[1], text_cache),
+            source=_get_display_tag(connection, source_unit, text_cache),
+            target=_get_display_tag(connection, target_unit, text_cache),
             match_features=_get_display_features(connection, db_m.tokens,
                 feature_cache),
             score=db_m.score,
