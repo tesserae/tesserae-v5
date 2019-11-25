@@ -180,6 +180,6 @@ def check_cache(connection, source, target, method):
     if found:
         status_found = connection.find(ResultsStatus.collection,
                 match_set_id=found[0].id)
-        if status_found:
+        if status_found and status_found[0].status != ResultsStatus.FAILED:
             return status_found[0].results_id
     return None
