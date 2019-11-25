@@ -53,11 +53,14 @@ def _get_display_features(feature_ids, feature_cache):
 
 
 def _gen_units(conn, db_matches, pos):
+    """
+    Yields
+    ------
+    tesserae.db.entities.Unit
+    """
     found_units = conn.find(Unit.collection,
             _id=[db_m.units[pos] for db_m in db_matches])
-    units_cache = {}
-    for unit in found_units:
-        units_cache[unit.id] = unit
+    units_cache = {unit.id: unit for unit in found_units}
     for db_m in db_matches:
         yield units_cache[db_m.units[pos]]
 
@@ -73,6 +76,12 @@ def _gen_target_units(conn, db_matches):
 
 
 def _create_text_cache(conn, db_match_set):
+    """
+    Returns
+    -------
+    dict [ObjectId, str]
+        the ObjectId of the text is associated with its tag display name
+    """
     text_cache = {}
     texts = conn.find(Text.collection, _id=[text_id
         for text_id in db_match_set.texts])
@@ -87,6 +96,12 @@ def _create_text_cache(conn, db_match_set):
 
 
 def _create_feature_cache(conn, db_matches):
+    """
+    Returns
+    -------
+    dict [ObjectId, str]
+        the ObjectId of the feature is associated with its display form
+    """
     feature_id_set = {f_id for db_m in db_matches for f_id in db_m.tokens}
     features_found = conn.find(Feature.collection,
             _id=[f_id for f_id in feature_id_set])
