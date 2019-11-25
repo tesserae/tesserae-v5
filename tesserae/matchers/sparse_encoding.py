@@ -259,6 +259,15 @@ class SparseMatrixSearch(object):
         stoplist_set = set(stoplist)
 
         match_ents = []
+        # with mp.Pool() as p:
+        #    result = p.map(score_wrapper, [(source_unit, units[1], frequencies, distance_metric, max_distance, -np.inf) for source_unit in units[0]])
+        for i in range(matches.shape[0]):
+            source_unit = unit_lists[0][i]
+            target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
+            match_ents.extend(score(source_unit, target_units,
+                source_frequencies, target_frequencies,
+                features, stoplist_set, distance_metric, max_distance, min_score))
+
         match_set = MatchSet(texts=texts,
             unit_types=[unit_type for _ in range(len(texts))],
             parameters={
@@ -274,18 +283,9 @@ class SparseMatrixSearch(object):
                     'max_distance': max_distance,
                     'distance_basis': distance_metric
                 }
-            }
+            },
+            matches=match_ents
         )
-        # with mp.Pool() as p:
-        #    result = p.map(score_wrapper, [(source_unit, units[1], frequencies, distance_metric, max_distance, -np.inf) for source_unit in units[0]])
-        for i in range(matches.shape[0]):
-            source_unit = unit_lists[0][i]
-            target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
-            match_ents.extend(score(source_unit, target_units,
-                source_frequencies, target_frequencies,
-                features, stoplist_set, distance_metric, max_distance, min_score, match_set))
-
-
 
         return match_ents, match_set
 
@@ -295,7 +295,7 @@ def score_wrapper(args):
 
 
 def score(source, targets, in_source_frequencies, in_target_frequencies,
-        features, stoplist_set, distance_metric, maximum_distance, min_score, match_set):
+        features, stoplist_set, distance_metric, maximum_distance, min_score):
     matches = []
     '''
     ``source`` is a dictionary with the following keys:
@@ -378,8 +378,7 @@ def score(source, targets, in_source_frequencies, in_target_frequencies,
                     Match(
                         units=[source['_id'], target['_id']],
                         tokens=[features[int(mf)] for mf in match_features],
-                        score=score,
-                        match_set=match_set))
+                        score=score))
 
     return matches
 

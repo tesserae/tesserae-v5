@@ -27,8 +27,6 @@ class Match(Entity):
         Tokens contributing to the match.
     score : float, optional
         The score of this match.
-    match_set : bson.objectid.ObjectId, optional
-        Match set that this match belongs to.
 
     """
 
@@ -42,19 +40,16 @@ class Match(Entity):
         self.tokens: typing.Optional[typing.List[ObjectId, Token]] = \
             tokens if tokens is not None else []
         self.score: typing.Optional[float] = score
-        self.match_set: typing.Optional[ObjectId] = match_set
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.match_set, self.units, self.tokens]
-        if isinstance(self.match_set, Entity):
-            self.match_set = self.match_set.id
+        self._ignore = [self.units, self.tokens]
         self.units = [u.id if isinstance(u, Entity) else u for u in self.units]
         self.tokens = [t.id if isinstance(t, Entity) else t
                        for t in self.tokens]
 
         obj = super(Match, self).json_encode(exclude=exclude)
 
-        self.match_set, self.units, self.tokens = self._ignore
+        self.units, self.tokens = self._ignore
         del self._ignore
 
         return obj
@@ -64,7 +59,5 @@ class Match(Entity):
             'units': [u.id if isinstance(u, Entity) else u
                       for u in self.units],
             'score': self.score,
-            'match_set': self.match_set.id if \
-                    isinstance(self.match_set, Entity) else self.match_set
         }
         return uniques

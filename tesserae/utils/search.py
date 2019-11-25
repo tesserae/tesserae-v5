@@ -122,8 +122,8 @@ class SearchProcess(multiprocessing.Process):
             results_status.status = ResultsStatus.RUN
             connection.update(results_status)
             matches, match_set = matcher.match(**search_params)
-            connection.insert(match_set)
             connection.insert(matches)
+            connection.insert(match_set)
 
             results_status.status = ResultsStatus.DONE
             results_status.match_set_id=match_set.id

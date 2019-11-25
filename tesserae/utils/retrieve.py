@@ -1,5 +1,5 @@
 """For retrieving search results"""
-from tesserae.db.entities import Feature, Match, Unit, Text
+from tesserae.db.entities import Feature, Match, MatchSet, Unit, Text
 
 
 class MatchResult:
@@ -101,7 +101,8 @@ def get_results(connection, match_set_id):
     list of MatchResult
     """
     result = []
-    db_matches = connection.find(Match.collection, match_set=match_set_id)
+    db_match_set = connection.find(MatchSet.collection, _id=match_set_id)[0]
+    db_matches = connection.find(Match.collection, _id=db_match_set.matches)
     text_cache = {}
     feature_cache = {}
     for db_m, source_unit, target_unit in zip(db_matches,
