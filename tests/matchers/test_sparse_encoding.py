@@ -9,7 +9,8 @@ import pytest
 
 from tesserae.db import Feature, Match, MatchSet, Text, Token, Unit, \
                         TessMongoConnection
-from tesserae.matchers.sparse_encoding import SparseMatrixSearch
+from tesserae.matchers.sparse_encoding import \
+        SparseMatrixSearch, get_text_frequencies
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile, ingest_text
@@ -252,11 +253,10 @@ def _load_v3_stem_freqs(conn, metadata):
 
 
 def test_text_frequencies(minipop, minitexts_metadata):
-    matcher = SparseMatrixSearch(minipop)
     for metadata in minitexts_metadata:
         v3freqs = _load_v3_stem_freqs(minipop, metadata)
         text_id = minipop.find(Text.collection, title=metadata['title'])[0].id
-        v5freqs = matcher.get_text_frequencies('lemmata', text_id)
+        v5freqs = get_text_frequencies(minipop, 'lemmata', text_id)
         for form_index, freq in v5freqs.items():
             assert form_index in v3freqs
             assert math.isclose(v3freqs[form_index], freq)

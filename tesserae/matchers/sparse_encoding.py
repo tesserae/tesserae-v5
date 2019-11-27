@@ -111,143 +111,6 @@ class SparseMatrixSearch(object):
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def get_text_frequencies(self, feature, text_id):
-        """Get frequency data (calculated by the given feature) for words in a
-        particular text.
-
-        This method assumes that for a given word type, the feature types
-        extracted from any one instance of the word type will be the same as
-        all other instances of the same word type.  Thus, further work would be
-        necessary, for example, if features could be extracted based on word
-        position.
-
-        Returns
-        -------
-        dict [int, float]
-            the key should be a feature index of type form; the associated
-            value is the average proportion of words in the text sharing at
-            least one same feature type with the key word
-        """
-        tindex2mtindex = {}
-        findex2mfindex = {}
-        word_counts = Counter()
-        word_feature_pairs = set()
-        text_token_count = 0
-        unit_proj = {
-            '_id': False,
-            'tokens.features.form': True
-        }
-        if feature != 'form':
-            unit_proj['tokens.features.'+feature] = True
-        db_cursor = self.connection.connection[Unit.collection].find(
-            {'text': text_id, 'unit_type': 'line'},
-            unit_proj
-        )
-        for unit in db_cursor:
-            text_token_count += len(unit['tokens'])
-            for token in unit['tokens']:
-                cur_features = token['features']
-                # use the form index as an identifier for this token's word
-                # type
-                cur_tindex = cur_features['form'][0]
-                if cur_tindex not in tindex2mtindex:
-                    tindex2mtindex[cur_tindex] = len(tindex2mtindex)
-                mtindex = tindex2mtindex[cur_tindex]
-                # we want to count word types by matrix indices for faster
-                # lookup when we get to the stage of counting up word type
-                # occurrences
-                word_counts[mtindex] += 1
-                for cur_findex in cur_features[feature]:
-                    if cur_findex not in findex2mfindex:
-                        findex2mfindex[cur_findex] = len(findex2mfindex)
-                    mfindex = findex2mfindex[cur_findex]
-                    # record when a word type is associated with a feature type
-                    word_feature_pairs.add((mtindex, mfindex))
-        word_feature_matrix = dok_matrix(
-            (len(tindex2mtindex), len(findex2mfindex)),
-            dtype=np.bool
-        )
-        for mtindex, mfindex in word_feature_pairs:
-            word_feature_matrix[mtindex, mfindex] = True
-        word_feature_matrix.tocsr()
-        # if matching_words_matrix[i, j] == True, then the word represented by
-        # position i shared at least one feature type with the word represtened
-        # by position j
-        matching_words_matrix = word_feature_matrix.dot(
-            word_feature_matrix.transpose())
-
-        mtindex2tindex = {
-            mtindex: tindex for tindex, mtindex in tindex2mtindex.items()}
-        freqs = {}
-        # make sure that only tokens sharing at least one feature type remain
-        matching_words_matrix.eliminate_zeros()
-        matching_words_matrix.sort_indices()
-        # internal data structure explained at https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
-        indptr = matching_words_matrix.indptr
-        indices = matching_words_matrix.indices
-        for i in range(matching_words_matrix.shape[0]):
-            # since only matching tokens remain, the column indices indicate
-            # which tokens match the token represented by row i; we need to
-            # count up how many times each word appeared
-            word_count_sum = sum([word_counts[j]
-                for j in indices[indptr[i]:indptr[i+1]]])
-            freqs[mtindex2tindex[i]] = word_count_sum / text_token_count
-        return freqs
-
-    def get_corpus_frequencies(self, feature, language):
-        """Get frequency data for a given feature across a particular corpus
-
-        ``feature`` refers to the kind of feature(s) extracted from the text
-        (e.g., lemmata).  "feature type" refers to a group of abstract entities
-        that belong to a feature (e.g., "ora" is a feature type of lemmata).
-        "feature instance" refers to a particular occurrence of a feature type
-        (e.g., the last word of the first line of Aeneid 1 could be derived
-        from an instance of "ora"; it is also possible to have been derived
-        from an instance of "os" (though Latinists typically reject this
-        option)).
-
-        This method finds the frequency of feature types by counting feature
-        instances by their type and dividing each count by the total number of
-        feature instances found.  Each feature type has an index associated
-        with it, which should be used to look up that feature type's frequency
-        in the corpus.
-
-        Returns
-        -------
-        np.array
-        """
-        pipeline = [
-            # Get all database documents of the specified feature and language
-            # (from the "features" collection, as we later find out).
-            {'$match': {'feature': feature, 'language': language}},
-            # Transform each document.
-            {'$project': {
-                # Don't keep their database identifiers,
-                '_id': False,
-                # but keep their indices.
-                'index': True,
-                # Also show their frequency,
-                'frequency': {
-                    # which is calculated by summing over all the count values
-                    # found in the sub-document obtained by checking the
-                    # "frequencies" key in the original document.
-                    '$reduce': {
-                        'input': {'$objectToArray': '$frequencies'},
-                        'initialValue': 0,
-                        'in': {'$sum': ['$$value', '$$this.v']}
-                    }
-                }
-            }},
-            # Finally, sort those changed documents by their index.
-            {'$sort': {'index': 1}}
-        ]
-
-        freqs = self.connection.aggregate(
-                Feature.collection, pipeline, encode=False)
-        freqs = list(freqs)
-        freqs = np.array([freq['frequency'] for freq in freqs])
-        return freqs / sum(freqs)
-
     def match(self, texts, unit_type, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               frequency_basis='texts', max_distance=10,
@@ -308,10 +171,6 @@ class SparseMatrixSearch(object):
 
         match_matrices = []
 
-        pipeline = [
-            {'$match': {'feature': feature}},
-            {'$count': 'count'}
-        ]
         feature_types = self.connection.find(Feature.collection,
                 feature=feature)
         feature_count = len(feature_types)
@@ -323,32 +182,39 @@ class SparseMatrixSearch(object):
         unit_lists = []
 
         for t in texts:
-            pipeline = [
-                # Get the units from text t with the specified unit type
-                {'$match': {
-                    'text': t.id,
-                    'unit_type': unit_type
-                }},
-                # Convert the tokens to their features
-                {'$project': {
-                    'index': True,
-                    'features': [{
-                        'index': '$tokens.index',
-                        'features': '$tokens.features.' + feature
-                    }]
-                }},
-            ]
-
-            units = list(self.connection.aggregate(
-                Unit.collection, pipeline, encode=False))
+            units = [u for u in self.connection.aggregate(
+                Unit.collection,
+                [
+                    {'$match': {'text': t.id, 'unit_type': unit_type}},
+                    {'$project': {
+                        '_id': True,
+                        'index': True,
+                        'forms': {
+                            # https://docs.mongodb.com/manual/reference/operator/aggregation/reduce/
+                            '$reduce': {
+                                'input': '$tokens.features.form',
+                                'initialValue': [],
+                                'in': { '$concatArrays': ['$$value', '$$this'] }
+                            }
+                        },
+                        'features': '$tokens.features.'+feature,
+                    }}
+                ],
+                encode=False
+            )]
 
             unit_indices = []
             feature_indices = []
 
             for unit in units:
                 if 'features' in unit:
-                    all_features = list(itertools.chain.from_iterable(unit['features'][0]['features'])) # list(np.array(unit['features'][0]['features']).ravel())
-                    unit_indices.extend([unit['index'] for _ in range(len(all_features))])
+                    all_features = [
+                        f_index
+                        for cur_feature in unit['features']
+                        for f_index in cur_feature
+                    ]
+                    unit_indices.extend([unit['index']
+                        for _ in range(len(all_features))])
                     feature_indices.extend(all_features)
 
             # print(feature_indices)
@@ -370,16 +236,18 @@ class SparseMatrixSearch(object):
         matches.eliminate_zeros()
 
         if frequency_basis != 'texts':
-            source_frequencies = self.get_corpus_frequencies(feature,
-                    texts[0].language)
+            source_frequencies = get_corpus_frequencies(
+                    self.connection, feature, texts[0].language)
             if text[0].language != text[1].language:
-                target_frequencies = self.get_corpus_frequencies(feature,
-                        texts[1].language)
+                target_frequencies = get_corpus_frequencies(
+                        self.connection, feature, texts[1].language)
             else:
                 target_frequencies = source_frequencies
         else:
-            source_frequencies = self.get_text_frequencies(feature, texts[0].id)
-            target_frequencies = self.get_text_frequencies(feature, texts[1].id)
+            source_frequencies = get_text_frequencies(
+                    self.connection, feature, texts[0].id)
+            target_frequencies = get_text_frequencies(
+                    self.connection, feature, texts[1].id)
         features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
         stoplist_set = set(stoplist)
 
@@ -415,37 +283,185 @@ class SparseMatrixSearch(object):
         return match_ents, match_set
 
 
+def get_text_frequencies(connection, feature, text_id):
+    """Get frequency data (calculated by the given feature) for words in a
+    particular text.
+
+    This method assumes that for a given word type, the feature types
+    extracted from any one instance of the word type will be the same as
+    all other instances of the same word type.  Thus, further work would be
+    necessary, for example, if features could be extracted based on word
+    position.
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    feature : str
+        Feature category to be used in calculating frequencies
+    text_id : bson.objectid.ObjectId
+        ObjectId of the text whose feature frequencies are to be computed
+
+    Returns
+    -------
+    dict [int, float]
+        the key should be a feature index of type form; the associated
+        value is the average proportion of words in the text sharing at
+        least one same feature type with the key word
+    """
+    tindex2mtindex = {}
+    findex2mfindex = {}
+    word_counts = Counter()
+    word_feature_pairs = set()
+    text_token_count = 0
+    unit_proj = {
+        '_id': False,
+        'tokens.features.form': True
+    }
+    if feature != 'form':
+        unit_proj['tokens.features.'+feature] = True
+    db_cursor = connection.connection[Unit.collection].find(
+        {'text': text_id, 'unit_type': 'line'},
+        unit_proj
+    )
+    for unit in db_cursor:
+        text_token_count += len(unit['tokens'])
+        for token in unit['tokens']:
+            cur_features = token['features']
+            # use the form index as an identifier for this token's word
+            # type
+            cur_tindex = cur_features['form'][0]
+            if cur_tindex not in tindex2mtindex:
+                tindex2mtindex[cur_tindex] = len(tindex2mtindex)
+            mtindex = tindex2mtindex[cur_tindex]
+            # we want to count word types by matrix indices for faster
+            # lookup when we get to the stage of counting up word type
+            # occurrences
+            word_counts[mtindex] += 1
+            for cur_findex in cur_features[feature]:
+                if cur_findex not in findex2mfindex:
+                    findex2mfindex[cur_findex] = len(findex2mfindex)
+                mfindex = findex2mfindex[cur_findex]
+                # record when a word type is associated with a feature type
+                word_feature_pairs.add((mtindex, mfindex))
+    word_feature_matrix = dok_matrix(
+        (len(tindex2mtindex), len(findex2mfindex)),
+        dtype=np.bool
+    )
+    for mtindex, mfindex in word_feature_pairs:
+        word_feature_matrix[mtindex, mfindex] = True
+    word_feature_matrix.tocsr()
+    # if matching_words_matrix[i, j] == True, then the word represented by
+    # position i shared at least one feature type with the word represtened
+    # by position j
+    matching_words_matrix = word_feature_matrix.dot(
+        word_feature_matrix.transpose())
+
+    mtindex2tindex = {
+        mtindex: tindex for tindex, mtindex in tindex2mtindex.items()}
+    freqs = {}
+    for i in range(matching_words_matrix.shape[0]):
+        # since only matching tokens remain, the column indices indicate
+        # which tokens match the token represented by row i; we need to
+        # count up how many times each word appeared
+        word_count_sum = sum([word_counts[j]
+            for j in matching_words_matrix[i].nonzero()[1]])
+        freqs[mtindex2tindex[i]] = word_count_sum / text_token_count
+    return freqs
+
+def get_corpus_frequencies(connection, feature, language):
+    """Get frequency data for a given feature across a particular corpus
+
+    ``feature`` refers to the kind of feature(s) extracted from the text
+    (e.g., lemmata).  "feature type" refers to a group of abstract entities
+    that belong to a feature (e.g., "ora" is a feature type of lemmata).
+    "feature instance" refers to a particular occurrence of a feature type
+    (e.g., the last word of the first line of Aeneid 1 could be derived
+    from an instance of "ora"; it is also possible to have been derived
+    from an instance of "os" (though Latinists typically reject this
+    option)).
+
+    This method finds the frequency of feature types by counting feature
+    instances by their type and dividing each count by the total number of
+    feature instances found.  Each feature type has an index associated
+    with it, which should be used to look up that feature type's frequency
+    in the corpus.
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    feature : str
+        Feature category to be used in calculating frequencies
+    language : str
+        Language to which the features of interest belong
+
+    Returns
+    -------
+    np.array
+    """
+    pipeline = [
+        # Get all database documents of the specified feature and language
+        # (from the "features" collection, as we later find out).
+        {'$match': {'feature': feature, 'language': language}},
+        # Transform each document.
+        {'$project': {
+            # Don't keep their database identifiers,
+            '_id': False,
+            # but keep their indices.
+            'index': True,
+            # Also show their frequency,
+            'frequency': {
+                # which is calculated by summing over all the count values
+                # found in the sub-document obtained by checking the
+                # "frequencies" key in the original document.
+                '$reduce': {
+                    'input': {'$objectToArray': '$frequencies'},
+                    'initialValue': 0,
+                    'in': {'$sum': ['$$value', '$$this.v']}
+                }
+            }
+        }},
+        # Finally, sort those changed documents by their index.
+        {'$sort': {'index': 1}}
+    ]
+
+    freqs = connection.aggregate(
+            Feature.collection, pipeline, encode=False)
+    freqs = list(freqs)
+    freqs = np.array([freq['frequency'] for freq in freqs])
+    return freqs / sum(freqs)
+
 def score_wrapper(args):
     return score(*args)
+
+
+def score_by_corpus_frequencies():
+    pass
+
+
+def score_by_text_frequencies():
+    pass
 
 
 def score(source, targets, in_source_frequencies, in_target_frequencies,
         features, stoplist_set, distance_metric, maximum_distance, min_score):
     matches = []
     '''
-    ``source`` is a dictionary with the following keys:
+    ``source`` is a dictionary representing a unit with the following keys:
         _id: matches a Unit.id in the database representing a unit in the
             source text
         index: an int corresponding to the index of the Unit with same id as
             _id
-        features: a list containing a single dictionary
-
-    the dictionary under ``source['features']`` has the following keys:
-        index: a list of ints corresponding to Token indices
-        features: a list of lists; each position in the outer list corresponds
-            to the same position in ``source['features'][0]['index']``; the
-            inner list contains ints corresponding to Feature indices; the type
-            of Feature being referred to was determined by the match() call
+        forms: a list of ints corresponding to indices of the "form" feature
+            for the language of the text to which this unit belongs
+        features: a list of list of ints; indexing into the outer list
+            retrieves the list of features extracted from the token
+            corresponding to the same position in the ``source['forms']`` list;
+            the inner list are the indices of features extracted from the
+            current position's token
     '''
-    # TODO need to change from features to token indices to match with what the
-    # frequency variables are keyed by
-    # print(source)
-    '''
-    ``source_features`` is a flattened version of
-    ``source['features'][0]['features'] (i.e., the list of lists has become a
-    list)
-    '''
-    source_features = list(itertools.chain.from_iterable(source['features'][0]['features']))  # list(np.array(source['features'][0]['features']).ravel())
+    # source_features is a flattened list of the features found in the source
+    # unit
+    source_features = list(itertools.chain.from_iterable(source['features']))
     source_features_set = set(source_features)
     '''
     ``source_indices[i]`` is equal to the token position in the unit to which
