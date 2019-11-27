@@ -1,5 +1,6 @@
 """Utility operations for unit tests across multiple modules.
 """
+from pathlib import Path
 import pytest
 
 import datetime
@@ -29,6 +30,30 @@ def pytest_configure(config):
     if config.option.db_pwd:
         password = getpass.getpass(prompt='Test Database Password: ')
         setattr(config.option, 'db_passwd', password)
+
+
+@pytest.fixture(scope='session')
+def minitexts_metadata():
+    return [
+        {
+            'title': 'miniaeneid',
+            'author': 'minivergil',
+            'language': 'latin',
+            'year': -19,
+            'unit_types': ['line', 'phrase'],
+            'path': str(Path(__file__).resolve().parent.joinpath(
+                'tessfiles', 'la', 'mini.aen.tess'))
+        },
+        {
+            'title': 'miniphar',
+            'author': 'minilucan',
+            'language': 'latin',
+            'year': 65,
+            'unit_types': ['line', 'phrase'],
+            'path': str(Path(__file__).resolve().parent.joinpath(
+                'tessfiles', 'la', 'mini.phar.tess'))
+        },
+    ]
 
 
 @pytest.fixture(scope='session')

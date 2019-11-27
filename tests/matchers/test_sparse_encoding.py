@@ -4,6 +4,7 @@ import os
 import re
 import time
 
+import math
 import pytest
 
 from tesserae.db import Feature, Match, MatchSet, Text, Token, Unit, \
@@ -11,7 +12,17 @@ from tesserae.db import Feature, Match, MatchSet, Text, Token, Unit, \
 from tesserae.matchers.sparse_encoding import SparseMatrixSearch
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
-from tesserae.utils import TessFile
+from tesserae.utils import TessFile, ingest_text
+
+
+@pytest.fixture(scope='session')
+def minipop(request, minitexts_metadata):
+    conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    for coll_name in conn.connection.list_collection_names():
+        conn.connection.drop_collection(coll_name)
+    for metadata in minitexts_metadata:
+        ingest_text(conn, Text.json_decode(metadata))
+    yield conn
 
 
 @pytest.fixture(scope='module')
@@ -216,3 +227,36 @@ def test_match(search_connection, search_tessfiles, correct_results):
             assert src == correct['source_locus']
 
             assert all(map(lambda x: x.token in correct['shared'], predicted.tokens))
+
+
+def _load_v3_stem_freqs(conn, metadata):
+    db_cursor = conn.connection[Feature.collection].find(
+            {'feature': 'form', 'language': metadata['language']},
+            {'_id': False, 'index': True, 'token': True})
+    token2index = {e['token']: e['index'] for e in db_cursor}
+    # the .freq_score_stem file is named the same as its corresponding .tess
+    # file
+    freqs_path = metadata['path'][:-4] + 'freq_score_stem'
+    freqs = {}
+    with open(freqs_path, 'r') as ifh:
+        for line in ifh:
+            if line.startswith('# count:'):
+                denom = int(line.split()[-1])
+                break
+        for line in ifh:
+            line = line.strip()
+            if line:
+                word, count = line.split()
+                freqs[token2index[word]] = float(count) / denom
+    return freqs
+
+
+def test_text_frequencies(minipop, minitexts_metadata):
+    matcher = SparseMatrixSearch(minipop)
+    for metadata in minitexts_metadata:
+        v3freqs = _load_v3_stem_freqs(minipop, metadata)
+        text_id = minipop.find(Text.collection, title=metadata['title'])[0].id
+        v5freqs = matcher.get_text_frequencies('lemmata', text_id)
+        for form_index, freq in v5freqs.items():
+            assert form_index in v3freqs
+            assert math.isclose(v3freqs[form_index], freq)
