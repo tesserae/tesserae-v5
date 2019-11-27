@@ -239,7 +239,9 @@ class SparseMatrixSearch(object):
         features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
 
         if frequency_basis != 'texts':
-            match_ents = _score_by_corpus_frequencies()
+            match_ents = _score_by_corpus_frequencies(self.connection, feature,
+                    texts, matches, unit_lists, features, stoplist,
+                    distance_metric, max_distance)
         else:
             match_ents = _score_by_text_frequencies(self.connection, feature,
                     texts, matches, unit_lists, features, stoplist,
@@ -416,23 +418,22 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies():
-    raise NotImplementedException()
-    source_frequencies = get_corpus_frequencies(
-            connection, feature, texts[0].language)
+def _score_by_corpus_frequencies(connection, feature, texts, matches,
+        unit_lists, features, stoplist, distance_metric, max_distance):
     if text[0].language != text[1].language:
-        target_frequencies = get_corpus_frequencies(
-                connection, feature, texts[1].language)
+        source_frequencies_getter = averaged_freq_getter(
+            get_corpus_frequencies(connection, feature, texts[0].language),
+            unit_lists[0])
+        target_frequencies_getter = averaged_freq_getter(
+            get_corpus_frequencies(connection, feature, texts[1].language),
+            unit_lists[1])
     else:
-        target_frequencies = source_frequencies
-    match_ents = []
-    for i in range(matches.shape[0]):
-        source_unit = unit_lists[0][i]
-        target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
-        match_ents.extend(score(source_unit, target_units,
-            source_frequencies, target_frequencies,
-            features, stoplist_set, distance_metric, max_distance, min_score))
-    return match_ents
+        source_frequencies_getter = averaged_freq_getter(
+            get_corpus_frequencies(connection, feature, texts[0].language),
+            itertools.chain.from_iterable([unit_lists[0], unit_lists[1]]))
+        target_frequencies_getter = source_frequencies_getter
+    return _score(matches, unit_lists, features, stoplist, distance_metric,
+            max_distance, source_frequencies_getter, target_frequencies_getter)
 
 
 def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
@@ -441,6 +442,56 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
+    return _score(matches, unit_lists, features, stoplist, distance_metric,
+            max_distance, source_frequencies_getter, target_frequencies_getter)
+
+
+
+def _get_distance_by_least_frequency(get_freq, positions, forms):
+    """Obtains the distance by least frequency for a unit
+
+    Parameters
+    ----------
+    get_freq : (int) -> float
+        a function that takes a word form index as input and returns its
+        frequency as output
+    positions : list of int
+        token positions in the unit where matches were found
+    form_indices : list of int
+        the token forms of the unit
+    """
+    freqs = [get_freq(forms[i]) for i in positions]
+    freq_sort = np.argsort(freqs)
+    idx = np.array([positions[i] for i in freq_sort])
+    if idx.shape[0] >= 2:
+        not_first_pos = [s for s in idx if s != idx[0]]
+        if not_first_pos:
+            end = not_first_pos[0]
+            return np.abs(end - idx[0])
+    return 0
+
+
+def _lookup_wrapper(d):
+    """Useful for making dictionaries act like functions"""
+    def _inner(key):
+        return d[key]
+    return _inner
+
+
+def _averaged_freq_getter(d, units_iter):
+    cache = {}
+    for unit in units_iter:
+        for form, feats in zip(unit['forms'], unit['features']):
+            if form in cache:
+                continue
+            cache[form] = np.mean([d[f] for f in feats])
+    def _inner(key):
+        return cache[key]
+    return _inner
+
+
+def _score(matches, unit_lists, features, stoplist, distance_metric,
+        max_distance, source_frequencies_getter, target_frequencies_getter):
     match_ents = []
     for i in range(matches.shape[0]):
         source_unit = unit_lists[0][i]
@@ -511,34 +562,3 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
                     score=score
                 ))
     return match_ents
-
-
-def _get_distance_by_least_frequency(get_freq, positions, forms):
-    """Obtains the distance by least frequency for a unit
-
-    Parameters
-    ----------
-    get_freq : (int) -> float
-        a function that takes a word form index as input and returns its
-        frequency as output
-    positions : list of int
-        token positions in the unit where matches were found
-    form_indices : list of int
-        the token forms of the unit
-    """
-    freqs = [get_freq(forms[i]) for i in positions]
-    freq_sort = np.argsort(freqs)
-    idx = np.array([positions[i] for i in freq_sort])
-    if idx.shape[0] >= 2:
-        not_first_pos = [s for s in idx if s != idx[0]]
-        if not_first_pos:
-            end = not_first_pos[0]
-            return np.abs(end - idx[0])
-    return 0
-
-
-def _lookup_wrapper(d):
-    """Useful for making dictionaries act like functions"""
-    def _inner(key):
-        return d[key]
-    return _inner

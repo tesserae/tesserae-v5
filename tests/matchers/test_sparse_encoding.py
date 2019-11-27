@@ -1,6 +1,7 @@
 import copy
 import csv
 import os
+from pathlib import Path
 import re
 import time
 
@@ -14,6 +15,7 @@ from tesserae.matchers.sparse_encoding import \
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile, ingest_text
+from tesserae.utils.retrieve import get_results, MatchResult
 
 
 @pytest.fixture(scope='session')
@@ -252,7 +254,7 @@ def _load_v3_stem_freqs(conn, metadata):
     return freqs
 
 
-def test_text_frequencies(minipop, minitexts_metadata):
+def test_mini_text_frequencies(minipop, minitexts_metadata):
     for metadata in minitexts_metadata:
         v3freqs = _load_v3_stem_freqs(minipop, metadata)
         text_id = minipop.find(Text.collection, title=metadata['title'])[0].id
@@ -260,3 +262,57 @@ def test_text_frequencies(minipop, minitexts_metadata):
         for form_index, freq in v5freqs.items():
             assert form_index in v3freqs
             assert math.isclose(v3freqs[form_index], freq)
+
+
+def _load_v3_results(minitext_path, tab_filename):
+    tab_filepath = Path(minitext_path).resolve().parent.joinpath(tab_filename)
+    v3_results = []
+    with open(tab_filepath, 'r') as ifh:
+        for line in ifh:
+            if not line.startswith('#'):
+                break
+        for line in ifh:
+            headers = line.strip().split('\t')
+            break
+        for line in ifh:
+            data = line.strip().split('\t')
+            v3_results.append(MatchResult(
+                source=data[3],
+                target=data[1],
+                match_features=data[5].split('; '),
+                score=data[6],
+                source_raw=data[4],
+                target_raw=data[2],
+                highlight = ''
+            ))
+    return v3_results
+
+
+def test_mini_search_text_freqs(minipop, minitexts_metadata):
+    texts = minipop.find(
+        Text.collection,
+        title=[m['title'] for m in minitexts_metadata])
+    matcher = SparseMatrixSearch(minipop)
+    v5_matches, match_set = matcher.match(texts, 'line', 'lemmata',
+            stopwords=['et', 'qui', 'quis', 'pilum', 'pila', 'signum'],
+            stopword_basis='texts', score_basis='stem',
+            frequency_basis='texts', max_distance=10,
+            distance_metric='frequency', min_score=0)
+    minipop.insert(v5_matches)
+    minipop.insert(match_set)
+    v5_results = get_results(minipop, match_set.id)
+    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
+    for v5_r, v3_r in zip(v5_results, v3_results):
+        # TODO the scores are closer but still not close enough; what's wrong
+        # with my math?
+        assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
+        assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
+        assert math.isclose(v5_r.score, v3_r.score)
+        v5_r_match_fs = set(v5_r.match_features)
+        v3_r_match_fs = set()
+        for match_f in v3_r.match_features:
+            for f in match_f.split('-'):
+                v3_r_match_fs.add(f)
+        assert len(v3_r_match_fs) == len(v5_r_match_fs)
+        assert len(v5_r_match_fs & v3_r_match_fs) == len(v5_r_match_fs)
