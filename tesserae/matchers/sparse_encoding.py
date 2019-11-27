@@ -463,12 +463,10 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
                     len(features)
                 ),
                 dtype=np.bool)
-        rowind2targpos = []
         unitbreak_indices = [0]
         for target_ind, target_unit in enumerate(target_units):
             for pos, feats in enumerate(target_unit['features']):
                 target_feature_matrix[pos+unitbreak_indices[-1], feats] = True
-                rowind2targpos.append((target_ind, pos))
             unitbreak_indices.append(
                     unitbreak_indices[-1] + len(target_unit['features']))
         target_feature_matrix = target_feature_matrix.tolil()
@@ -482,8 +480,6 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
             # rows are target positions of matching tokens
             # cols are source positions of matching tokens
             rows, cols = pos_matched[start_row:limit_row].nonzero()
-            print(rows)
-            print(cols)
             target_forms = target_unit['forms']
             source_forms = source_unit['forms']
             if distance_metric == 'span':
@@ -515,90 +511,6 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
                     score=score
                 ))
     return match_ents
-
-
-def score(source, targets, in_source_frequencies, in_target_frequencies,
-        features, stoplist_set, distance_metric, maximum_distance, min_score):
-    matches = []
-    '''
-    ``source`` is a dictionary representing a unit with the following keys:
-        _id: matches a Unit.id in the database representing a unit in the
-            source text
-        index: an int corresponding to the index of the Unit with same id as
-            _id
-        forms: a list of ints corresponding to indices of the "form" feature
-            for the language of the text to which this unit belongs
-        features: a list of list of ints; indexing into the outer list
-            retrieves the list of features extracted from the token
-            corresponding to the same position in the ``source['forms']`` list;
-            the inner list are the indices of features extracted from the
-            current position's token
-    '''
-    # source_features is a flattened list of the features found in the source
-    # unit
-    source_features = list(itertools.chain.from_iterable(source['features']))
-    source_features_set = set(source_features)
-    '''
-    ``source_indices[i]`` is equal to the token position in the unit to which
-    ``source_features[i]`` corresponds
-    '''
-    source_indices = list([[i for _ in range(len(source['features'][0]['features'][i]))] for i in range(len(source['features'][0]['index']))])
-    source_indices = list(itertools.chain.from_iterable(source_indices))  # list(np.array(source_indices).ravel())
-    source_frequencies = np.array([in_source_frequencies[i] for i in source_features])
-
-    for target in targets:
-        target_features = list(itertools.chain.from_iterable(target['features'][0]['features']))  # list(np.array(target['features'][0]['features']).ravel())
-        target_indices = list([[i for _ in range(len(target['features'][0]['features'][i]))] for i in range(len(target['features'][0]['index']))])
-        target_indices = list(itertools.chain.from_iterable(target_indices))  # list(np.array(target_indices).ravel())
-        target_frequencies = np.array([in_target_frequencies[i] for i in target_features])
-
-        # print(source_features, target_features)
-        match_features = \
-                source_features_set.intersection(
-                        set(target_features)).difference(stoplist_set)
-        match_idx = [source_features.index(i) for i in match_features]
-        match_idx = [source_indices[i] for i in match_idx]
-
-        if not match_idx.count(match_idx[0]) == len(match_idx) and match_idx:
-            match_frequencies = \
-                    [in_target_frequencies[i] for i in match_features] + \
-                    [in_source_frequencies[i] for i in match_features]
-
-            # print('target frequencies', [(in_target_frequencies[i], i) for i in match_features])
-            # print('target positions', target['features'][0]['features'])
-            # print('source frequencies', [(in_source_frequencies[i], i) for i in match_features])
-            # print('source positions', source['features'][0]['features'])
-
-            if distance_metric == 'span':
-                source_idx = np.array([source_indices[i] for i in [source_features.index(f) for f in match_features]])
-                target_idx = np.array([target_indices[i] for i in [target_features.index(f) for f in match_features]])
-                source_distance = np.abs(np.max(source_idx) - np.min(source_idx))
-                target_distance = np.abs(np.max(target_idx) - np.min(target_idx))
-            else:
-                source_distance = _get_distance_by_least_frequency(
-                        source_frequencies,
-                        source_indices, source_features, match_features)
-                target_distance = _get_distance_by_least_frequency(
-                        target_frequencies,
-                        target_indices, target_features, match_features)
-                if source_distance <= 0 or target_distance <= 0:
-                    continue
-
-            score = -np.inf
-            if source_distance < maximum_distance and target_distance < maximum_distance:
-                score = np.log((np.sum(np.power(match_frequencies, -1))) / (source_distance + target_distance))
-                # print('Score: {}'.format(score))
-
-            # print(score, target_distance, source_distance)
-            if score >= min_score:
-                # print('Adding match')
-                matches.append(
-                    Match(
-                        units=[source['_id'], target['_id']],
-                        tokens=[features[int(mf)] for mf in match_features],
-                        score=score))
-
-    return matches
 
 
 def _get_distance_by_least_frequency(get_freq, positions, forms):
