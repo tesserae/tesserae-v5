@@ -154,7 +154,7 @@ class SparseMatrixSearch(object):
         Raises
         ------
         ValueError
-            Raised when parameter was poorly specified
+            Raised when a parameter was poorly specified
         """
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
@@ -235,31 +235,15 @@ class SparseMatrixSearch(object):
         matches[matches == 1] = 0
         matches.eliminate_zeros()
 
-        if frequency_basis != 'texts':
-            source_frequencies = get_corpus_frequencies(
-                    self.connection, feature, texts[0].language)
-            if text[0].language != text[1].language:
-                target_frequencies = get_corpus_frequencies(
-                        self.connection, feature, texts[1].language)
-            else:
-                target_frequencies = source_frequencies
-        else:
-            source_frequencies = get_text_frequencies(
-                    self.connection, feature, texts[0].id)
-            target_frequencies = get_text_frequencies(
-                    self.connection, feature, texts[1].id)
-        features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
         stoplist_set = set(stoplist)
+        features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
 
-        match_ents = []
-        # with mp.Pool() as p:
-        #    result = p.map(score_wrapper, [(source_unit, units[1], frequencies, distance_metric, max_distance, -np.inf) for source_unit in units[0]])
-        for i in range(matches.shape[0]):
-            source_unit = unit_lists[0][i]
-            target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
-            match_ents.extend(score(source_unit, target_units,
-                source_frequencies, target_frequencies,
-                features, stoplist_set, distance_metric, max_distance, min_score))
+        if frequency_basis != 'texts':
+            match_ents = _score_by_corpus_frequencies()
+        else:
+            match_ents = _score_by_text_frequencies(self.connection, feature,
+                    texts, matches, unit_lists, features, stoplist,
+                    distance_metric, max_distance)
 
         match_set = MatchSet(texts=texts,
             unit_types=[unit_type for _ in range(len(texts))],
@@ -368,6 +352,7 @@ def get_text_frequencies(connection, feature, text_id):
         freqs[mtindex2tindex[i]] = word_count_sum / text_token_count
     return freqs
 
+
 def get_corpus_frequencies(connection, feature, language):
     """Get frequency data for a given feature across a particular corpus
 
@@ -430,16 +415,106 @@ def get_corpus_frequencies(connection, feature, language):
     freqs = np.array([freq['frequency'] for freq in freqs])
     return freqs / sum(freqs)
 
-def score_wrapper(args):
-    return score(*args)
+
+def _score_by_corpus_frequencies():
+    raise NotImplementedException()
+    source_frequencies = get_corpus_frequencies(
+            connection, feature, texts[0].language)
+    if text[0].language != text[1].language:
+        target_frequencies = get_corpus_frequencies(
+                connection, feature, texts[1].language)
+    else:
+        target_frequencies = source_frequencies
+    match_ents = []
+    for i in range(matches.shape[0]):
+        source_unit = unit_lists[0][i]
+        target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
+        match_ents.extend(score(source_unit, target_units,
+            source_frequencies, target_frequencies,
+            features, stoplist_set, distance_metric, max_distance, min_score))
+    return match_ents
 
 
-def score_by_corpus_frequencies():
-    pass
-
-
-def score_by_text_frequencies():
-    pass
+def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
+        features, stoplist, distance_metric, max_distance):
+    source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
+            connection, feature, texts[0].id))
+    target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
+            connection, feature, texts[1].id))
+    match_ents = []
+    for i in range(matches.shape[0]):
+        source_unit = unit_lists[0][i]
+        target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
+        # number of source positions x number of features
+        feature_source_matrix = dok_matrix(
+                (len(features), len(source_unit['forms'])), dtype=np.bool)
+        for pos, feats in enumerate(source_unit['features']):
+            feature_source_matrix[feats, pos] = True
+        feature_source_matrix = feature_source_matrix.tolil()
+        feature_source_matrix[np.asarray(stoplist), :] = False
+        feature_source_matrix = feature_source_matrix.tocsr()
+        feature_source_matrix.eliminate_zeros()
+        # number of features x number of target positions
+        target_feature_matrix = dok_matrix(
+                (
+                    sum([len(feats)
+                        for target_unit in target_units
+                        for feats in target_unit['features']]),
+                    len(features)
+                ),
+                dtype=np.bool)
+        rowind2targpos = []
+        unitbreak_indices = [0]
+        for target_ind, target_unit in enumerate(target_units):
+            for pos, feats in enumerate(target_unit['features']):
+                target_feature_matrix[pos+unitbreak_indices[-1], feats] = True
+                rowind2targpos.append((target_ind, pos))
+            unitbreak_indices.append(
+                    unitbreak_indices[-1] + len(target_unit['features']))
+        target_feature_matrix = target_feature_matrix.tolil()
+        target_feature_matrix[:, np.asarray(stoplist)] = False
+        target_feature_matrix = target_feature_matrix.tocsr()
+        target_feature_matrix.eliminate_zeros()
+        pos_matched = target_feature_matrix.dot(feature_source_matrix)
+        for target_ind, target_unit in enumerate(target_units):
+            start_row = unitbreak_indices[target_ind]
+            limit_row = unitbreak_indices[target_ind+1]
+            # rows are target positions of matching tokens
+            # cols are source positions of matching tokens
+            rows, cols = pos_matched[start_row:limit_row].nonzero()
+            print(rows)
+            print(cols)
+            target_forms = target_unit['forms']
+            source_forms = source_unit['forms']
+            if distance_metric == 'span':
+                target_distance = np.abs(np.max(rows) - np.min(rows))
+                source_distance = np.abs(np.max(cols) - np.min(cols))
+            else:
+                target_distance = _get_distance_by_least_frequency(
+                        target_frequencies_getter, rows,
+                        target_forms)
+                source_distance = _get_distance_by_least_frequency(
+                        source_frequencies_getter, cols,
+                        source_forms)
+            if source_distance < max_distance and target_distance < max_distance:
+                match_frequencies = [target_frequencies_getter(target_forms[pos])
+                    for pos in rows]
+                match_frequencies.extend(
+                    [source_frequencies_getter(source_forms[pos])
+                    for pos in cols])
+                score = np.log((np.sum(np.power(match_frequencies, -1))) / (source_distance + target_distance))
+                target_features = target_unit['features']
+                source_features = source_unit['features']
+                match_features = set(itertools.chain.from_iterable([
+                        set(target_features[row]).intersection(
+                            set(source_features[col]))
+                        for row, col in zip(rows, cols)]))
+                match_ents.append(Match(
+                    units=[source_unit['_id'], target_unit['_id']],
+                    tokens=[features[int(mf)] for mf in match_features],
+                    score=score
+                ))
+    return match_ents
 
 
 def score(source, targets, in_source_frequencies, in_target_frequencies,
@@ -526,21 +601,32 @@ def score(source, targets, in_source_frequencies, in_target_frequencies,
     return matches
 
 
-def _get_distance_by_least_frequency(frequencies, indices, features,
-        match_features):
-    matched_frequencies = [
-            frequencies[i]
-            for i, feature in enumerate(features)
-            if feature in match_features]
-    matched_indices = [
-            indices[i]
-            for i, feature in enumerate(features)
-            if feature in match_features]
-    freq_sort = np.argsort(matched_frequencies)
-    idx = np.array([matched_indices[i] for i in freq_sort])
+def _get_distance_by_least_frequency(get_freq, positions, forms):
+    """Obtains the distance by least frequency for a unit
+
+    Parameters
+    ----------
+    get_freq : (int) -> float
+        a function that takes a word form index as input and returns its
+        frequency as output
+    positions : list of int
+        token positions in the unit where matches were found
+    form_indices : list of int
+        the token forms of the unit
+    """
+    freqs = [get_freq(forms[i]) for i in positions]
+    freq_sort = np.argsort(freqs)
+    idx = np.array([positions[i] for i in freq_sort])
     if idx.shape[0] >= 2:
         not_first_pos = [s for s in idx if s != idx[0]]
         if not_first_pos:
             end = not_first_pos[0]
             return np.abs(end - idx[0])
     return 0
+
+
+def _lookup_wrapper(d):
+    """Useful for making dictionaries act like functions"""
+    def _inner(key):
+        return d[key]
+    return _inner
