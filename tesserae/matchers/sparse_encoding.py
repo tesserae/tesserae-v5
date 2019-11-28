@@ -189,6 +189,7 @@ class SparseMatrixSearch(object):
                     {'$project': {
                         '_id': True,
                         'index': True,
+                        'tags': True,
                         'forms': {
                             # https://docs.mongodb.com/manual/reference/operator/aggregation/reduce/
                             '$reduce': {
@@ -450,6 +451,12 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
 def _get_distance_by_least_frequency(get_freq, positions, forms):
     """Obtains the distance by least frequency for a unit
 
+    Contrary to the v3 help documentation on --dist in read_table.pl, v3
+    behavior is that distance is inclusive of both matched words.  Thus,
+    adjacent words have a distance of 2, an intervening word increases the
+    distance to 3, and so forth.  This function behaves as v3 behaves instead
+    of how it prescribes.
+
     Parameters
     ----------
     get_freq : (int) -> float
@@ -467,7 +474,7 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
         not_first_pos = [s for s in idx if s != idx[0]]
         if not_first_pos:
             end = not_first_pos[0]
-            return np.abs(end - idx[0])
+            return np.abs(end - idx[0]) + 1
     return 0
 
 
@@ -534,8 +541,9 @@ def _score(matches, unit_lists, features, stoplist, distance_metric,
             target_forms = target_unit['forms']
             source_forms = source_unit['forms']
             if distance_metric == 'span':
-                target_distance = np.abs(np.max(rows) - np.min(rows))
-                source_distance = np.abs(np.max(cols) - np.min(cols))
+                # adjacent matched words have a distance of 2, etc.
+                target_distance = np.abs(np.max(rows) - np.min(rows)) + 1
+                source_distance = np.abs(np.max(cols) - np.min(cols)) + 1
             else:
                 target_distance = _get_distance_by_least_frequency(
                         target_frequencies_getter, rows,
@@ -543,13 +551,14 @@ def _score(matches, unit_lists, features, stoplist, distance_metric,
                 source_distance = _get_distance_by_least_frequency(
                         source_frequencies_getter, cols,
                         source_forms)
-            if source_distance < max_distance and target_distance < max_distance:
+            distance = source_distance + target_distance
+            if distance < max_distance:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
                     for pos in rows]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
                     for pos in cols])
-                score = np.log((np.sum(np.power(match_frequencies, -1))) / (source_distance + target_distance))
+                score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
                 target_features = target_unit['features']
                 source_features = source_unit['features']
                 match_features = set(itertools.chain.from_iterable([

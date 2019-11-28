@@ -277,12 +277,12 @@ def _load_v3_results(minitext_path, tab_filename):
         for line in ifh:
             data = line.strip().split('\t')
             v3_results.append(MatchResult(
-                source=data[3],
-                target=data[1],
-                match_features=data[5].split('; '),
-                score=data[6],
-                source_raw=data[4],
-                target_raw=data[2],
+                source=data[3][1:-1],
+                target=data[1][1:-1],
+                match_features=data[5][1:-1].split('; '),
+                score=float(data[6]),
+                source_raw=data[4][1:-1].replace('*', ''),
+                target_raw=data[2][1:-1].replace('*', ''),
                 highlight = ''
             ))
     return v3_results
@@ -304,11 +304,10 @@ def test_mini_search_text_freqs(minipop, minitexts_metadata):
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
     for v5_r, v3_r in zip(v5_results, v3_results):
-        # TODO the scores are closer but still not close enough; what's wrong
-        # with my math?
         assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
         assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
-        assert math.isclose(v5_r.score, v3_r.score)
+        # v3 scores were truncated to the third decimal point
+        assert f'{v5_r.score:.3f}' == f'{v3_r.score:.3f}'
         v5_r_match_fs = set(v5_r.match_features)
         v3_r_match_fs = set()
         for match_f in v3_r.match_features:
