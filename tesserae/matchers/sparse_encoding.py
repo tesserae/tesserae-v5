@@ -447,7 +447,6 @@ def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
             max_distance, source_frequencies_getter, target_frequencies_getter)
 
 
-
 def _get_distance_by_least_frequency(get_freq, positions, forms):
     """Obtains the distance by least frequency for a unit
 
@@ -552,7 +551,7 @@ def _score(matches, unit_lists, features, stoplist, distance_metric,
                         source_frequencies_getter, cols,
                         source_forms)
             distance = source_distance + target_distance
-            if distance < max_distance:
+            if distance < max_distance and distance > 0:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
                     for pos in rows]
                 match_frequencies.extend(
