@@ -408,7 +408,7 @@ def get_corpus_frequencies(connection, feature, language):
                 }
             }
         }},
-        # Finally, sort those changed documents by their index.
+        # Finally, sort those transformed documents by their index.
         {'$sort': {'index': 1}}
     ]
 
@@ -421,15 +421,15 @@ def get_corpus_frequencies(connection, feature, language):
 
 def _score_by_corpus_frequencies(connection, feature, texts, matches,
         unit_lists, features, stoplist, distance_metric, max_distance):
-    if text[0].language != text[1].language:
-        source_frequencies_getter = averaged_freq_getter(
+    if texts[0].language != texts[1].language:
+        source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
             unit_lists[0])
-        target_frequencies_getter = averaged_freq_getter(
+        target_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[1].language),
             unit_lists[1])
     else:
-        source_frequencies_getter = averaged_freq_getter(
+        source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([unit_lists[0], unit_lists[1]]))
         target_frequencies_getter = source_frequencies_getter

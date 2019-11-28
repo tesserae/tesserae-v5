@@ -1,0 +1,19 @@
+# Tesserae V3 results
+#
+# session   = NA
+# source    = ztest.aen
+# target    = ztest.phar
+# unit      = line
+# feature   = stem
+# stopsize  = 6
+# stbasis   = corpus
+# stopwords = et quis qui multus bellus bellum
+# max_dist  = 999
+# dibasis   = freq
+# cutoff    = 0
+# filter    = off
+
+"RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
+1	"luc. 2.701"	"**Italiam**. Vix **fata** sinunt: nam murmure vasto"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, Laviniaque venit"	"fatum-for; italia"	4.535
+2	"luc. 4.131"	"**Primum** **cana** salix madefacto vimine parvam"	"verg. aen. 1.1"	"Arma virumque **cano**, Troiae qui **primus** ab oris"	"canus; primus"	4.352
+3	"luc. 4.578"	"**Ob** ferrum, et **saevis** libertas uritur armis:"	"verg. aen. 1.4"	"vi superum **saevae** memorem Iunonis **ob** iram;"	"ob; saeuus"	4.145

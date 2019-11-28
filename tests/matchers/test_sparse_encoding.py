@@ -11,7 +11,7 @@ import pytest
 from tesserae.db import Feature, Match, MatchSet, Text, Token, Unit, \
                         TessMongoConnection
 from tesserae.matchers.sparse_encoding import \
-        SparseMatrixSearch, get_text_frequencies
+        SparseMatrixSearch, get_text_frequencies, get_corpus_frequencies
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile, ingest_text
@@ -24,7 +24,8 @@ def minipop(request, minitexts_metadata):
     for coll_name in conn.connection.list_collection_names():
         conn.connection.drop_collection(coll_name)
     for metadata in minitexts_metadata:
-        ingest_text(conn, Text.json_decode(metadata))
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
     yield conn
 
 
@@ -232,7 +233,7 @@ def test_match(search_connection, search_tessfiles, correct_results):
             assert all(map(lambda x: x.token in correct['shared'], predicted.tokens))
 
 
-def _load_v3_stem_freqs(conn, metadata):
+def _load_v3_mini_text_stem_freqs(conn, metadata):
     db_cursor = conn.connection[Feature.collection].find(
             {'feature': 'form', 'language': metadata['language']},
             {'_id': False, 'index': True, 'token': True})
@@ -256,7 +257,7 @@ def _load_v3_stem_freqs(conn, metadata):
 
 def test_mini_text_frequencies(minipop, minitexts_metadata):
     for metadata in minitexts_metadata:
-        v3freqs = _load_v3_stem_freqs(minipop, metadata)
+        v3freqs = _load_v3_mini_text_stem_freqs(minipop, metadata)
         text_id = minipop.find(Text.collection, title=metadata['title'])[0].id
         v5freqs = get_text_frequencies(minipop, 'lemmata', text_id)
         for form_index, freq in v5freqs.items():
@@ -303,6 +304,78 @@ def test_mini_search_text_freqs(minipop, minitexts_metadata):
     v5_results = get_results(minipop, match_set.id)
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
+    for v5_r, v3_r in zip(v5_results, v3_results):
+        assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
+        assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
+        # v3 scores were truncated to the third decimal point
+        assert f'{v5_r.score:.3f}' == f'{v3_r.score:.3f}'
+        v5_r_match_fs = set(v5_r.match_features)
+        v3_r_match_fs = set()
+        for match_f in v3_r.match_features:
+            for f in match_f.split('-'):
+                v3_r_match_fs.add(f)
+        assert len(v3_r_match_fs) == len(v5_r_match_fs)
+        assert len(v5_r_match_fs & v3_r_match_fs) == len(v5_r_match_fs)
+
+
+def _load_v3_mini_corpus_stem_freqs(conn, metadata):
+    lang_lookup = {'latin': 'la.mini', 'greek': 'grc.mini'}
+    freqs_path = Path(metadata['path']).resolve().parent.joinpath(
+            lang_lookup[metadata['language']]+'.stem.freq')
+    db_cursor = conn.connection[Feature.collection].find(
+            {'feature': 'lemmata', 'language': metadata['language']},
+            {'_id': False, 'index': True, 'token': True})
+    token2index = {e['token']: e['index'] for e in db_cursor}
+    freqs = {}
+    with open(freqs_path, 'r') as ifh:
+        for line in ifh:
+            if line.startswith('# count:'):
+                denom = int(line.split()[-1])
+                break
+        for line in ifh:
+            line = line.strip()
+            if line:
+                word, count = line.split()
+                if word == 'arma':
+                    print(word, count, token2index[word], denom, float(count) / denom)
+                freqs[token2index[word]] = float(count) / denom
+    return freqs
+
+
+def test_mini_corpus_frequencies(minipop, minitexts_metadata):
+    metadata = minitexts_metadata[0]
+    v3freqs = _load_v3_mini_corpus_stem_freqs(minipop, metadata)
+    v5freqs = get_corpus_frequencies(minipop, 'lemmata', metadata['language'])
+    db_cursor = minipop.connection[Feature.collection].find(
+            {'feature': 'lemmata', 'language': metadata['language']},
+            {'_id': False, 'index': True, 'token': True})
+    index2token = {e['index']: e['token'] for e in db_cursor}
+    for f in minipop.connection[Feature.collection].find(
+            {'feature': 'lemmata', 'language': metadata['language']},
+            {'_id': False, 'index': True, 'token': True, 'frequencies': True}):
+        print(f['token'], f['frequencies'])
+    for form_index, freq in enumerate(v5freqs):
+        assert form_index in v3freqs
+        assert math.isclose(v3freqs[form_index], freq), \
+                f'Mismatch on {index2token[form_index]} ({form_index})'
+
+
+def test_mini_search_corpus_freqs(minipop, minitexts_metadata):
+    texts = minipop.find(
+        Text.collection,
+        title=[m['title'] for m in minitexts_metadata])
+    matcher = SparseMatrixSearch(minipop)
+    v5_matches, match_set = matcher.match(texts, 'line', 'lemmata',
+            stopwords=6,
+            stopword_basis='corpus', score_basis='stem',
+            frequency_basis='corpus', max_distance=10,
+            distance_metric='frequency', min_score=0)
+    minipop.insert(v5_matches)
+    minipop.insert(match_set)
+    v5_results = get_results(minipop, match_set.id)
+    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v3_results = _load_v3_results(
+            texts[0].path, 'mini_latin_corpus_results.tab')
     for v5_r, v3_r in zip(v5_results, v3_results):
         assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
         assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
