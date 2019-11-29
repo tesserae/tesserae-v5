@@ -477,6 +477,21 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     return 0
 
 
+def _get_distance_by_span(matched_positions):
+    """Calculate distance between two matching words
+
+    Parameters
+    ----------
+    matched_positions : list of int
+        the positions at which matched words were found in a unit
+    """
+    start_pos = np.min(matched_positions)
+    end_pos = np.max(matched_positions)
+    if start_pos != end_pos:
+        np.abs(end_pos - start_pos) + 1
+    return 0
+
+
 def _lookup_wrapper(d):
     """Useful for making dictionaries act like functions"""
     def _inner(key):
@@ -541,8 +556,8 @@ def _score(matches, unit_lists, features, stoplist, distance_metric,
             source_forms = source_unit['forms']
             if distance_metric == 'span':
                 # adjacent matched words have a distance of 2, etc.
-                target_distance = np.abs(np.max(rows) - np.min(rows)) + 1
-                source_distance = np.abs(np.max(cols) - np.min(cols)) + 1
+                target_distance = _get_distance_by_span(rows)
+                source_distance = _get_distance_by_span(cols)
             else:
                 target_distance = _get_distance_by_least_frequency(
                         target_frequencies_getter, rows,
