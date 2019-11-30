@@ -565,8 +565,11 @@ def _score(matches, unit_lists, features, stoplist, distance_metric,
                 source_distance = _get_distance_by_least_frequency(
                         source_frequencies_getter, cols,
                         source_forms)
+            if source_distance <= 0 or target_distance <= 0:
+                # less than two matching tokens in one of the units
+                continue
             distance = source_distance + target_distance
-            if distance < max_distance and distance > 0:
+            if distance < max_distance:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
                     for pos in rows]
                 match_frequencies.extend(
