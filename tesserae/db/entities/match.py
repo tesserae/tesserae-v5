@@ -64,6 +64,7 @@ class Match(Entity):
             'units': [u.id if isinstance(u, Entity) else u
                       for u in self.units],
             'score': self.score,
-            'match_set': self.match_set.id
+            'match_set': self.match_set.id if \
+                    isinstance(self.match_set, Entity) else self.match_set
         }
         return uniques

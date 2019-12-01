@@ -65,7 +65,7 @@ def _dot_notate(doc):
 
 
 class TessMongoConnection():
-    """Connection to a MongoDB instace configured for Tesserae.
+    """Connection to a MongoDB instance configured for Tesserae.
 
     Parameters
     ----------
@@ -151,6 +151,17 @@ class TessMongoConnection():
 
     def delete(self, entity):
         """Delete one or more entries from the database.
+
+        Parameters
+        ----------
+        entity : tesserae.db.entities.Entity or list of Entity
+            The entities to delete from the database.
+
+        Raises
+        ------
+        ValueError
+            Raised when no entities could be deleted
+
         """
         if not isinstance(entity, list):
             entity = [entity]
@@ -170,6 +181,8 @@ class TessMongoConnection():
         entity : tesserae.db.entities.Entity or list of Entity
             The entities to insert into the database.
 
+        Raises
+        ------
         ValueError
             Raised when provided entity could not be inserted
 
@@ -211,31 +224,49 @@ class TessMongoConnection():
         return result
 
     def update(self, entity):
-        """Update an existing entry in the database.
+        """Update existing entries in the database.
 
-        Only one entity can be updated at a time
+        No updates are made unless all updates can be made.
+
+        Parameters
+        ----------
+        entity : tesserae.db.entities.Entity or list of Entity
+            The entities to update in the database.  Each entity will be found
+            by its 'id', and all other attributes and corresponding values of
+            the given entity will be used to update the database with a
+            matching 'id'.
 
         Raises
         ------
         ValueError
-            Raised when provided entity could not be updated
-        """
-        # if not isinstance(entity, Entity):
-        #    raise ValueError('Unknown entity: ' + str(entity))
+            Raised when an entity does not have an 'id'
+        pymongo.errors.BulkWriteError
+            Raised when provided entities could not be updated
 
-        # TODO figure out fix for update
+        Returns
+        -------
+        None or pymongo.results.BulkWriteResult
+            If no changes were made, None is returned
+
+        """
+        if not isinstance(entity, list):
+            entity = [entity]
+
         collection = None
         bulk = []
-        for e in entity:
+        no_ids = []
+        for i, e in enumerate(entity):
             if e.id is not None:
                 bulk.append(
                     pymongo.operations.UpdateOne(
                         {'_id': e.id},
                         {'$set': e.json_encode(exclude=['_id'])}))
             else:
-                bulk.append(
-                    pymongo.operations.InsertOne(
-                        e.json_encode(exclude=['_id'])))
+                no_ids.append(i)
+        if no_ids:
+            raise ValueError(
+                'No id for the entities at the following indices: {}'.format(
+                    no_ids))
         if len(bulk) > 0:
             collection = self.connection[e.collection]
             result = collection.bulk_write(bulk)

@@ -9,18 +9,19 @@ import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
 import time
 
+from bson import ObjectId
 import numpy as np
 import pymongo
 from scipy.sparse import dok_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, MatchSet, Unit
+from tesserae.db.entities import Entity, Feature, Match, MatchSet, Token, Text, Unit
 
 
 class SparseMatrixSearch(object):
     def __init__(self, connection):
         self.connection = connection
 
-    def get_stoplist(self, stopwords_list, language=None, feature=None):
+    def get_stoplist(self, stopwords_list, feature=None, language=None):
         """Retrieve ObjectIds for the given stopwords list
 
         Parameters
@@ -87,65 +88,40 @@ class SparseMatrixSearch(object):
                     }
                 }})
         else:
-            basis = [t if not isinstance(t, Entity) else t.id for t in basis]
-            pipeline.extend([
-                {'$project': {
-                    '_id': False,
-                    'index': True,
-                    'token': True,
-                    'frequency': {'$sum': ['$frequencies.' + text for text in basis]}
-                }}
-            ])
-
-        pipeline.extend([
-            {'$sort': {'frequency': -1}},
-            {'$limit': n},
-            {'$project': {'token': True, 'index': True}}
-        ])
-
-        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
-        stoplist = list(stoplist)
-        return np.array([s['index'] for s in stoplist], dtype=np.uint32)
-
-    def get_frequencies(self, feature, language, basis='corpus', count=None):
-        """Get frequency data for a given feature.
-        """
-        pipeline = [
-            {'$match': {'feature': feature, 'language': language}}
-        ]
-
-        if basis == 'corpus':
-            pipeline.append(
-                {'$project': {
-                    '_id': False,
-                    'index': True,
-                    'frequency': {
-                        '$reduce': {
-                            'input': {'$objectToArray': '$frequencies'},
-                            'initialValue': 0,
-                            'in': {'$sum': ['$$value', '$$this.v']}
-                        }
-                    }
-                }})
-        else:
             basis = [t if not isinstance(t, Entity) else str(t.id) for t in basis]
             pipeline.extend([
                 {'$project': {
                     '_id': False,
                     'index': True,
                     'token': True,
-                    'frequency': {'$sum': ['$frequencies.' + text for text in basis]}
+                    'frequency': {
+                        '$sum': ['$frequencies.' + text for text in basis]}
                 }}
             ])
 
         pipeline.extend([
-            {'$sort': {'index': 1}}
+            {'$sort': {'frequency': -1}},
+            {'$limit': n},
+            {'$project': {'token': True, 'index': True, 'frequency': True}}
         ])
 
-        freqs = self.connection.aggregate(Feature.collection, pipeline, encode=False)
-        freqs = list(freqs)
-        freqs = np.array([freq['frequency'] for freq in freqs])
-        return freqs / sum(freqs)
+        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        stoplist = list(stoplist)
+        return np.array([s['index'] for s in stoplist], dtype=np.uint32)
+
+    def get_frequencies(self, feature, language, basis='corpus'):
+        """Get frequency data for a given feature.
+
+        Frequency is equal to the number of times a feature occurs in the basis
+        divided by the total number of tokens in the basis.
+
+        Note that the sum of all features is not equivalent to the sum of all
+        tokens, since every token can have multiple instances of the same
+        feature type associated with it.
+        """
+        freqs = _get_feature_counts(self.connection, feature, language, basis)
+        token_count = _get_token_count(self.connection, language, basis)
+        return freqs / token_count
 
     def match(self, texts, unit_type, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
@@ -189,6 +165,8 @@ class SparseMatrixSearch(object):
         """
         start = time.time()
         if isinstance(stopwords, int):
+            stopword_basis = stopword_basis if stopword_basis != 'texts' \
+                    else texts
             stoplist = self.create_stoplist(
                 stopwords,
                 'form' if feature == 'form' else 'lemmata',
@@ -321,13 +299,20 @@ def score(source, targets, frequencies, features, distance_metric, maximum_dista
         match_idx = [source_indices[i] for i in match_idx]
 
         if not match_idx.count(match_idx[0]) == len(match_idx) and match_idx:
-            match_frequencies = [frequencies[i] for i in match_features]
+            match_frequencies = \
+                    [in_target_frequencies[i] for i in match_features] + \
+                    [in_source_frequencies[i] for i in match_features]
+
+            # print('target frequencies', [(in_target_frequencies[i], i) for i in match_features])
+            # print('target positions', target['features'][0]['features'])
+            # print('source frequencies', [(in_source_frequencies[i], i) for i in match_features])
+            # print('source positions', source['features'][0]['features'])
 
             if distance_metric == 'span':
                 source_idx = np.array([source_indices[i] for i in [source_features.index(f) for f in match_features]])
                 target_idx = np.array([target_indices[i] for i in [target_features.index(f) for f in match_features]])
-                source_distance = np.abs(np.max(source_idx) - np.min(source_idx)) + 1
-                target_distance = np.abs(np.max(target_idx) - np.min(target_idx)) + 1
+                source_distance = np.abs(np.max(source_idx) - np.min(source_idx))
+                target_distance = np.abs(np.max(target_idx) - np.min(target_idx))
             else:
                 freq_sort = np.argsort(source_frequencies)
                 source_idx = np.array([source_indices[i] for i in freq_sort])
@@ -358,3 +343,77 @@ def score(source, targets, frequencies, features, distance_metric, maximum_dista
                         match_set=match_set))
 
     return matches
+
+
+def _get_feature_counts(connection, feature, language, basis):
+    """
+    """
+    pipeline = [
+        {'$match': {'feature': feature, 'language': language}}
+    ]
+
+    if basis == 'corpus':
+        pipeline.append(
+            {'$project': {
+                '_id': False,
+                'index': True,
+                'frequency': {
+                    '$reduce': {
+                        'input': {'$objectToArray': '$frequencies'},
+                        'initialValue': 0,
+                        'in': {'$sum': ['$$value', '$$this.v']}
+                    }
+                }
+            }})
+    else:
+        basis = [t if not isinstance(t, Entity) else str(t.id) for t in basis]
+        pipeline.extend([
+            {'$project': {
+                '_id': False,
+                'index': True,
+                'token': True,
+                'frequency': {'$sum': ['$frequencies.' + text for text in basis]}
+            }}
+        ])
+
+    pipeline.extend([
+        {'$sort': {'index': 1}}
+    ])
+
+    freqs = connection.aggregate(Feature.collection, pipeline, encode=False)
+    freqs = list(freqs)
+    freqs = np.array([freq['frequency'] for freq in freqs])
+    return freqs
+
+
+def _get_token_count(connection, language, basis):
+    print(basis)
+    if basis == 'corpus':
+        text_ids = [ObjectId(t.id) for t in connection.find(Text.collection,
+            language=language)]
+    else:
+        text_ids = [ObjectId(t.id) if isinstance(t, Entity) else ObjectId(t) for t in basis]
+    return connection.connection[Token.collection].count_documents(
+            {'text': {'$in': text_ids},
+                # https://stackoverflow.com/a/6838057
+                'features': {'$gt': {}}})
+
+
+def _get_distance_by_least_frequency(frequencies, indices, features,
+        match_features):
+    matched_frequencies = [
+            frequencies[i]
+            for i, feature in enumerate(features)
+            if feature in match_features]
+    matched_indices = [
+            indices[i]
+            for i, feature in enumerate(features)
+            if feature in match_features]
+    freq_sort = np.argsort(matched_frequencies)
+    idx = np.array([matched_indices[i] for i in freq_sort])
+    if idx.shape[0] >= 2:
+        not_first_pos = [s for s in idx if s != idx[0]]
+        if not_first_pos:
+            end = not_first_pos[0]
+            return np.abs(end - idx[0])
+    return 0
