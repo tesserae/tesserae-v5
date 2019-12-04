@@ -7,8 +7,10 @@ Classes
 from collections import Counter
 import itertools
 import multiprocessing as mp
+import time
 
 from bson import ObjectId
+import numba
 import numpy as np
 import pymongo
 from scipy.sparse import csr_matrix, dok_matrix
@@ -303,15 +305,18 @@ def get_text_frequencies(connection, feature, text_id):
                 mfindex = findex2mfindex[cur_findex]
                 # record when a word type is associated with a feature type
                 word_feature_pairs.add((mtindex, mfindex))
-    word_feature_matrix = dok_matrix(
-        (len(tindex2mtindex), len(findex2mfindex)),
-        dtype=np.bool
-    )
+    csr_rows = []
+    csr_cols = []
     for mtindex, mfindex in word_feature_pairs:
-        word_feature_matrix[mtindex, mfindex] = True
-    word_feature_matrix.tocsr()
+        csr_rows.append(mtindex)
+        csr_cols.append(mfindex)
+    word_feature_matrix = csr_matrix(
+        (np.ones(len(csr_rows), dtype=np.bool), (np.array(csr_rows),
+            np.array(csr_cols))),
+        shape=(len(tindex2mtindex), len(findex2mfindex))
+    )
     # if matching_words_matrix[i, j] == True, then the word represented by
-    # position i shared at least one feature type with the word represtened
+    # position i shared at least one feature type with the word represented
     # by position j
     matching_words_matrix = word_feature_matrix.dot(
         word_feature_matrix.transpose())
@@ -319,13 +324,18 @@ def get_text_frequencies(connection, feature, text_id):
     mtindex2tindex = {
         mtindex: tindex for tindex, mtindex in tindex2mtindex.items()}
     freqs = {}
-    for i in range(matching_words_matrix.shape[0]):
+    coo = matching_words_matrix.tocoo()
+    for i, j in zip(coo.row, coo.col):
         # since only matching tokens remain, the column indices indicate
         # which tokens match the token represented by row i; we need to
         # count up how many times each word appeared
-        word_count_sum = sum([word_counts[j]
-            for j in matching_words_matrix[i].nonzero()[1]])
-        freqs[mtindex2tindex[i]] = word_count_sum / text_token_count
+        cur_token = mtindex2tindex[i]
+        if cur_token not in freqs:
+            freqs[cur_token] = word_counts[j]
+        else:
+            freqs[cur_token] += word_counts[j]
+    for tok_ind in freqs:
+        freqs[tok_ind] = freqs[tok_ind] / text_token_count
     return freqs
 
 
@@ -504,11 +514,11 @@ def _extract_features_and_positions(units, stoplist_set):
 
     Returns
     -------
-    feature_inds : list of int
-    pos_inds : list of int
+    feature_inds : 1d np.array of int
+    pos_inds : 1d np.array of int
         ``feature_inds[i]`` should be equal to a feature index present at the
         position equal to ``pos_inds[i]``
-    break_inds : list of int
+    break_inds : 1d np.array of int
         for the slice ``break_inds[i]:break_inds[i+1]``, those are the position
         indices that belong to ``units[i]``
 
@@ -519,9 +529,9 @@ def _extract_features_and_positions(units, stoplist_set):
     >>> units = [unit_0, unit_1]
     >>> feature_inds, pos_inds, break_inds = \
     >>> ... _extract_features_and_positions(units, {7})
-    >>> feaure_inds == [10, 20, 21, 30]
-    >>> pos_inds == [0, 0, 2, 2]
-    >>> break_inds == [0, 1, 3]
+    >>> feaure_inds == np.array([10, 20, 21, 30])
+    >>> pos_inds == np.array([0, 0, 2, 2])
+    >>> break_inds == np.array([0, 1, 3])
 
     """
     feature_inds = []
@@ -535,7 +545,7 @@ def _extract_features_and_positions(units, stoplist_set):
             feature_inds.extend(valid_features)
             pos_inds.extend([end_break_inds + i] * len(valid_features))
         break_inds.append(end_break_inds + len(cur_features))
-    return feature_inds, pos_inds, break_inds
+    return np.array(feature_inds), np.array(pos_inds), np.array(break_inds)
 
 
 def _construct_feature_unit_matrix(units, stoplist_set, features_size):
@@ -565,7 +575,8 @@ def _construct_feature_unit_matrix(units, stoplist_set, features_size):
     feature_inds, pos_inds, break_inds = _extract_features_and_positions(
             units, stoplist_set)
     return (
-        csr_matrix(([True] * len(pos_inds), (feature_inds, pos_inds)),
+        csr_matrix(
+            (np.ones(len(pos_inds), dtype=np.bool), (feature_inds, pos_inds)),
             shape=(features_size, break_inds[-1])),
         break_inds
     )
@@ -598,44 +609,50 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     feature_inds, pos_inds, break_inds = _extract_features_and_positions(
             units, stoplist_set)
     return (
-        csr_matrix(([True] * len(pos_inds), (pos_inds, feature_inds)),
+        csr_matrix(
+            (np.ones(len(pos_inds), dtype=np.bool), (pos_inds, feature_inds)),
             shape=(break_inds[-1], features_size)),
         break_inds
     )
 
 
-def _bin_hits_to_unit_indices(match_matrix, target_breaks, source_breaks):
+#@numba.njit
+def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     """Extract which units matched from the ``match_matrix``
 
     Parameters
     ----------
-    match_matrix : csr_matrix
-        has as many rows as there are positions summed over all target units
-        and as many columns as there are positions summed over all source
-        units; if ``match_matrix[i, j] == True``, position i from a target unit
-        matched with position j from a source unit
-    target_breaks : list of int
+    rows : 1d np.array of ints
+    cols : 1d np.array of ints
+    target_breaks : 1d np.array of ints
         ``target_breaks[t]`` tells which row target unit t starts on; thus, the
         range ``target_breaks[t]:target_breaks[t+1]`` includes all the rows
         which belong to target unit t; ``len(target_breaks)`` is equal to one
         more than the total number of target units
-    source_breaks : list of int
+    source_breaks : 1d np.array of ints
         like ``target_breaks``, except it keeps track of which columns belong
         to which source unit
 
     Returns
     -------
-    dict [(int, int), list of list of ints]
+    hits2t_positions : dict [(int, int), 1d np.array of ints]
         the key is a tuple, where the first value refers to the index of a
         target unit and the second value refers to the index of a source unit;
-        the associated list of lists tells which positions within those units
-        matched---in particular, the first list is a list of positions where
-        the target unit had matches with the source unit; the second list is a
-        list of positions where the source unit had matches with the target
-        unit; the positions in these lists correspond, meaning that the xth int
-        of the first list is the position in the target unit that matched with
-        the position of the source unit recorded in the xth int of the second
-        list
+        the associated 1d array tells which positions within the target unit
+        had a match; the 1d array associated with the same key in
+        hits2s_positions corresponds:  the xth int of the
+        ``hits2t_positions[key]`` is the position in the target unit that
+        matched with the position of the source unit recorded in the xth
+        int of ``hits2s_positions[key]``
+    hits2s_positions : dict [(int, int), 1d np.array of ints]
+        the key is a tuple, where the first value refers to the index of a
+        target unit and the second value refers to the index of a source unit;
+        the associated 1d array tells which positions within the source unit
+        had a match; the 1d array associated with the same key in
+        hits2t_positions corresponds:  the xth int of the
+        ``hits2s_positions[key]`` is the position in the source unit that
+        matched with the position of the target unit recorded in the xth
+        int of ``hits2t_positions[key]``
 
     Example
     -------
@@ -645,37 +662,45 @@ def _bin_hits_to_unit_indices(match_matrix, target_breaks, source_breaks):
     >>> ... [True, False, False],
     >>> ... [False, False, True]
     >>> ... ])
-    >>> binned_hits = _bin_hits_to_unit_indices(match_matrix, target_breaks,
-    >>> ...       target_breaks)
-    >>> binned_hits[(0, 0)] == [[0, 1], [0, 2]]
+    >>> coo = match_matrix.tocoo()
+    >>> hits2t_positions, hits2s_positions = _bin_hits_to_unit_indices(
+    >>> ... coo.rows, coo.cols, target_breaks, target_breaks)
+    >>> hits2t_positions[(0, 0)] == np.array([0, 1])
+    >>> hits2s_positions[(0, 0)] == np.array([0, 2])
 
     """
     # keep track of mapping between matrix row index and target unit index
     # in ``target_units``
-    row2t_unit_ind = [u_ind
+    row2t_unit_ind = np.array([u_ind
             for u_ind in range(len(target_breaks) - 1)
-            for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])]
+            for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     # keep track of mapping between matrix column index and source unit index
     # in ``source_units``
-    col2s_unit_ind = [u_ind
+    col2s_unit_ind = np.array([u_ind
             for u_ind in range(len(source_breaks) - 1)
-            for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])]
-    result = {}
-    coo = match_matrix.tocoo()
-    for i, j in zip(coo.row, coo.col):
+            for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
+    hits2t_positions = {}
+    hits2s_positions = {}
+    tmp_stash = {}
+    # TODO make faster by going through only the rows and columns
+    # that will yield a match?
+    for i, j in zip(rows, cols):
         # assume that ``matched_matrix[i, j] == True`` for all i and j here
         t_ind = row2t_unit_ind[i]
         s_ind = col2s_unit_ind[j]
         t_pos = i - target_breaks[t_ind]
         s_pos = j - source_breaks[s_ind]
         key = (t_ind, s_ind)
-        if key not in result:
-            result[key] = [[t_pos], [s_pos]]
+        if key in hits2t_positions:
+            hits2t_positions[key] = np.append(hits2t_positions[key], [t_pos])
+            hits2s_positions[key] = np.append(hits2s_positions[key], [s_pos])
+        elif key in tmp_stash:
+            stashed = tmp_stash[key]
+            hits2t_positions[key] = np.array([stashed[0], t_pos])
+            hits2s_positions[key] = np.array([stashed[1], s_pos])
         else:
-            cur_lists = result[key]
-            cur_lists[0].append(t_pos)
-            cur_lists[1].append(s_pos)
-    return result
+            tmp_stash[key] = np.array([t_pos, s_pos])
+    return hits2t_positions, hits2s_positions
 
 
 def _gen_matches(target_units, source_units, stoplist, features_size):
@@ -695,7 +720,8 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
 
     Notes
     -----
-    The dictionaries in the input lists must contain the following string keys:
+    The dictionaries in the input lists must contain the following string keys
+    and corresponding values:
     '_id' : bson.objectid.ObjectId
         ObjectId of the Unit entity in the database
     'index' : int
@@ -718,7 +744,7 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
     source_positions_matched : list of ints
 
     """
-    stoplist_set = {sw for sw in stoplist}
+    stoplist_set = set(stoplist)
     feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
             source_units, stoplist_set, features_size)
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
@@ -728,12 +754,14 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
     match_matrix = target_feature_matrix.dot(feature_source_matrix)
     # this data structure keeps track of which target unit position matched
     # with which source unit position
-    hits2pos = _bin_hits_to_unit_indices(
-            match_matrix, target_breaks, source_breaks)
-    for (t_ind, s_ind), positions in hits2pos.items():
-        if len(positions[0]) >= 2:
-            yield (target_units[t_ind], positions[0],
-                source_units[s_ind], positions[1])
+    coo = match_matrix.tocoo()
+    hits2t_positions, hits2s_positions = _bin_hits_to_unit_indices(
+            coo.row, coo.col, target_breaks, source_breaks)
+    print(len(hits2t_positions))
+    for (t_ind, s_ind), t_positions in hits2t_positions.items():
+        if len(t_positions) >= 2:
+            yield (target_units[t_ind], t_positions,
+                source_units[s_ind], hits2s_positions[(t_ind, s_ind)])
 
 
 def _score(target_units, source_units, features, stoplist, distance_metric,
