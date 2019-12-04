@@ -11,7 +11,7 @@ import multiprocessing as mp
 from bson import ObjectId
 import numpy as np
 import pymongo
-from scipy.sparse import dok_matrix
+from scipy.sparse import csr_matrix, dok_matrix
 
 from tesserae.db.entities import Entity, Feature, Match, MatchSet, Token, Text, Unit
 
@@ -169,96 +169,41 @@ class SparseMatrixSearch(object):
                     'form' if feature == 'form' else 'lemmata',
                     texts[0].language)
 
-        match_matrices = []
-
-        feature_types = self.connection.find(Feature.collection,
-                feature=feature)
-        feature_count = len(feature_types)
-        if feature_count <= 0:
+        features = sorted(
+                self.connection.find(
+                    Feature.collection, language=texts[0].language,
+                    feature=feature),
+                key=lambda x: x.index)
+        if len(features) <= 0:
             raise ValueError(
-                f'Feature type "{feature}" was not found in the database.')
+                f'Feature type "{feature}" for language "{texts[0].language}" '
+                f'was not found in the database.')
 
-        unit_matrices = []
-        unit_lists = []
-
-        for t in texts:
-            units = [u for u in self.connection.aggregate(
-                Unit.collection,
-                [
-                    {'$match': {'text': t.id, 'unit_type': unit_type}},
-                    {'$project': {
-                        '_id': True,
-                        'index': True,
-                        'tags': True,
-                        'forms': {
-                            # https://docs.mongodb.com/manual/reference/operator/aggregation/reduce/
-                            '$reduce': {
-                                'input': '$tokens.features.form',
-                                'initialValue': [],
-                                'in': { '$concatArrays': ['$$value', '$$this'] }
-                            }
-                        },
-                        'features': '$tokens.features.'+feature,
-                    }}
-                ],
-                encode=False
-            )]
-
-            unit_indices = []
-            feature_indices = []
-
-            for unit in units:
-                if 'features' in unit:
-                    all_features = [
-                        f_index
-                        for cur_feature in unit['features']
-                        for f_index in cur_feature
-                    ]
-                    unit_indices.extend([unit['index']
-                        for _ in range(len(all_features))])
-                    feature_indices.extend(all_features)
-
-            # print(feature_indices)
-            feature_matrix = dok_matrix((len(units), feature_count))
-            feature_matrix[(np.asarray(unit_indices), np.asarray(feature_indices))] = 1
-
-            del unit_indices, feature_indices
-
-            feature_matrix = feature_matrix.tolil()
-            feature_matrix[:, np.asarray(stoplist)] = 0
-            feature_matrix = feature_matrix.tocsr()
-            feature_matrix.eliminate_zeros()
-            unit_matrices.append(feature_matrix)
-            unit_lists.append(units)
-
-
-        matches = unit_matrices[0].dot(unit_matrices[1].T)
-        matches[matches == 1] = 0
-        matches.eliminate_zeros()
-
-        stoplist_set = set(stoplist)
-        features = sorted(self.connection.find('features', language=texts[0].language, feature=feature), key=lambda x: x.index)
+        target_units = _get_units(self.connection, [texts[1]], unit_type,
+                feature)
+        source_units = _get_units(self.connection, [texts[0]], unit_type,
+                feature)
 
         if frequency_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(self.connection, feature,
-                    texts, matches, unit_lists, features, stoplist,
+                    texts, target_units, source_units, features, stoplist,
                     distance_metric, max_distance)
         else:
             match_ents = _score_by_text_frequencies(self.connection, feature,
-                    texts, matches, unit_lists, features, stoplist,
+                    texts, target_units, source_units, features, stoplist,
                     distance_metric, max_distance)
 
+        stopword_tokens = [s.token
+                for s in self.connection.find(
+                    Feature.collection, index=[int(i) for i in stoplist],
+                    language=texts[0].language, feature=feature)]
         match_set = MatchSet(texts=texts,
             unit_types=[unit_type for _ in range(len(texts))],
             parameters={
                 'method': {
                     'name': self.matcher_type,
                     'feature': feature,
-                    'stopwords': [
-                        self.connection.find(
-                            Feature.collection, index=int(index),
-                            language=texts[0].language, feature=feature)[0].token
-                        for index in stoplist],
+                    'stopwords': stopword_tokens,
                     'freq_basis': frequency_basis,
                     'max_distance': max_distance,
                     'distance_basis': distance_metric
@@ -268,6 +213,34 @@ class SparseMatrixSearch(object):
         )
 
         return match_ents, match_set
+
+
+def _get_units(connection, texts, unit_type, feature):
+    units = []
+    for t in texts:
+        units.extend([u for u in connection.aggregate(
+            Unit.collection,
+            [
+                {'$match': {'text': t.id, 'unit_type': unit_type}},
+                {'$project': {
+                    '_id': True,
+                    'index': True,
+                    'tags': True,
+                    'forms': {
+                        # flatten list of lists of ints into list of ints
+                        # https://docs.mongodb.com/manual/reference/operator/aggregation/reduce/
+                        '$reduce': {
+                            'input': '$tokens.features.form',
+                            'initialValue': [],
+                            'in': { '$concatArrays': ['$$value', '$$this'] }
+                        }
+                    },
+                    'features': '$tokens.features.'+feature,
+                }}
+            ],
+            encode=False
+        )])
+    return units
 
 
 def get_text_frequencies(connection, feature, text_id):
@@ -419,31 +392,35 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies(connection, feature, texts, matches,
-        unit_lists, features, stoplist, distance_metric, max_distance):
+def _score_by_corpus_frequencies(connection, feature, texts, target_units,
+        source_units,
+        features, stoplist, distance_metric, max_distance):
     if texts[0].language != texts[1].language:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
-            unit_lists[0])
+            source_units)
         target_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[1].language),
-            unit_lists[1])
+            target_units)
     else:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
-            itertools.chain.from_iterable([unit_lists[0], unit_lists[1]]))
+            itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return _score(matches, unit_lists, features, stoplist, distance_metric,
+    return _score(target_units, source_units, features, stoplist,
+            distance_metric,
             max_distance, source_frequencies_getter, target_frequencies_getter)
 
 
-def _score_by_text_frequencies(connection, feature, texts, matches, unit_lists,
+def _score_by_text_frequencies(connection, feature, texts, target_units,
+        source_units,
         features, stoplist, distance_metric, max_distance):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return _score(matches, unit_lists, features, stoplist, distance_metric,
+    return _score(target_units, source_units, features, stoplist,
+            distance_metric,
             max_distance, source_frequencies_getter, target_frequencies_getter)
 
 
@@ -511,80 +488,293 @@ def _averaged_freq_getter(d, units_iter):
     return _inner
 
 
-def _score(matches, unit_lists, features, stoplist, distance_metric,
+def _extract_features_and_positions(units, stoplist_set):
+    """Grab feature and token information from units
+
+    All features for every token within each of the units will be accounted for
+    exactly once.
+
+    Parameters
+    ----------
+    units
+        ``units`` should be either ``source_units`` or ``target_units`` from
+        ``_gen_matches(...)``
+    stoplist_set : set of int
+        feature indices which should not be recorded
+
+    Returns
+    -------
+    feature_inds : list of int
+    pos_inds : list of int
+        ``feature_inds[i]`` should be equal to a feature index present at the
+        position equal to ``pos_inds[i]``
+    break_inds : list of int
+        for the slice ``break_inds[i]:break_inds[i+1]``, those are the position
+        indices that belong to ``units[i]``
+
+    Example
+    -------
+    >>> unit_0 = {... 'forms': [1], 'features': [[10, 20]]}
+    >>> unit_1 = {... 'forms': [5, 17], 'features': [[7], [21, 30]]}
+    >>> units = [unit_0, unit_1]
+    >>> feature_inds, pos_inds, break_inds = \
+    >>> ... _extract_features_and_positions(units, {7})
+    >>> feaure_inds == [10, 20, 21, 30]
+    >>> pos_inds == [0, 0, 2, 2]
+    >>> break_inds == [0, 1, 3]
+
+    """
+    feature_inds = []
+    pos_inds = []
+    break_inds = [0]
+    for unit in units:
+        end_break_inds = break_inds[-1]
+        cur_features = unit['features']
+        for i, features in enumerate(cur_features):
+            valid_features = [f for f in features if f not in stoplist_set]
+            feature_inds.extend(valid_features)
+            pos_inds.extend([end_break_inds + i] * len(valid_features))
+        break_inds.append(end_break_inds + len(cur_features))
+    return feature_inds, pos_inds, break_inds
+
+
+def _construct_feature_unit_matrix(units, stoplist_set, features_size):
+    """Build a matrix where rows correspond to features and columns to
+    positions within units
+
+    Parameters
+    ----------
+    units
+        ``units`` should be either ``source_units`` or ``target_units`` from
+        ``_gen_matches(...)``
+    stoplist_set : set of int
+        feature indices which should not be recorded
+    features_size : int
+        the total number of feature types for the class of features contained
+        in ``units``
+
+    Returns
+    -------
+    M : csr_matrix
+        the result matrix; if ``M[i, j] == True``, the feature with index i
+        appears at position j.
+    break_inds : list of int
+        see ``_extract_features_and_positions()`` for details
+
+    """
+    feature_inds, pos_inds, break_inds = _extract_features_and_positions(
+            units, stoplist_set)
+    return (
+        csr_matrix(([True] * len(pos_inds), (feature_inds, pos_inds)),
+            shape=(features_size, break_inds[-1])),
+        break_inds
+    )
+
+
+def _construct_unit_feature_matrix(units, stoplist_set, features_size):
+    """Build a matrix where rows correspond to positions within units and
+    columns to features
+
+    Parameters
+    ----------
+    units
+        ``units`` should be either ``source_units`` or ``target_units`` from
+        ``_gen_matches(...)``
+    stoplist_set : set of int
+        feature indices which should not be recorded
+    features_size : int
+        the total number of feature types for the class of features contained
+        in ``units``
+
+    Returns
+    -------
+    M : csr_matrix
+        the result matrix; if ``M[i, j] == True``, the position i has feature j
+        appear
+    break_inds : list of int
+        see ``_extract_features_and_positions()`` for details
+
+    """
+    feature_inds, pos_inds, break_inds = _extract_features_and_positions(
+            units, stoplist_set)
+    return (
+        csr_matrix(([True] * len(pos_inds), (pos_inds, feature_inds)),
+            shape=(break_inds[-1], features_size)),
+        break_inds
+    )
+
+
+def _bin_hits_to_unit_indices(match_matrix, target_breaks, source_breaks):
+    """Extract which units matched from the ``match_matrix``
+
+    Parameters
+    ----------
+    match_matrix : csr_matrix
+        has as many rows as there are positions summed over all target units
+        and as many columns as there are positions summed over all source
+        units; if ``match_matrix[i, j] == True``, position i from a target unit
+        matched with position j from a source unit
+    target_breaks : list of int
+        ``target_breaks[t]`` tells which row target unit t starts on; thus, the
+        range ``target_breaks[t]:target_breaks[t+1]`` includes all the rows
+        which belong to target unit t; ``len(target_breaks)`` is equal to one
+        more than the total number of target units
+    source_breaks : list of int
+        like ``target_breaks``, except it keeps track of which columns belong
+        to which source unit
+
+    Returns
+    -------
+    dict [(int, int), list of list of ints]
+        the key is a tuple, where the first value refers to the index of a
+        target unit and the second value refers to the index of a source unit;
+        the associated list of lists tells which positions within those units
+        matched---in particular, the first list is a list of positions where
+        the target unit had matches with the source unit; the second list is a
+        list of positions where the source unit had matches with the target
+        unit; the positions in these lists correspond, meaning that the xth int
+        of the first list is the position in the target unit that matched with
+        the position of the source unit recorded in the xth int of the second
+        list
+
+    Example
+    -------
+    >>> target_breaks = [0, 2]
+    >>> source_breaks = [0, 3]
+    >>> match_matrix = csr_matrix([
+    >>> ... [True, False, False],
+    >>> ... [False, False, True]
+    >>> ... ])
+    >>> binned_hits = _bin_hits_to_unit_indices(match_matrix, target_breaks,
+    >>> ...       target_breaks)
+    >>> binned_hits[(0, 0)] == [[0, 1], [0, 2]]
+
+    """
+    # keep track of mapping between matrix row index and target unit index
+    # in ``target_units``
+    row2t_unit_ind = [u_ind
+            for u_ind in range(len(target_breaks) - 1)
+            for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])]
+    # keep track of mapping between matrix column index and source unit index
+    # in ``source_units``
+    col2s_unit_ind = [u_ind
+            for u_ind in range(len(source_breaks) - 1)
+            for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])]
+    result = {}
+    coo = match_matrix.tocoo()
+    for i, j in zip(coo.row, coo.col):
+        # assume that ``matched_matrix[i, j] == True`` for all i and j here
+        t_ind = row2t_unit_ind[i]
+        s_ind = col2s_unit_ind[j]
+        t_pos = i - target_breaks[t_ind]
+        s_pos = j - source_breaks[s_ind]
+        key = (t_ind, s_ind)
+        if key not in result:
+            result[key] = [[t_pos], [s_pos]]
+        else:
+            cur_lists = result[key]
+            cur_lists[0].append(t_pos)
+            cur_lists[1].append(s_pos)
+    return result
+
+
+def _gen_matches(target_units, source_units, stoplist, features_size):
+    """Generate matching units based on unit information
+
+    Parameters
+    ----------
+    source_units : list of dict
+        each dictionary represents unit information from the source text
+    target_units : list of dict
+        each dictionary represents unit information from the target text
+    stoplist : list of int
+        feature indices on which matches should not be permitted
+    features_size : int
+        the total number of feature types for the class of features contained
+        in ``units``
+
+    Notes
+    -----
+    The dictionaries in the input lists must contain the following string keys:
+    '_id' : bson.objectid.ObjectId
+        ObjectId of the Unit entity in the database
+    'index' : int
+        index of the Unit entity in the database
+    'tags' : list of str
+        tag information for this unit
+    'forms' : list of int
+        the ``...['forms'][y]`` is the integer associated with the form
+        Feature of the word token at position y
+    'features' : list of list of int
+        each position of this list corresponds to the same position in the
+        'forms' list; thus, ...['features'][a] is a list of the Feature indices
+        derived from ...['forms'][a].
+
+    Yields
+    ------
+    target_unit : dict
+    target_positions_matched : list of ints
+    source_unit : dict
+    source_positions_matched : list of ints
+
+    """
+    stoplist_set = {sw for sw in stoplist}
+    feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
+            source_units, stoplist_set, features_size)
+    target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
+            target_units, stoplist_set, features_size)
+    # for every position of each target unit, this matrix multiplication picks
+    # up which source unit positions shared at least one common feature
+    match_matrix = target_feature_matrix.dot(feature_source_matrix)
+    # this data structure keeps track of which target unit position matched
+    # with which source unit position
+    hits2pos = _bin_hits_to_unit_indices(
+            match_matrix, target_breaks, source_breaks)
+    for (t_ind, s_ind), positions in hits2pos.items():
+        if len(positions[0]) >= 2:
+            yield (target_units[t_ind], positions[0],
+                source_units[s_ind], positions[1])
+
+
+def _score(target_units, source_units, features, stoplist, distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter):
     match_ents = []
-    for i in range(matches.shape[0]):
-        source_unit = unit_lists[0][i]
-        target_units = [unit_lists[1][j] for j in matches[i].nonzero()[1]]
-        # number of source positions x number of features
-        feature_source_matrix = dok_matrix(
-                (len(features), len(source_unit['forms'])), dtype=np.bool)
-        for pos, feats in enumerate(source_unit['features']):
-            feature_source_matrix[feats, pos] = True
-        feature_source_matrix = feature_source_matrix.tolil()
-        feature_source_matrix[np.asarray(stoplist), :] = False
-        feature_source_matrix = feature_source_matrix.tocsr()
-        feature_source_matrix.eliminate_zeros()
-        # number of features x number of target positions
-        target_feature_matrix = dok_matrix(
-                (
-                    sum([len(feats)
-                        for target_unit in target_units
-                        for feats in target_unit['features']]),
-                    len(features)
-                ),
-                dtype=np.bool)
-        unitbreak_indices = [0]
-        for target_ind, target_unit in enumerate(target_units):
-            for pos, feats in enumerate(target_unit['features']):
-                target_feature_matrix[pos+unitbreak_indices[-1], feats] = True
-            unitbreak_indices.append(
-                    unitbreak_indices[-1] + len(target_unit['features']))
-        target_feature_matrix = target_feature_matrix.tolil()
-        target_feature_matrix[:, np.asarray(stoplist)] = False
-        target_feature_matrix = target_feature_matrix.tocsr()
-        target_feature_matrix.eliminate_zeros()
-        pos_matched = target_feature_matrix.dot(feature_source_matrix)
-        for target_ind, target_unit in enumerate(target_units):
-            start_row = unitbreak_indices[target_ind]
-            limit_row = unitbreak_indices[target_ind+1]
-            # rows are target positions of matching tokens
-            # cols are source positions of matching tokens
-            rows, cols = pos_matched[start_row:limit_row].nonzero()
-            target_forms = target_unit['forms']
-            source_forms = source_unit['forms']
-            if distance_metric == 'span':
-                # adjacent matched words have a distance of 2, etc.
-                target_distance = _get_distance_by_span(rows)
-                source_distance = _get_distance_by_span(cols)
-            else:
-                target_distance = _get_distance_by_least_frequency(
-                        target_frequencies_getter, rows,
-                        target_forms)
-                source_distance = _get_distance_by_least_frequency(
-                        source_frequencies_getter, cols,
-                        source_forms)
-            if source_distance <= 0 or target_distance <= 0:
-                # less than two matching tokens in one of the units
-                continue
-            distance = source_distance + target_distance
-            if distance < max_distance:
-                match_frequencies = [target_frequencies_getter(target_forms[pos])
-                    for pos in rows]
-                match_frequencies.extend(
-                    [source_frequencies_getter(source_forms[pos])
-                    for pos in cols])
-                score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
-                target_features = target_unit['features']
-                source_features = source_unit['features']
-                match_features = set(itertools.chain.from_iterable([
-                        set(target_features[row]).intersection(
-                            set(source_features[col]))
-                        for row, col in zip(rows, cols)]))
-                match_ents.append(Match(
-                    units=[source_unit['_id'], target_unit['_id']],
-                    tokens=[features[int(mf)] for mf in match_features],
-                    score=score
-                ))
+    features_size = len(features)
+    for target_unit, t_positions, source_unit, s_positions in _gen_matches(
+            target_units, source_units, stoplist, features_size):
+        target_forms = target_unit['forms']
+        source_forms = source_unit['forms']
+        if distance_metric == 'span':
+            # adjacent matched words have a distance of 2, etc.
+            target_distance = _get_distance_by_span(t_positions)
+            source_distance = _get_distance_by_span(s_positions)
+        else:
+            target_distance = _get_distance_by_least_frequency(
+                    target_frequencies_getter, t_positions,
+                    target_forms)
+            source_distance = _get_distance_by_least_frequency(
+                    source_frequencies_getter, s_positions,
+                    source_forms)
+        if source_distance <= 0 or target_distance <= 0:
+            # less than two matching tokens in one of the units
+            continue
+        distance = source_distance + target_distance
+        if distance < max_distance:
+            match_frequencies = [target_frequencies_getter(target_forms[pos])
+                for pos in t_positions]
+            match_frequencies.extend(
+                [source_frequencies_getter(source_forms[pos])
+                for pos in s_positions])
+            score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+            target_features = target_unit['features']
+            source_features = source_unit['features']
+            match_features = set(itertools.chain.from_iterable([
+                    set(target_features[t_pos]).intersection(
+                        set(source_features[s_pos]))
+                    for t_pos, s_pos in zip(t_positions, s_positions)]))
+            match_ents.append(Match(
+                units=[source_unit['_id'], target_unit['_id']],
+                tokens=[features[int(mf)] for mf in match_features],
+                score=score
+            ))
     return match_ents
