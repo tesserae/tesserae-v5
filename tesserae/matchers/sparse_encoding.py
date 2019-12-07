@@ -687,7 +687,7 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     hits2s_positions = {}
     tmp_stash = {}
     t_inds = row2t_unit_ind[rows]
-    t_inds_diffs = np.diff(t_inds)
+    s_inds = col2s_unit_ind[cols]
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
