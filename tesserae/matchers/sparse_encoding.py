@@ -10,7 +10,6 @@ import multiprocessing as mp
 import time
 
 from bson import ObjectId
-import numba
 import numpy as np
 import pymongo
 from scipy.sparse import csr_matrix, dok_matrix
@@ -616,7 +615,6 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     )
 
 
-#@numba.njit
 def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     """Extract which units matched from the ``match_matrix``
 
@@ -684,12 +682,11 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     tmp_stash = {}
     # TODO make faster by going through only the rows and columns
     # that will yield a match?
-    for i, j in zip(rows, cols):
-        # assume that ``matched_matrix[i, j] == True`` for all i and j here
-        t_ind = row2t_unit_ind[i]
-        s_ind = col2s_unit_ind[j]
-        t_pos = i - target_breaks[t_ind]
-        s_pos = j - source_breaks[s_ind]
+    t_inds = row2t_unit_ind[rows]
+    s_inds = col2s_unit_ind[cols]
+    t_poses = rows - target_breaks[t_inds]
+    s_poses = cols - source_breaks[s_inds]
+    for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
         key = (t_ind, s_ind)
         if key in hits2t_positions:
             hits2t_positions[key] = np.append(hits2t_positions[key], [t_pos])
