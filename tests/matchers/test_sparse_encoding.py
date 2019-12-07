@@ -71,7 +71,6 @@ def populate_database(search_connection, test_data):
             tok = LatinTokenizer(search_connection)
         unitizer = Unitizer()
         tokens, tags, features = tok.tokenize(tessfile.read(), text=tessfile.metadata)
-        print(features[0].json_encode())
         search_connection.update(features)
         lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
         search_connection.insert(lines + phrases)
@@ -299,6 +298,7 @@ def _load_v3_results(minitext_path, tab_filename):
 
 
 def _check_search_results(v5_results, v3_results):
+    assert len(v5_results) == len(v3_results)
     for v5_r, v3_r in zip(v5_results, v3_results):
         assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
         assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
@@ -381,10 +381,6 @@ def test_mini_corpus_frequencies(minipop, tessfiles_greek_path,
                 {'feature': 'lemmata', 'language': lang},
                 {'_id': False, 'index': True, 'token': True})
         index2token = {e['index']: e['token'] for e in db_cursor}
-        for f in minipop.connection[Feature.collection].find(
-                {'feature': 'lemmata', 'language': lang},
-                {'_id': False, 'index': True, 'token': True, 'frequencies': True}):
-            print(f['token'], f['frequencies'])
         for form_index, freq in enumerate(v5freqs):
             assert form_index in v3freqs
             assert math.isclose(v3freqs[form_index], freq), \

@@ -447,17 +447,17 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     get_freq : (int) -> float
         a function that takes a word form index as input and returns its
         frequency as output
-    positions : list of int
+    positions : 1d np.array of ints
         token positions in the unit where matches were found
-    form_indices : list of int
+    form_indices : 1d np.array of ints
         the token forms of the unit
     """
-    freqs = [get_freq(forms[i]) for i in positions]
+    freqs = [get_freq(f) for f in forms[positions]]
     freq_sort = np.argsort(freqs)
-    idx = np.array([positions[i] for i in freq_sort])
+    idx = positions[freq_sort]
     if idx.shape[0] >= 2:
-        not_first_pos = [s for s in idx if s != idx[0]]
-        if not_first_pos:
+        not_first_pos = idx[idx != idx[0]]
+        if not_first_pos.shape[0] > 0:
             end = not_first_pos[0]
             return np.abs(end - idx[0]) + 1
     return 0
@@ -684,7 +684,7 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     return hits2positions
 
 
-def _gen_matches(target_units, source_units, stoplist, features_size):
+def get_hits2positions(target_units, source_units, stoplist, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -717,13 +717,11 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
         'forms' list; thus, ...['features'][a] is a list of the Feature indices
         derived from ...['forms'][a].
 
-    Yields
-    ------
-    target_unit : dict
-    source_unit : dict
-    positions : 2d np.array
-        the first column contains target positions; the second column has
-        corresponding source positions
+    Returns
+    -------
+    dict [(int, int), 2d np.array of ints]
+        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
+        contains
 
     """
     stoplist_set = set(stoplist)
@@ -737,20 +735,120 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
     # this data structure keeps track of which target unit position matched
     # with which source unit position
     coo = match_matrix.tocoo()
-    hits2positions = _bin_hits_to_unit_indices(
+    return _bin_hits_to_unit_indices(
             coo.row, coo.col, target_breaks, source_breaks)
-    for (t_ind, s_ind), positions in hits2positions.items():
-        yield (target_units[t_ind], source_units[s_ind], positions)
+
+
+def get_two_position_matches(target_units, source_units,
+        target_frequencies_getter, source_frequencies_getter, max_distance,
+        features, hits2positions):
+    """
+
+    Parameters
+    ----------
+    hits2positions : dict [(int, int), 2d np.array of ints]
+        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
+        contains
+
+    Returns
+    -------
+    doubles_hits : list of (int, int)
+        each tuple in the list represents matches where exactly two positions
+        matched per unit; the first int in the tuple is an index to the target
+        units and the second int is an index to the source units
+    doubles_positions : 3d np.array of ints
+        the dimensionality is ``len(doubles_hits)`` x 2 x 2; each 2x2 array
+        along the first dimension represents which positions matched in the
+        target and source units; these correspond with the unit indices in
+        ``double_hits``; the first column is target position information; the
+        second column is source position information
+
+    """
+    match_ents = []
+    doubles_hits = [(t_ind, s_ind)
+            for (t_ind, s_ind), positions in hits2positions.items()
+            if len(positions) == 2]
+    doubles_positions = np.array([hits2positions[hit] for hit in doubles_hits])
+    # find true distances between words for each unit
+    true_distances = np.abs(np.diff(doubles_positions, axis=1))
+    true_distances = true_distances.reshape((true_distances.shape[0], 2))
+    # account for v3 distance counting
+    v3_distances = true_distances.sum(axis=1) + 2
+    # keep only matches with nonzero distances
+    keep_inds = np.all(true_distances, axis=1).reshape(true_distances.shape[0])
+    # keep only matches with distances less than the max_distance
+    keep_inds = (keep_inds &
+            (v3_distances < max_distance))
+    doubles_hits = np.array(doubles_hits)[keep_inds]
+    doubles_positions = doubles_positions[keep_inds]
+    v3_distances = v3_distances[keep_inds]
+    for (target_ind, source_ind), positions, distance in zip(
+            doubles_hits, doubles_positions, v3_distances):
+        target_unit = target_units[target_ind]
+        source_unit = source_units[source_ind]
+        target_forms = np.array(target_unit['forms'])
+        source_forms = np.array(source_unit['forms'])
+        t_positions = positions[:, 0]
+        s_positions = positions[:, 1]
+        match_frequencies = [target_frequencies_getter(target_forms[pos])
+            for pos in t_positions]
+        match_frequencies.extend(
+            [source_frequencies_getter(source_forms[pos])
+            for pos in s_positions])
+        score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+        target_features = target_unit['features']
+        source_features = source_unit['features']
+        match_features = set(itertools.chain.from_iterable([
+                set(target_features[t_pos]).intersection(
+                    set(source_features[s_pos]))
+                for t_pos, s_pos in zip(t_positions, s_positions)]))
+        match_ents.append(Match(
+            units=[source_unit['_id'], target_unit['_id']],
+            tokens=[features[int(mf)] for mf in match_features],
+            score=score
+        ))
+    return match_ents
+
+
+def _gen_matches(hits2positions):
+    """Generate match information where at least 3 positions matched
+
+    Parameters
+    ----------
+    hits2positions : dict [(int, int), 2d np.array of ints]
+        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
+        contains
+
+    Yields
+    ------
+    target_index : int
+        index into ``target_units``
+    source_index : int
+        index into ``source_units``
+    positions : 2d np.array
+        the first column contains target positions; the second column has
+        corresponding source positions
+    """
+    overhits2positions = {k: np.array(v) for k, v in hits2positions.items()
+            if len(v) >= 3}
+    for (t_ind, s_ind), positions in overhits2positions.items():
+        yield (t_ind, s_ind, positions)
 
 
 def _score(target_units, source_units, features, stoplist, distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter):
     match_ents = []
     features_size = len(features)
-    for target_unit, source_unit, positions in _gen_matches(
-            target_units, source_units, stoplist, features_size):
-        target_forms = target_unit['forms']
-        source_forms = source_unit['forms']
+    hits2positions = get_hits2positions(
+            target_units, source_units, stoplist, features_size)
+    match_ents = get_two_position_matches(target_units, source_units,
+            target_frequencies_getter, source_frequencies_getter, max_distance,
+            features, hits2positions)
+    for target_ind, source_ind, positions in _gen_matches(hits2positions):
+        target_unit = target_units[target_ind]
+        source_unit = source_units[source_ind]
+        target_forms = np.array(target_unit['forms'])
+        source_forms = np.array(source_unit['forms'])
         t_positions = positions[:, 0]
         s_positions = positions[:, 1]
         if distance_metric == 'span':
