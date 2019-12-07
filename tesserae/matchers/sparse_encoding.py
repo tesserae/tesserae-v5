@@ -621,7 +621,13 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     Parameters
     ----------
     rows : 1d np.array of ints
+        rows is all i for which ``match_matrix[i, j] == True``; also, for all
+        z, ``match_matrix[rows[z], cols[z]] == True``; all other indices should
+        yield False
     cols : 1d np.array of ints
+        cols is all j for which ``match_matrix[i, j] == True``; also, for all
+        z, ``match_matrix[rows[z], cols[z]] == True``; all other indices should
+        yield False
     target_breaks : 1d np.array of ints
         ``target_breaks[t]`` tells which row target unit t starts on; thus, the
         range ``target_breaks[t]:target_breaks[t+1]`` includes all the rows
@@ -680,10 +686,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     hits2t_positions = {}
     hits2s_positions = {}
     tmp_stash = {}
-    # TODO make faster by going through only the rows and columns
-    # that will yield a match?
     t_inds = row2t_unit_ind[rows]
-    s_inds = col2s_unit_ind[cols]
+    t_inds_diffs = np.diff(t_inds)
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
