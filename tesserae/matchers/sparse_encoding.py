@@ -4,7 +4,7 @@ Classes
 -------
 
 """
-from collections import Counter
+from collections import Counter, defaultdict
 import itertools
 import multiprocessing as mp
 import time
@@ -639,24 +639,14 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
 
     Returns
     -------
-    hits2t_positions : dict [(int, int), 1d np.array of ints]
+    hits2positions : dict [(int, int), 2d np.array of ints]
         the key is a tuple, where the first value refers to the index of a
         target unit and the second value refers to the index of a source unit;
-        the associated 1d array tells which positions within the target unit
-        had a match; the 1d array associated with the same key in
-        hits2s_positions corresponds:  the xth int of the
-        ``hits2t_positions[key]`` is the position in the target unit that
-        matched with the position of the source unit recorded in the xth
-        int of ``hits2s_positions[key]``
-    hits2s_positions : dict [(int, int), 1d np.array of ints]
-        the key is a tuple, where the first value refers to the index of a
-        target unit and the second value refers to the index of a source unit;
-        the associated 1d array tells which positions within the source unit
-        had a match; the 1d array associated with the same key in
-        hits2t_positions corresponds:  the xth int of the
-        ``hits2s_positions[key]`` is the position in the source unit that
-        matched with the position of the target unit recorded in the xth
-        int of ``hits2t_positions[key]``
+        the associated 2d array tells which positions within the target and
+        source units had a match; in particular, each row represent matched
+        positions, where the value in the first column tells the target
+        position and the the value in the second column tells the source
+        position; there will always be at least two rows in the 2d array
 
     Example
     -------
@@ -667,10 +657,9 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     >>> ... [False, False, True]
     >>> ... ])
     >>> coo = match_matrix.tocoo()
-    >>> hits2t_positions, hits2s_positions = _bin_hits_to_unit_indices(
+    >>> hits2positions = _bin_hits_to_unit_indices(
     >>> ... coo.rows, coo.cols, target_breaks, target_breaks)
-    >>> hits2t_positions[(0, 0)] == np.array([0, 1])
-    >>> hits2s_positions[(0, 0)] == np.array([0, 2])
+    >>> hits2positions[(0, 0)] == np.array([[0, 0], [1, 2]])
 
     """
     # keep track of mapping between matrix row index and target unit index
@@ -683,25 +672,16 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     col2s_unit_ind = np.array([u_ind
             for u_ind in range(len(source_breaks) - 1)
             for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
-    hits2t_positions = {}
-    hits2s_positions = {}
-    tmp_stash = {}
+    hits2positions = defaultdict(list)
     t_inds = row2t_unit_ind[rows]
     s_inds = col2s_unit_ind[cols]
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
-        key = (t_ind, s_ind)
-        if key in hits2t_positions:
-            hits2t_positions[key] = np.append(hits2t_positions[key], [t_pos])
-            hits2s_positions[key] = np.append(hits2s_positions[key], [s_pos])
-        elif key in tmp_stash:
-            stashed = tmp_stash[key]
-            hits2t_positions[key] = np.array([stashed[0], t_pos])
-            hits2s_positions[key] = np.array([stashed[1], s_pos])
-        else:
-            tmp_stash[key] = np.array([t_pos, s_pos])
-    return hits2t_positions, hits2s_positions
+        hits2positions[(t_ind, s_ind)].append((t_pos, s_pos))
+    hits2positions = {k: np.array(v) for k, v in hits2positions.items()
+            if len(v) >= 2}
+    return hits2positions
 
 
 def _gen_matches(target_units, source_units, stoplist, features_size):
@@ -740,9 +720,10 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
     Yields
     ------
     target_unit : dict
-    target_positions_matched : list of ints
     source_unit : dict
-    source_positions_matched : list of ints
+    positions : 2d np.array
+        the first column contains target positions; the second column has
+        corresponding source positions
 
     """
     stoplist_set = set(stoplist)
@@ -756,23 +737,22 @@ def _gen_matches(target_units, source_units, stoplist, features_size):
     # this data structure keeps track of which target unit position matched
     # with which source unit position
     coo = match_matrix.tocoo()
-    hits2t_positions, hits2s_positions = _bin_hits_to_unit_indices(
+    hits2positions = _bin_hits_to_unit_indices(
             coo.row, coo.col, target_breaks, source_breaks)
-    print(len(hits2t_positions))
-    for (t_ind, s_ind), t_positions in hits2t_positions.items():
-        if len(t_positions) >= 2:
-            yield (target_units[t_ind], t_positions,
-                source_units[s_ind], hits2s_positions[(t_ind, s_ind)])
+    for (t_ind, s_ind), positions in hits2positions.items():
+        yield (target_units[t_ind], source_units[s_ind], positions)
 
 
 def _score(target_units, source_units, features, stoplist, distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter):
     match_ents = []
     features_size = len(features)
-    for target_unit, t_positions, source_unit, s_positions in _gen_matches(
+    for target_unit, source_unit, positions in _gen_matches(
             target_units, source_units, stoplist, features_size):
         target_forms = target_unit['forms']
         source_forms = source_unit['forms']
+        t_positions = positions[:, 0]
+        s_positions = positions[:, 1]
         if distance_metric == 'span':
             # adjacent matched words have a distance of 2, etc.
             target_distance = _get_distance_by_span(t_positions)
