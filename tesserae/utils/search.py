@@ -10,7 +10,7 @@ import traceback
 from bson.objectid import ObjectId
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import MatchSet, ResultsStatus
+from tesserae.db.entities import Search
 import tesserae.matchers
 
 
@@ -113,24 +113,24 @@ class SearchProcess(multiprocessing.Process):
     def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
-        results_status = ResultsStatus(results_id=results_id,
-                status=ResultsStatus.INIT, msg='')
+        results_status = Search(results_id=results_id,
+                status=Search.INIT, msg='')
+        connection.insert(results_status)
         try:
-            connection.insert(results_status)
-
             matcher = tesserae.matchers.matcher_map[search_type](connection)
-            results_status.status = ResultsStatus.RUN
+            results_status.status = Search.RUN
             connection.update(results_status)
-            matches, match_set = matcher.match(**search_params)
+            text_ids, params, matches = matcher.match(**search_params)
             connection.insert(matches)
-            connection.insert(match_set)
 
-            results_status.status = ResultsStatus.DONE
-            results_status.match_set_id=match_set.id
+            results_status.texts = text_ids
+            results_status.parameters = params
+            results_status.matches = matches
+            results_status.status = Search.DONE
             results_status.msg='Done in {} seconds'.format(time.time()-start_time)
             connection.update(results_status)
         except:
-            results_status.status = ResultsStatus.FAILED
+            results_status.status = Search.FAILED
             results_status.msg=traceback.format_exc()
             connection.update(results_status)
 
@@ -161,11 +161,11 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/tutorial/query-arrays/
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
-    found = [MatchSet.json_decode(f)
-        for f in connection.connection[MatchSet.collection].find({
+    found = [Search.json_decode(f)
+        for f in connection.connection[Search.collection].find({
             'texts': [ObjectId(source['object_id']),
                 ObjectId(target['object_id'])],
-            'unit_types': [source['units'], target['units']],
+            'parameters.unit_types': [source['units'], target['units']],
             'parameters.method.name': method['name'],
             'parameters.method.feature': method['feature'],
             '$and': [
@@ -178,8 +178,8 @@ def check_cache(connection, source, target, method):
         })
     ]
     if found:
-        status_found = connection.find(ResultsStatus.collection,
-                match_set_id=found[0].id)
-        if status_found and status_found[0].status != ResultsStatus.FAILED:
+        status_found = connection.find(Search.collection,
+                _id=found[0].id)
+        if status_found and status_found[0].status != Search.FAILED:
             return status_found[0].results_id
     return None

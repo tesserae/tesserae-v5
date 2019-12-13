@@ -14,7 +14,7 @@ import numpy as np
 import pymongo
 from scipy.sparse import csr_matrix, dok_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, MatchSet, Token, Text, Unit
+from tesserae.db.entities import Entity, Feature, Match, Token, Text, Unit
 
 
 class SparseMatrixSearch(object):
@@ -198,22 +198,19 @@ class SparseMatrixSearch(object):
                 for s in self.connection.find(
                     Feature.collection, index=[int(i) for i in stoplist],
                     language=texts[0].language, feature=feature)]
-        match_set = MatchSet(texts=texts,
-            unit_types=[unit_type for _ in range(len(texts))],
-            parameters={
-                'method': {
-                    'name': self.matcher_type,
-                    'feature': feature,
-                    'stopwords': stopword_tokens,
-                    'freq_basis': frequency_basis,
-                    'max_distance': max_distance,
-                    'distance_basis': distance_metric
-                }
-            },
-            matches=match_ents
-        )
+        parameters = {
+            'unit_types': [unit_type for _ in range(len(texts))],
+            'method': {
+                'name': self.matcher_type,
+                'feature': feature,
+                'stopwords': stopword_tokens,
+                'freq_basis': frequency_basis,
+                'max_distance': max_distance,
+                'distance_basis': distance_metric
+            }
+        }
 
-        return match_ents, match_set
+        return texts, parameters, match_ents
 
 
 def _get_units(connection, texts, unit_type, feature):

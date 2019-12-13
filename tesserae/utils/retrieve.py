@@ -1,5 +1,5 @@
 """For retrieving search results"""
-from tesserae.db.entities import Feature, Match, MatchSet, Unit, Text
+from tesserae.db.entities import Feature, Match, Search, Unit, Text
 
 
 class MatchResult:
@@ -75,7 +75,7 @@ def _gen_target_units(conn, db_matches):
         yield x
 
 
-def _create_text_cache(conn, db_match_set):
+def _create_text_cache(conn, search_results):
     """
     Returns
     -------
@@ -84,7 +84,7 @@ def _create_text_cache(conn, db_match_set):
     """
     text_cache = {}
     texts = conn.find(Text.collection, _id=[text_id
-        for text_id in db_match_set.texts])
+        for text_id in search_results.texts])
     for text in texts:
         tmp = []
         if text.author:
@@ -108,22 +108,23 @@ def _create_feature_cache(conn, db_matches):
     return {f.id: f.token for f in features_found}
 
 
-def get_results(connection, match_set_id):
-    """Retrive results with associated MatchSet
+def get_results(connection, results_id):
+    """Retrive search results with associated id
 
     Parameters
     ----------
-    match_set_id : bson.objectid.ObjectId
-        ObjectId for MatchSet whose results you are trying to retrieve
+    results_id : str
+        UUID for Search whose results you are trying to retrieve
 
     Returns
     -------
     list of MatchResult
     """
     result = []
-    db_match_set = connection.find(MatchSet.collection, _id=match_set_id)[0]
-    db_matches = connection.find(Match.collection, _id=db_match_set.matches)
-    text_cache = _create_text_cache(connection, db_match_set)
+    search_results = connection.find(
+            Search.collection, results_id=results_id)[0]
+    db_matches = connection.find(Match.collection, _id=search_results.matches)
+    text_cache = _create_text_cache(connection, search_results)
     feature_cache = _create_feature_cache(connection, db_matches)
     for db_m, source_unit, target_unit in zip(db_matches,
             _gen_source_units(connection, db_matches),

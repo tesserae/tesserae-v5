@@ -6,7 +6,7 @@ from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
 from tesserae.tokenizers.base import BaseTokenizer
-from tesserae.db.entities import Frequency, Token
+from tesserae.db.entities import Token
 
 
 class LatinTokenizer(BaseTokenizer):

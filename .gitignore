@@ -12,3 +12,4 @@ _build
 .ipynb_checkpoints
 .vscode
 *env/
+*.swp

@@ -3,7 +3,7 @@ import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db.entities import Entity, Feature, Frequency, Token
+from tesserae.db.entities import Entity, Feature, Token
 
 
 class BaseTokenizer(object):
