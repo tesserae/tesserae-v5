@@ -21,10 +21,12 @@ class Match(Entity):
     ----------
     id : bson.objectid.ObjectId, optional
         Database id of the text. Should not be set locally.
+    search_id : bson.objectid.ObjectId, optional
+        Database id of search to which this match belongs.
     units : list of bson.objectid.ObjectId or list of Unit, optional
         Text units involved in this match.
-    tokens : list of bson.objectid.ObjectId or list of Token, optional
-        Tokens contributing to the match.
+    tokens : list of bson.objectid.ObjectId or list of Feature, optional
+        Features contributing to the match.
     score : float, optional
         The score of this match.
 
@@ -32,9 +34,10 @@ class Match(Entity):
 
     collection = 'matches'
 
-    def __init__(self, id=None, units=None, tokens=None, score=None,
-                 match_set=None):
+    def __init__(self, id=None, search_id=None, units=None, tokens=None,
+                 score=None, match_set=None):
         super(Match, self).__init__(id=id)
+        self.search_id: typing.Optional[ObjectId] = search_id
         self.units: typing.Optional[typing.List[ObjectId, Unit]] = \
             units if units is not None else []
         self.tokens: typing.Optional[typing.List[ObjectId, Token]] = \
@@ -56,6 +59,7 @@ class Match(Entity):
 
     def unique_values(self):
         uniques = {
+            'search_id': self.search_id,
             'units': [u.id if isinstance(u, Entity) else u
                       for u in self.units],
             'score': self.score,

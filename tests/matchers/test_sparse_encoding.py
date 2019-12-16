@@ -318,17 +318,21 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_latin_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(texts, 'line', 'lemmata',
+    text_ids, params, v5_matches = matcher.match(search_result.id,
+            texts, 'line', 'lemmata',
             stopwords=['et', 'qui', 'quis', 'pilum', 'pila', 'signum'],
             stopword_basis='texts', score_basis='stem',
             frequency_basis='texts', max_distance=10,
             distance_metric='frequency', min_score=0)
     minipop.insert(v5_matches)
-    results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id, texts=text_ids,
-            parameters=params, matches=v5_matches)
-    minipop.insert(search_result)
+    search_result.texts = text_ids
+    search_result.parameters = params
+    search_result.matches = v5_matches
+    minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
@@ -339,17 +343,21 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_greek_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(texts, 'phrase', 'lemmata',
+    text_ids, params, v5_matches = matcher.match(search_result.id,
+            texts, 'phrase', 'lemmata',
             stopwords=['ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
             stopword_basis='texts', score_basis='stem',
             frequency_basis='texts', max_distance=10,
             distance_metric='span', min_score=0)
     minipop.insert(v5_matches)
-    results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id, texts=text_ids,
-            parameters=params, matches=v5_matches)
-    minipop.insert(search_result)
+    search_result.texts = text_ids
+    search_result.parameters = params
+    search_result.matches = v5_matches
+    minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
@@ -398,17 +406,21 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_latin_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(texts, 'line', 'lemmata',
+    text_ids, params, v5_matches = matcher.match(search_result.id,
+            texts, 'line', 'lemmata',
             stopwords=6,
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='frequency', min_score=0)
     minipop.insert(v5_matches)
-    results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id, texts=text_ids,
-            parameters=params, matches=v5_matches)
-    minipop.insert(search_result)
+    search_result.texts = text_ids
+    search_result.parameters = params
+    search_result.matches = v5_matches
+    minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(
@@ -420,17 +432,21 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_greek_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(texts, 'phrase', 'lemmata',
+    text_ids, params, v5_matches = matcher.match(search_result.id,
+            texts, 'phrase', 'lemmata',
             stopwords=8,
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='span', min_score=0)
     minipop.insert(v5_matches)
-    results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id, texts=text_ids,
-            parameters=params, matches=v5_matches)
-    minipop.insert(search_result)
+    search_result.texts = text_ids
+    search_result.parameters = params
+    search_result.matches = v5_matches
+    minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x.score)
     v3_results = _load_v3_results(
