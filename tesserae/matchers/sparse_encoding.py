@@ -15,6 +15,7 @@ import pymongo
 from scipy.sparse import csr_matrix, dok_matrix
 
 from tesserae.db.entities import Entity, Feature, Match, Token, Text, Unit
+from tesserae.utils.retrieve import TagHelper
 
 
 class SparseMatrixSearch(object):
@@ -187,16 +188,18 @@ class SparseMatrixSearch(object):
         source_units = _get_units(self.connection, [texts[0]], unit_type,
                 feature)
 
+        tag_helper = TagHelper(self.connection, texts)
+
         if frequency_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(search_id,
                     self.connection, feature,
                     texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance)
+                    distance_metric, max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(search_id,
                     self.connection, feature,
                     texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance)
+                    distance_metric, max_distance, tag_helper)
 
         stopword_tokens = [s.token
                 for s in self.connection.find(
@@ -226,6 +229,7 @@ def _get_units(connection, texts, unit_type, feature):
                 {'$match': {'text': t.id, 'unit_type': unit_type}},
                 {'$project': {
                     '_id': True,
+                    'text': True,
                     'index': True,
                     'tags': True,
                     'forms': {
@@ -404,7 +408,7 @@ def get_corpus_frequencies(connection, feature, language):
 
 def _score_by_corpus_frequencies(search_id, connection, feature, texts,
         target_units, source_units,
-        features, stoplist, distance_metric, max_distance):
+        features, stoplist, distance_metric, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
@@ -419,19 +423,21 @@ def _score_by_corpus_frequencies(search_id, connection, feature, texts,
         target_frequencies_getter = source_frequencies_getter
     return _score(search_id, target_units, source_units, features, stoplist,
             distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter)
+            max_distance, source_frequencies_getter, target_frequencies_getter,
+            tag_helper)
 
 
 def _score_by_text_frequencies(search_id, connection, feature, texts,
         target_units, source_units,
-        features, stoplist, distance_metric, max_distance):
+        features, stoplist, distance_metric, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
     return _score(search_id, target_units, source_units, features, stoplist,
             distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter)
+            max_distance, source_frequencies_getter, target_frequencies_getter,
+            tag_helper)
 
 
 def _get_distance_by_least_frequency(get_freq, positions, forms):
@@ -742,7 +748,7 @@ def get_hits2positions(target_units, source_units, stoplist, features_size):
 
 def get_two_position_matches(search_id, target_units, source_units,
         target_frequencies_getter, source_frequencies_getter, max_distance,
-        features, hits2positions):
+        features, hits2positions, tag_helper):
     """
 
     Parameters
@@ -805,9 +811,18 @@ def get_two_position_matches(search_id, target_units, source_units,
                 for t_pos, s_pos in zip(t_positions, s_positions)]))
         match_ents.append(Match(
             search_id=search_id,
-            units=[source_unit['_id'], target_unit['_id']],
-            tokens=[features[int(mf)] for mf in match_features],
-            score=score
+            source_unit=source_unit['_id'],
+            target_unit=target_unit['_id'],
+            source_tag=tag_helper.get_display_tag(source_unit['text'],
+                source_unit['tags']),
+            target_tag=tag_helper.get_display_tag(target_unit['text'],
+                target_unit['tags']),
+            matched_features=[features[int(mf)].token
+                for mf in match_features],
+            score=score,
+            source_snippet='',
+            target_snippet='',
+            highlight=[]
         ))
     return match_ents
 
@@ -839,7 +854,8 @@ def _gen_matches(hits2positions):
 
 def _score(search_id, target_units, source_units, features, stoplist,
         distance_metric,
-        max_distance, source_frequencies_getter, target_frequencies_getter):
+        max_distance, source_frequencies_getter, target_frequencies_getter,
+        tag_helper):
     match_ents = []
     features_size = len(features)
     hits2positions = get_hits2positions(
@@ -847,7 +863,7 @@ def _score(search_id, target_units, source_units, features, stoplist,
     match_ents = get_two_position_matches(search_id,
             target_units, source_units,
             target_frequencies_getter, source_frequencies_getter, max_distance,
-            features, hits2positions)
+            features, hits2positions, tag_helper)
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
@@ -885,8 +901,17 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_ents.append(Match(
                 search_id=search_id,
-                units=[source_unit['_id'], target_unit['_id']],
-                tokens=[features[int(mf)] for mf in match_features],
-                score=score
+                source_unit=source_unit['_id'],
+                target_unit=target_unit['_id'],
+                source_tag=tag_helper.get_display_tag(source_unit['text'],
+                    source_unit['tags']),
+                target_tag=tag_helper.get_display_tag(target_unit['text'],
+                    target_unit['tags']),
+                matched_features=[features[int(mf)].token
+                    for mf in match_features],
+                score=score,
+                source_snippet='',
+                target_snippet='',
+                highlight=[]
             ))
     return match_ents

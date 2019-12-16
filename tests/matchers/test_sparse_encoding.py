@@ -17,7 +17,7 @@ from tesserae.matchers.sparse_encoding import \
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile, ingest_text
-from tesserae.utils.retrieve import get_results, MatchResult
+from tesserae.utils.retrieve import get_results
 
 
 @pytest.fixture(scope='session')
@@ -286,28 +286,30 @@ def _load_v3_results(minitext_path, tab_filename):
             break
         for line in ifh:
             data = line.strip().split('\t')
-            v3_results.append(MatchResult(
-                source=data[3][1:-1],
-                target=data[1][1:-1],
-                match_features=data[5][1:-1].split('; '),
-                score=float(data[6]),
-                source_raw=data[4][1:-1].replace('*', ''),
-                target_raw=data[2][1:-1].replace('*', ''),
-                highlight = ''
-            ))
+            v3_results.append({
+                'source_tag': data[3][1:-1],
+                'target_tag': data[1][1:-1],
+                'matched_features': data[5][1:-1].split('; '),
+                'score': float(data[6]),
+                'source_snippet': data[4][1:-1].replace('*', ''),
+                'target_snippet': data[2][1:-1].replace('*', ''),
+                'highlight': ''
+            })
     return v3_results
 
 
 def _check_search_results(v5_results, v3_results):
     assert len(v5_results) == len(v3_results)
     for v5_r, v3_r in zip(v5_results, v3_results):
-        assert v5_r.source.split()[-1] == v3_r.source.split()[-1]
-        assert v5_r.target.split()[-1] == v3_r.target.split()[-1]
+        assert v5_r['source_tag'].split()[-1] == v3_r['source_tag'].split()[-1]
+        assert v5_r['target_tag'].split()[-1] == v3_r['target_tag'].split()[-1]
         # v3 scores were truncated to the third decimal point
-        assert f'{v5_r.score:.3f}' == f'{v3_r.score:.3f}'
-        v5_r_match_fs = set(v5_r.match_features)
+        v5_score = v5_r['score']
+        v3_score = v3_r['score']
+        assert f'{v5_score:.3f}' == f'{v3_score:.3f}'
+        v5_r_match_fs = set(v5_r['matched_features'])
         v3_r_match_fs = set()
-        for match_f in v3_r.match_features:
+        for match_f in v3_r['matched_features']:
             for f in match_f.split('-'):
                 v3_r_match_fs.add(f)
         assert len(v3_r_match_fs) == len(v5_r_match_fs)
@@ -334,7 +336,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     search_result.matches = v5_matches
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
-    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
     _check_search_results(v5_results, v3_results)
 
@@ -359,7 +361,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     search_result.matches = v5_matches
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
-    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
     _check_search_results(v5_results, v3_results)
 
@@ -422,7 +424,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     search_result.matches = v5_matches
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
-    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_latin_corpus_results.tab')
     _check_search_results(v5_results, v3_results)
@@ -448,7 +450,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     search_result.matches = v5_matches
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
-    v5_results = sorted(v5_results, key=lambda x: -x.score)
+    v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_greek_corpus_results.tab')
     _check_search_results(v5_results, v3_results)
