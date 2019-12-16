@@ -1,5 +1,5 @@
 """For retrieving search results"""
-from tesserae.db.entities import Feature, Match, Search, Unit, Text
+from tesserae.db.entities import Match, Search
 
 
 class TagHelper:
@@ -65,7 +65,6 @@ def get_results(connection, results_id):
     result = []
     found = connection.find(
             Search.collection, results_id=results_id)[0]
-    print(found.matches)
     db_matches = connection.aggregate(Match.collection,
         [
             {'$match': {'_id': {'$in': found.matches}}},
