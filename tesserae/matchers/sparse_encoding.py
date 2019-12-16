@@ -822,7 +822,8 @@ def get_two_position_matches(search_id, target_units, source_units,
             score=score,
             source_snippet='',
             target_snippet='',
-            highlight=[]
+            highlight=[(int(s_pos), int(t_pos))
+                for s_pos, t_pos in zip(s_positions, t_positions)]
         ))
     return match_ents
 
@@ -912,6 +913,7 @@ def _score(search_id, target_units, source_units, features, stoplist,
                 score=score,
                 source_snippet='',
                 target_snippet='',
-                highlight=[]
+                highlight=[(int(s_pos), int(t_pos))
+                    for s_pos, t_pos in zip(s_positions, t_positions)]
             ))
     return match_ents
