@@ -231,6 +231,7 @@ def _get_units(connection, texts, unit_type, feature):
                     '_id': True,
                     'text': True,
                     'index': True,
+                    'snippet': True,
                     'tags': True,
                     'forms': {
                         # flatten list of lists of ints into list of ints
@@ -820,8 +821,8 @@ def get_two_position_matches(search_id, target_units, source_units,
             matched_features=[features[int(mf)].token
                 for mf in match_features],
             score=score,
-            source_snippet='',
-            target_snippet='',
+            source_snippet=source_unit['snippet'],
+            target_snippet=target_unit['snippet'],
             highlight=[(int(s_pos), int(t_pos))
                 for s_pos, t_pos in zip(s_positions, t_positions)]
         ))
@@ -911,8 +912,8 @@ def _score(search_id, target_units, source_units, features, stoplist,
                 matched_features=[features[int(mf)].token
                     for mf in match_features],
                 score=score,
-                source_snippet='',
-                target_snippet='',
+                source_snippet=source_unit['snippet'],
+                target_snippet=target_unit['snippet'],
                 highlight=[(int(s_pos), int(t_pos))
                     for s_pos, t_pos in zip(s_positions, t_positions)]
             ))

@@ -108,12 +108,17 @@ class Unitizer(object):
         except IndexError:
             pass
 
+        phrase_stash = []
+        line_stash = []
         # Add the token to the current line and phrase and determine if it is
         # a unit delimiter.
         for i, t in enumerate(tokens):
             # Ensure that the token is valid
             if not isinstance(t, Token):
                 raise InvalidTokenError(t)
+
+            phrase_stash.append(t.display)
+            line_stash.append(t.display)
 
             # Search for a phrase delimiter
             phrase_delim = re.search(r'[.?!;:]', t.display, flags=re.UNICODE)
@@ -156,6 +161,8 @@ class Unitizer(object):
             # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
+                self.phrases[-1].snippet = ''.join(phrase_stash)
+                phrase_stash = []
                 self.phrases.append(
                     Unit(text=metadata,
                          index=len(self.phrases),
@@ -172,7 +179,11 @@ class Unitizer(object):
             if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE): # and len(self.lines[-1].tokens) > 1:
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
+                else:
+                    phrase_stash.append(' / ')
 
+                self.lines[-1].snippet = ''.join(line_stash)
+                line_stash = []
                 self.lines.append(
                     Unit(text=metadata,
                          index=len(self.lines),

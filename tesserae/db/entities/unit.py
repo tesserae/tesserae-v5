@@ -10,6 +10,7 @@ import typing
 from bson.objectid import ObjectId
 
 from tesserae.db.entities.entity import Entity
+from tesserae.db.entities.text import Text
 
 
 class Unit(Entity):
@@ -56,25 +57,26 @@ class Unit(Entity):
     collection = 'units'
 
     def __init__(self, id=None, text=None, index=None, tags=None, unit_type=None,
-                 tokens=None, features=None):
+                 tokens=None, features=None, snippet=None):
         super(Unit, self).__init__(id=id)
-        self.text: typing.Optional[ObjectId] = text
+        self.text: typing.Optional[typing.Union[ObjectId, Text]] = text
         self.index: typing.Optional[int] = index
         self.tags: typing.List[str] = tags if tags is not None else []
         self.unit_type: typing.Optional[str] = unit_type
-        self.tokens: typing.List[typing.Union[ObjectId, Entity]] = \
+        self.tokens: typing.List[int] = \
             tokens if tokens is not None else []
-        self.features: typing.Dict[str, typing.List] = \
+        self.features: typing.Dict[str, typing.List[int]] = \
             features if features is not None else {}
+        self.snippet: typing.Optional[str] = snippet
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.text, self.tokens]
-        self.text = self.text.id
-        # self.tokens = [t.id for t in self.tokens]
+        self._ignore = [self.text]
+        if isinstance(self.text, Entity):
+            self.text = self.text.id
 
         obj = super(Unit, self).json_encode(exclude=exclude)
 
-        self.text, self.tokens = self._ignore
+        self.text = self._ignore[0]
         del self._ignore
 
         return obj
