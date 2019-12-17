@@ -680,15 +680,21 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     col2s_unit_ind = np.array([u_ind
             for u_ind in range(len(source_breaks) - 1)
             for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
-    hits2positions = defaultdict(list)
+    tmp = {}
+    hits2positions = {}
     t_inds = row2t_unit_ind[rows]
     s_inds = col2s_unit_ind[cols]
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
-        hits2positions[(t_ind, s_ind)].append((t_pos, s_pos))
-    hits2positions = {k: np.array(v) for k, v in hits2positions.items()
-            if len(v) >= 2}
+        key = (t_ind, s_ind)
+        if key not in tmp:
+            tmp[key] = (t_pos, s_pos)
+        elif key not in hits2positions:
+            hits2positions[key] = [tmp[key], (t_pos, s_pos)]
+        else:
+            hits2positions[key].append((t_pos, s_pos))
+    hits2positions = {k: np.array(v) for k, v in hits2positions.items()}
     return hits2positions
 
 

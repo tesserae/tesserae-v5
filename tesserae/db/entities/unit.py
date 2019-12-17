@@ -65,8 +65,6 @@ class Unit(Entity):
         self.unit_type: typing.Optional[str] = unit_type
         self.tokens: typing.List[int] = \
             tokens if tokens is not None else []
-        self.features: typing.Dict[str, typing.List[int]] = \
-            features if features is not None else {}
         self.snippet: typing.Optional[str] = snippet
 
     def json_encode(self, exclude=None):
