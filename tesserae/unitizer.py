@@ -55,7 +55,7 @@ class Unitizer(object):
         self.lines = []
         self.phrases = []
 
-    def unitize(self, tokens, tags, metadata, tokenizer=None, stop=False):
+    def unitize(self, tokens, tags, metadata, tokenizer=None):
         """Split a poem into line and phrase units.
 
         Parameters
@@ -179,8 +179,6 @@ class Unitizer(object):
             if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE): # and len(self.lines[-1].tokens) > 1:
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
-                else:
-                    phrase_stash.append(' / ')
 
                 self.lines[-1].snippet = ''.join(line_stash)
                 line_stash = []
@@ -209,15 +207,5 @@ class Unitizer(object):
                 self.phrases.pop(i)
             else:
                 break
-
-        if stop and len(self.lines[-1].tokens) == 0:
-            self.lines.pop()
-
-        if stop:
-            for i in range(len(self.phrases) - 1, 0, -1):
-                if len(self.phrases[i].tokens) < 2:
-                    self.phrases.pop()
-                else:
-                    break
 
         return self.lines, self.phrases
