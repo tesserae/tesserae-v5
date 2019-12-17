@@ -14,7 +14,7 @@ import numpy as np
 import pymongo
 from scipy.sparse import csr_matrix, dok_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, Token, Text, Unit
+from tesserae.db.entities import Entity, Feature, Token, Text, Unit
 from tesserae.utils.retrieve import TagHelper
 
 
@@ -816,22 +816,21 @@ def get_two_position_matches(search_id, target_units, source_units,
                 set(target_features[t_pos]).intersection(
                     set(source_features[s_pos]))
                 for t_pos, s_pos in zip(t_positions, s_positions)]))
-        match_ents.append(Match(
-            search_id=search_id,
-            source_unit=source_unit['_id'],
-            target_unit=target_unit['_id'],
-            source_tag=tag_helper.get_display_tag(source_unit['text'],
+        match_ents.append({
+            'source_unit': source_unit['_id'],
+            'target_unit': target_unit['_id'],
+            'source_tag': tag_helper.get_display_tag(source_unit['text'],
                 source_unit['tags']),
-            target_tag=tag_helper.get_display_tag(target_unit['text'],
+            'target_tag': tag_helper.get_display_tag(target_unit['text'],
                 target_unit['tags']),
-            matched_features=[features[int(mf)].token
+            'matched_features': [features[int(mf)].token
                 for mf in match_features],
-            score=score,
-            source_snippet=source_unit['snippet'],
-            target_snippet=target_unit['snippet'],
-            highlight=[(s_pos, t_pos)
+            'score': score,
+            'source_snippet': source_unit['snippet'],
+            'target_snippet': target_unit['snippet'],
+            'highlight': [(s_pos, t_pos)
                 for s_pos, t_pos in zip(s_positions, t_positions)]
-        ))
+        })
     return match_ents
 
 
@@ -907,20 +906,19 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     set(target_features[t_pos]).intersection(
                         set(source_features[s_pos]))
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
-            match_ents.append(Match(
-                search_id=search_id,
-                source_unit=source_unit['_id'],
-                target_unit=target_unit['_id'],
-                source_tag=tag_helper.get_display_tag(source_unit['text'],
+            match_ents.append({
+                'source_unit': source_unit['_id'],
+                'target_unit': target_unit['_id'],
+                'source_tag': tag_helper.get_display_tag(source_unit['text'],
                     source_unit['tags']),
-                target_tag=tag_helper.get_display_tag(target_unit['text'],
+                'target_tag': tag_helper.get_display_tag(target_unit['text'],
                     target_unit['tags']),
-                matched_features=[features[int(mf)].token
+                'matched_features': [features[int(mf)].token
                     for mf in match_features],
-                score=score,
-                source_snippet=source_unit['snippet'],
-                target_snippet=target_unit['snippet'],
-                highlight=[(int(s_pos), int(t_pos))
+                'score': score,
+                'source_snippet': source_unit['snippet'],
+                'target_snippet': target_unit['snippet'],
+                'highlight': [(int(s_pos), int(t_pos))
                     for s_pos, t_pos in zip(s_positions, t_positions)]
-            ))
+            })
     return match_ents

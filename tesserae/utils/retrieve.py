@@ -65,21 +65,12 @@ def get_results(connection, results_id):
     result = []
     found = connection.find(
             Search.collection, results_id=results_id)[0]
-    db_matches = connection.aggregate(Match.collection,
-        [
-            {'$match': {'_id': {'$in': found.matches}}},
-            {'$project': {
-                '_id': False,
-                'source_tag': True,
-                'target_tag': True,
-                'matched_features': True,
-                'score': True,
-                'source_snippet': True,
-                'target_snippet': True,
-                'highlight': True
-                }
-            }
-        ],
-        encode=False
-    )
-    return [match for match in db_matches]
+    return [{
+        'source_tag': match['source_tag'],
+        'target_tag': match['target_tag'],
+        'matched_features': match['matched_features'],
+        'score': match['score'],
+        'source_snippet': match['source_snippet'],
+        'target_snippet': match['target_snippet'],
+        'highlight': match['highlight']
+        } for match in found.matches]

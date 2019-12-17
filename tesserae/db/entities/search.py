@@ -58,14 +58,12 @@ class Search(Entity):
                 if matches is not None else []
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.texts, self.matches]
+        self._ignore = self.texts
         self.texts = [t.id if isinstance(t, Entity) else t for t in self.texts]
-        self.matches = [m.id if isinstance(m, Entity) else m
-                for m in self.matches]
 
         obj = super().json_encode(exclude=exclude)
 
-        self.texts, self.matches = self._ignore
+        self.texts = self._ignore
         del self._ignore
 
         return obj
