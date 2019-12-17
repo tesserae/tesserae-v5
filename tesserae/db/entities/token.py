@@ -65,42 +65,11 @@ class Token(Entity):
         self.display: typing.Optional[str] = display
         self.features: typing.Dict[str, ObjectId] = \
             features if features is not None else {}
-        self.line: typing.Optional[typing.Union[Entity, ObjectId]] = line
-        self.phrase: typing.Optional[typing.Union[Entity, ObjectId]] = phrase
-        self.frequency: typing.Optional[typing.Union[Entity, ObjectId]] = frequency
-
-    def match(self, other, feature):
-        """Determine whether two tokens match along a given feature.
-
-        Parameters
-        ----------
-        other : tesserae.db.entities.Token
-            The token to compare against.
-        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
-            The feature to compare on.
-
-        Returns
-        -------
-        match : bool
-        """
-        if feature == 'word':
-            return self.form == other.form
-        elif feature == 'lemmata':
-            return len(set(self.lemmata) & set(other.lemmata)) > 0
-        elif feature == 'semantic':
-            return len(set(self.semantic) & set(other.semantic)) > 0
-        elif feature == 'sound':
-            return len(set(self.sound) & set(other.sound)) > 0
-        else:
-            return len(set(self.lemmata) & set(other.lemmata)) > 0 and \
-                   len(set(self.semantic) & set(other.semantic)) > 0
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.text, self.line, self.phrase, copy.deepcopy(self.features)]
+        self._ignore = [self.text, copy.deepcopy(self.features)]
 
         self.text = self.text.id if self.text is not None else None
-        self.line = self.line.id if self.line is not None else None
-        self.phrase = self.phrase.id if self.phrase is not None else None
         for key, val in self.features.items():
             if isinstance(val, Entity):
                 self.features[key] = val.id
@@ -109,10 +78,7 @@ class Token(Entity):
 
         obj = super(Token, self).json_encode(exclude=exclude)
 
-        self.text = self._ignore[0]
-        self.line = self._ignore[1]
-        self.phrase = self._ignore[2]
-        self.frequency = self._ignore[3]
+        self.text, self.frequency = self._ignore
         del self._ignore
 
         return obj
