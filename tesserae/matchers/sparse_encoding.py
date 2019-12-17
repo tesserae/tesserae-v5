@@ -802,8 +802,8 @@ def get_two_position_matches(search_id, target_units, source_units,
         source_unit = source_units[source_ind]
         target_forms = np.array(target_unit['forms'])
         source_forms = np.array(source_unit['forms'])
-        t_positions = positions[:, 0]
-        s_positions = positions[:, 1]
+        t_positions = [int(p) for p in positions[:, 0]]
+        s_positions = [int(p) for p in positions[:, 1]]
         match_frequencies = [target_frequencies_getter(target_forms[pos])
             for pos in t_positions]
         match_frequencies.extend(
@@ -829,7 +829,7 @@ def get_two_position_matches(search_id, target_units, source_units,
             score=score,
             source_snippet=source_unit['snippet'],
             target_snippet=target_unit['snippet'],
-            highlight=[(int(s_pos), int(t_pos))
+            highlight=[(s_pos, t_pos)
                 for s_pos, t_pos in zip(s_positions, t_positions)]
         ))
     return match_ents

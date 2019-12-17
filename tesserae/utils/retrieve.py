@@ -31,7 +31,7 @@ class TagHelper:
                     tmp.append(text.author)
                 if text.title:
                     tmp.append(text.title)
-                self.text_cache[text.id] = ' '.join(tmp)
+                self.text_cache[text.id.binary] = ' '.join(tmp)
 
     def get_display_tag(self, text_id, unit_tags):
         """Create a display tag
@@ -44,7 +44,7 @@ class TagHelper:
             the tags of the unit
         """
         tag_parts = []
-        tag_parts.append(self.text_cache[text_id])
+        tag_parts.append(self.text_cache[text_id.binary])
         if unit_tags:
             tag_parts.append(unit_tags[0])
         return ' '.join(tag_parts)
