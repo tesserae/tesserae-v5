@@ -113,7 +113,7 @@ class SparseMatrixSearch(object):
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def match(self, texts, unit_type, feature, stopwords=10,
+    def match(self, search_id, texts, unit_type, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency', min_score=6):
@@ -125,6 +125,8 @@ class SparseMatrixSearch(object):
 
         Parameters
         ----------
+        search_id : bson.objectid.ObjectId
+            The search job associated with this matching work.
         texts : list of tesserae.db.Text
             The texts to match. Texts are matched in
         unit_type : {'line','phrase'}
@@ -189,12 +191,12 @@ class SparseMatrixSearch(object):
         tag_helper = TagHelper(self.connection, texts)
 
         if frequency_basis != 'texts':
-            match_ents = _score_by_corpus_frequencies(
+            match_ents = _score_by_corpus_frequencies(search_id,
                     self.connection, feature,
                     texts, target_units, source_units, features, stoplist,
                     distance_metric, max_distance, tag_helper)
         else:
-            match_ents = _score_by_text_frequencies(
+            match_ents = _score_by_text_frequencies(search_id,
                     self.connection, feature,
                     texts, target_units, source_units, features, stoplist,
                     distance_metric, max_distance, tag_helper)
@@ -405,7 +407,7 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies(connection, feature, texts,
+def _score_by_corpus_frequencies(search_id, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_metric, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
@@ -420,20 +422,20 @@ def _score_by_corpus_frequencies(connection, feature, texts,
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return _score(target_units, source_units, features, stoplist,
+    return _score(search_id, target_units, source_units, features, stoplist,
             distance_metric,
             max_distance, source_frequencies_getter, target_frequencies_getter,
             tag_helper)
 
 
-def _score_by_text_frequencies(connection, feature, texts,
+def _score_by_text_frequencies(search_id, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_metric, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return _score(target_units, source_units, features, stoplist,
+    return _score(search_id, target_units, source_units, features, stoplist,
             distance_metric,
             max_distance, source_frequencies_getter, target_frequencies_getter,
             tag_helper)
@@ -751,7 +753,7 @@ def get_hits2positions(target_units, source_units, stoplist, features_size):
             coo.row, coo.col, target_breaks, source_breaks)
 
 
-def get_two_position_matches(target_units, source_units,
+def get_two_position_matches(search_id, target_units, source_units,
         target_frequencies_getter, source_frequencies_getter, max_distance,
         features, hits2positions, tag_helper):
     """
@@ -764,8 +766,16 @@ def get_two_position_matches(target_units, source_units,
 
     Returns
     -------
-    list of dict
-        represents the matches found; each dict has match information
+    doubles_hits : list of (int, int)
+        each tuple in the list represents matches where exactly two positions
+        matched per unit; the first int in the tuple is an index to the target
+        units and the second int is an index to the source units
+    doubles_positions : 3d np.array of ints
+        the dimensionality is ``len(doubles_hits)`` x 2 x 2; each 2x2 array
+        along the first dimension represents which positions matched in the
+        target and source units; these correspond with the unit indices in
+        ``double_hits``; the first column is target position information; the
+        second column is source position information
 
     """
     match_ents = []
@@ -849,7 +859,7 @@ def _gen_matches(hits2positions):
         yield (t_ind, s_ind, positions)
 
 
-def _score(target_units, source_units, features, stoplist,
+def _score(search_id, target_units, source_units, features, stoplist,
         distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
@@ -857,7 +867,7 @@ def _score(target_units, source_units, features, stoplist,
     features_size = len(features)
     hits2positions = get_hits2positions(
             target_units, source_units, stoplist, features_size)
-    match_ents = get_two_position_matches(
+    match_ents = get_two_position_matches(search_id,
             target_units, source_units,
             target_frequencies_getter, source_frequencies_getter, max_distance,
             features, hits2positions, tag_helper)

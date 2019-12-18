@@ -324,7 +324,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'line', 'lemmata',
             stopwords=['et', 'qui', 'quis', 'pilum', 'pila', 'signum'],
             stopword_basis='texts', score_basis='stem',
@@ -349,7 +349,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'phrase', 'lemmata',
             stopwords=['ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
             stopword_basis='texts', score_basis='stem',
@@ -412,7 +412,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'line', 'lemmata',
             stopwords=6,
             stopword_basis='corpus', score_basis='stem',
@@ -438,7 +438,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'phrase', 'lemmata',
             stopwords=8,
             stopword_basis='corpus', score_basis='stem',

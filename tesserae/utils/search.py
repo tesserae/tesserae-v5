@@ -117,10 +117,11 @@ class SearchProcess(multiprocessing.Process):
                 status=Search.INIT, msg='')
         connection.insert(results_status)
         try:
+            search_id = results_status.id
             matcher = tesserae.matchers.matcher_map[search_type](connection)
             results_status.status = Search.RUN
             connection.update(results_status)
-            text_ids, params, matches = matcher.match(**search_params)
+            text_ids, params, matches = matcher.match(search_id, **search_params)
 
             results_status.texts = text_ids
             results_status.parameters = params
