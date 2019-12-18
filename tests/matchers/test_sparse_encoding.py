@@ -333,6 +333,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
+    search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
@@ -357,6 +358,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
+    search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
@@ -419,6 +421,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
+    search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
@@ -444,6 +447,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
+    search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])

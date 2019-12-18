@@ -64,7 +64,7 @@ def get_results(connection, results_id):
     """
     result = []
     found = connection.find(
-            Search.collection, results_id=results_id)[0]
+            Search.collection, results_id=results_id, status=Search.DONE)[0]
     return [{
         'source_tag': match['source_tag'],
         'target_tag': match['target_tag'],
