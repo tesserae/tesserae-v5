@@ -330,7 +330,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
             stopword_basis='texts', score_basis='stem',
             frequency_basis='texts', max_distance=10,
             distance_metric='frequency', min_score=0)
-    minipop.insert(v5_matches)
+    minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
@@ -356,7 +356,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
             stopword_basis='texts', score_basis='stem',
             frequency_basis='texts', max_distance=10,
             distance_metric='span', min_score=0)
-    minipop.insert(v5_matches)
+    minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
@@ -420,7 +420,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='frequency', min_score=0)
-    minipop.insert(v5_matches)
+    minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches
@@ -447,7 +447,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='span', min_score=0)
-    minipop.insert(v5_matches)
+    minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
     search_result.matches = v5_matches

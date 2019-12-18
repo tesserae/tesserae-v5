@@ -122,7 +122,7 @@ class SearchProcess(multiprocessing.Process):
             results_status.status = Search.RUN
             connection.update(results_status)
             text_ids, params, matches = matcher.match(search_id, **search_params)
-            connection.insert(matches)
+            connection.insert_nocheck(matches)
 
             results_status.texts = text_ids
             results_status.parameters = params
