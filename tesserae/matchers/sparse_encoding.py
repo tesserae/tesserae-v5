@@ -581,6 +581,9 @@ def _construct_feature_unit_matrix(units, stoplist_set, features_size):
     """
     feature_inds, pos_inds, break_inds = _extract_features_and_positions(
             units, stoplist_set)
+    for sw in stoplist_set:
+        if np.any(feature_inds == sw):
+            raise Exception('Stopword in Feature x Unit Matrix!')
     return (
         csr_matrix(
             (np.ones(len(pos_inds), dtype=np.bool), (feature_inds, pos_inds)),
@@ -615,6 +618,9 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     """
     feature_inds, pos_inds, break_inds = _extract_features_and_positions(
             units, stoplist_set)
+    for sw in stoplist_set:
+        if np.any(feature_inds == sw):
+            raise Exception('Stopword in Unit x Feature Matrix!')
     return (
         csr_matrix(
             (np.ones(len(pos_inds), dtype=np.bool), (pos_inds, feature_inds)),
@@ -698,7 +704,7 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     return hits2positions
 
 
-def get_hits2positions(target_units, source_units, stoplist, features_size):
+def get_hits2positions(target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -707,7 +713,7 @@ def get_hits2positions(target_units, source_units, stoplist, features_size):
         each dictionary represents unit information from the source text
     target_units : list of dict
         each dictionary represents unit information from the target text
-    stoplist : list of int
+    stoplist_set : set of int
         feature indices on which matches should not be permitted
     features_size : int
         the total number of feature types for the class of features contained
@@ -738,7 +744,6 @@ def get_hits2positions(target_units, source_units, stoplist, features_size):
         contains
 
     """
-    stoplist_set = set(stoplist)
     feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
             source_units, stoplist_set, features_size)
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
@@ -755,7 +760,7 @@ def get_hits2positions(target_units, source_units, stoplist, features_size):
 
 def get_two_position_matches(search_id, target_units, source_units,
         target_frequencies_getter, source_frequencies_getter, max_distance,
-        features, hits2positions, tag_helper):
+        features, hits2positions, tag_helper, stoplist_set):
     """
 
     Parameters
@@ -792,7 +797,7 @@ def get_two_position_matches(search_id, target_units, source_units,
     keep_inds = np.all(true_distances, axis=1).reshape(true_distances.shape[0])
     # keep only matches with distances less than the max_distance
     keep_inds = (keep_inds &
-            (v3_distances < max_distance))
+            (v3_distances <= max_distance))
     doubles_hits = np.array(doubles_hits)[keep_inds]
     doubles_positions = doubles_positions[keep_inds]
     v3_distances = v3_distances[keep_inds]
@@ -804,34 +809,36 @@ def get_two_position_matches(search_id, target_units, source_units,
         source_forms = np.array(source_unit['forms'])
         t_positions = [int(p) for p in positions[:, 0]]
         s_positions = [int(p) for p in positions[:, 1]]
-        match_frequencies = [target_frequencies_getter(target_forms[pos])
-            for pos in t_positions]
-        match_frequencies.extend(
-            [source_frequencies_getter(source_forms[pos])
-            for pos in s_positions])
-        score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
         target_features = target_unit['features']
         source_features = source_unit['features']
         match_features = set(itertools.chain.from_iterable([
                 set(target_features[t_pos]).intersection(
                     set(source_features[s_pos]))
                 for t_pos, s_pos in zip(t_positions, s_positions)]))
-        match_ents.append(Match(
-            search_id=search_id,
-            source_unit=source_unit['_id'],
-            target_unit=target_unit['_id'],
-            source_tag=tag_helper.get_display_tag(source_unit['text'],
-                source_unit['tags']),
-            target_tag=tag_helper.get_display_tag(target_unit['text'],
-                target_unit['tags']),
-            matched_features=[features[int(mf)].token
-                for mf in match_features],
-            score=score,
-            source_snippet=source_unit['snippet'],
-            target_snippet=target_unit['snippet'],
-            highlight=[(s_pos, t_pos)
-                for s_pos, t_pos in zip(s_positions, t_positions)]
-        ))
+        match_features -= stoplist_set
+        if match_features:
+            match_frequencies = [target_frequencies_getter(target_forms[pos])
+                for pos in t_positions]
+            match_frequencies.extend(
+                [source_frequencies_getter(source_forms[pos])
+                for pos in s_positions])
+            score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+            match_ents.append(Match(
+                search_id=search_id,
+                source_unit=source_unit['_id'],
+                target_unit=target_unit['_id'],
+                source_tag=tag_helper.get_display_tag(source_unit['text'],
+                    source_unit['tags']),
+                target_tag=tag_helper.get_display_tag(target_unit['text'],
+                    target_unit['tags']),
+                matched_features=[features[int(mf)].token
+                    for mf in match_features],
+                score=score,
+                source_snippet=source_unit['snippet'],
+                target_snippet=target_unit['snippet'],
+                highlight=[(s_pos, t_pos)
+                    for s_pos, t_pos in zip(s_positions, t_positions)]
+            ))
     return match_ents
 
 
@@ -866,12 +873,13 @@ def _score(search_id, target_units, source_units, features, stoplist,
         tag_helper):
     match_ents = []
     features_size = len(features)
+    stoplist_set = set(stoplist)
     hits2positions = get_hits2positions(
-            target_units, source_units, stoplist, features_size)
+            target_units, source_units, stoplist_set, features_size)
     match_ents = get_two_position_matches(search_id,
             target_units, source_units,
             target_frequencies_getter, source_frequencies_getter, max_distance,
-            features, hits2positions, tag_helper)
+            features, hits2positions, tag_helper, stoplist_set)
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
@@ -894,33 +902,35 @@ def _score(search_id, target_units, source_units, features, stoplist,
             # less than two matching tokens in one of the units
             continue
         distance = source_distance + target_distance
-        if distance < max_distance:
-            match_frequencies = [target_frequencies_getter(target_forms[pos])
-                for pos in t_positions]
-            match_frequencies.extend(
-                [source_frequencies_getter(source_forms[pos])
-                for pos in s_positions])
-            score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+        if distance <= max_distance:
             target_features = target_unit['features']
             source_features = source_unit['features']
             match_features = set(itertools.chain.from_iterable([
                     set(target_features[t_pos]).intersection(
                         set(source_features[s_pos]))
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
-            match_ents.append(Match(
-                search_id=search_id,
-                source_unit=source_unit['_id'],
-                target_unit=target_unit['_id'],
-                source_tag=tag_helper.get_display_tag(source_unit['text'],
-                    source_unit['tags']),
-                target_tag=tag_helper.get_display_tag(target_unit['text'],
-                    target_unit['tags']),
-                matched_features=[features[int(mf)].token
-                    for mf in match_features],
-                score=score,
-                source_snippet=source_unit['snippet'],
-                target_snippet=target_unit['snippet'],
-                highlight=[(int(s_pos), int(t_pos))
-                    for s_pos, t_pos in zip(s_positions, t_positions)]
-            ))
+            match_features -= stoplist_set
+            if match_features:
+                match_frequencies = [target_frequencies_getter(target_forms[pos])
+                    for pos in t_positions]
+                match_frequencies.extend(
+                    [source_frequencies_getter(source_forms[pos])
+                    for pos in s_positions])
+                score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+                match_ents.append(Match(
+                    search_id=search_id,
+                    source_unit=source_unit['_id'],
+                    target_unit=target_unit['_id'],
+                    source_tag=tag_helper.get_display_tag(source_unit['text'],
+                        source_unit['tags']),
+                    target_tag=tag_helper.get_display_tag(target_unit['text'],
+                        target_unit['tags']),
+                    matched_features=[features[int(mf)].token
+                        for mf in match_features],
+                    score=score,
+                    source_snippet=source_unit['snippet'],
+                    target_snippet=target_unit['snippet'],
+                    highlight=[(int(s_pos), int(t_pos))
+                        for s_pos, t_pos in zip(s_positions, t_positions)]
+                ))
     return match_ents
