@@ -816,7 +816,7 @@ def get_two_position_matches(search_id, target_units, source_units,
                     set(source_features[s_pos]))
                 for t_pos, s_pos in zip(t_positions, s_positions)]))
         match_features -= stoplist_set
-        if match_features:
+        if len(match_features) >= 2:
             match_frequencies = [target_frequencies_getter(target_forms[pos])
                 for pos in t_positions]
             match_frequencies.extend(
@@ -910,12 +910,12 @@ def _score(search_id, target_units, source_units, features, stoplist,
                         set(source_features[s_pos]))
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
-            if match_features:
+            if len(match_features) >= 2:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
-                    for pos in t_positions]
+                    for pos in set(t_positions)]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
-                    for pos in s_positions])
+                    for pos in set(s_positions)])
                 score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
                 match_ents.append(Match(
                     search_id=search_id,
