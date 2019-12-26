@@ -897,16 +897,16 @@ def _score(search_id, target_units, source_units, features, stoplist,
     luc_ind = -1
     verg_ind = -1
     for i, t_unit in enumerate(target_units):
-        if t_unit['tags'][0] == '7.181':
+        if t_unit['tags'][0] == '4.693':
             luc_ind = i
-            print('Found Lucan 7.181')
+            print('Found Lucan 4.693')
             print(t_unit['snippet'])
             print(t_unit['features'])
             break
     for i, s_unit in enumerate(source_units):
-        if s_unit['tags'][0] == '10.859':
+        if s_unit['tags'][0] == '12.206':
             verg_ind = i
-            print('Found Vergil 10.859')
+            print('Found Vergil 12.206')
             print(s_unit['snippet'])
             print(s_unit['features'])
             break
@@ -946,11 +946,13 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
             if len(match_features) >= 2:
-                match_frequencies = [target_frequencies_getter(target_forms[pos])
-                    for pos in set(t_positions)]
+                match_frequencies = [target_frequencies_getter(f)
+                    for f in set(
+                        target_forms[pos] for pos in t_positions)]
                 match_frequencies.extend(
-                    [source_frequencies_getter(source_forms[pos])
-                    for pos in set(s_positions)])
+                    [source_frequencies_getter(f)
+                    for f in set(
+                        source_forms[pos] for pos in s_positions)])
                 if target_ind == luc_ind and source_ind == verg_ind:
                     print(match_frequencies)
                     print(list(set(t_positions)))
