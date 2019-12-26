@@ -947,10 +947,10 @@ def _score(search_id, target_units, source_units, features, stoplist,
             match_features -= stoplist_set
             if len(match_features) >= 2:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
-                    for pos in t_positions]
+                    for pos in set(t_positions)]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
-                    for pos in s_positions])
+                    for pos in set(s_positions)])
                 if target_ind == luc_ind and source_ind == verg_ind:
                     print(match_frequencies)
                     print(list(set(t_positions)))
