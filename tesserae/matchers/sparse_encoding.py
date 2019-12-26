@@ -460,9 +460,23 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     form_indices : 1d np.array of ints
         the token forms of the unit
     """
-    freqs = [get_freq(f) for f in forms[positions]]
+    already_accounted = set()
+    kept_positions = []
+    freqs = []
+    sorted_positions = sorted(positions)
+    for f, pos in zip(forms[sorted_positions], sorted_positions):
+        if f not in already_accounted:
+            already_accounted.add(f)
+            kept_positions.append(pos)
+            freqs.append(get_freq(f))
+    if len(kept_positions) < 2:
+        return 0
+    elif len(kept_positions) == 2:
+        return np.abs(kept_positions[0] - kept_positions[1]) + 1
+    kept_positions = np.array(kept_positions)
+    freqs = [get_freq(f) for f in forms[kept_positions]]
     freq_sort = np.argsort(freqs)
-    idx = positions[freq_sort]
+    idx = kept_positions[freq_sort]
     if idx.shape[0] >= 2:
         not_first_pos = idx[idx != idx[0]]
         if not_first_pos.shape[0] > 0:
@@ -880,6 +894,25 @@ def _score(search_id, target_units, source_units, features, stoplist,
             target_units, source_units,
             target_frequencies_getter, source_frequencies_getter, max_distance,
             features, hits2positions, tag_helper, stoplist_set)
+    luc_ind = -1
+    verg_ind = -1
+    for i, t_unit in enumerate(target_units):
+        if t_unit['tags'][0] == '7.181':
+            luc_ind = i
+            print('Found Lucan 7.181')
+            print(t_unit['snippet'])
+            print(t_unit['features'])
+            break
+    for i, s_unit in enumerate(source_units):
+        if s_unit['tags'][0] == '10.859':
+            verg_ind = i
+            print('Found Vergil 10.859')
+            print(s_unit['snippet'])
+            print(s_unit['features'])
+            break
+    if (luc_ind, verg_ind) in hits2positions:
+        print('Found match')
+        print(hits2positions[(luc_ind, verg_ind)])
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
@@ -898,6 +931,8 @@ def _score(search_id, target_units, source_units, features, stoplist,
             source_distance = _get_distance_by_least_frequency(
                     source_frequencies_getter, s_positions,
                     source_forms)
+        if target_ind == luc_ind and source_ind == verg_ind:
+            print(target_distance, source_distance)
         if source_distance <= 0 or target_distance <= 0:
             # less than two matching tokens in one of the units
             continue
@@ -912,10 +947,14 @@ def _score(search_id, target_units, source_units, features, stoplist,
             match_features -= stoplist_set
             if len(match_features) >= 2:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
-                    for pos in set(t_positions)]
+                    for pos in t_positions]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
-                    for pos in set(s_positions)])
+                    for pos in s_positions])
+                if target_ind == luc_ind and source_ind == verg_ind:
+                    print(match_frequencies)
+                    print(list(set(t_positions)))
+                    print(list(set(s_positions)))
                 score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
                 match_ents.append(Match(
                     search_id=search_id,
