@@ -6,6 +6,7 @@ Classes
 """
 from collections import Counter, defaultdict
 import itertools
+import math
 import multiprocessing as mp
 import time
 
@@ -830,7 +831,7 @@ def get_two_position_matches(search_id, target_units, source_units,
                     set(source_features[s_pos]))
                 for t_pos, s_pos in zip(t_positions, s_positions)]))
         match_features -= stoplist_set
-        if len(match_features) >= 2:
+        if match_features:
             match_frequencies = [target_frequencies_getter(target_forms[pos])
                 for pos in t_positions]
             match_frequencies.extend(
@@ -945,7 +946,7 @@ def _score(search_id, target_units, source_units, features, stoplist,
                         set(source_features[s_pos]))
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
-            if len(match_features) >= 2:
+            if match_features:
                 match_frequencies = [target_frequencies_getter(f)
                     for f in set(
                         target_forms[pos] for pos in t_positions)]
