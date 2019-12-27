@@ -461,23 +461,12 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     form_indices : 1d np.array of ints
         the token forms of the unit
     """
-    already_accounted = set()
-    kept_positions = []
-    freqs = []
-    sorted_positions = sorted(positions)
-    for f, pos in zip(forms[sorted_positions], sorted_positions):
-        if f not in already_accounted:
-            already_accounted.add(f)
-            kept_positions.append(pos)
-            freqs.append(get_freq(f))
-    if len(kept_positions) < 2:
+    if len(set(forms[positions])) < 2:
         return 0
-    elif len(kept_positions) == 2:
-        return np.abs(kept_positions[0] - kept_positions[1]) + 1
-    kept_positions = np.array(kept_positions)
-    freqs = [get_freq(f) for f in forms[kept_positions]]
+    sorted_positions = np.array(sorted(positions))
+    freqs = [get_freq(f) for f in forms[sorted_positions]]
     freq_sort = np.argsort(freqs)
-    idx = kept_positions[freq_sort]
+    idx = sorted_positions[freq_sort]
     if idx.shape[0] >= 2:
         not_first_pos = idx[idx != idx[0]]
         if not_first_pos.shape[0] > 0:
@@ -947,13 +936,11 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
             if match_features:
-                match_frequencies = [target_frequencies_getter(f)
-                    for f in set(
-                        target_forms[pos] for pos in t_positions)]
+                match_frequencies = [target_frequencies_getter(target_forms[pos])
+                        for pos in t_positions]
                 match_frequencies.extend(
-                    [source_frequencies_getter(f)
-                    for f in set(
-                        source_forms[pos] for pos in s_positions)])
+                    [source_frequencies_getter(source_forms[pos])
+                        for pos in s_positions])
                 if target_ind == luc_ind and source_ind == verg_ind:
                     print(match_frequencies)
                     print(list(set(t_positions)))
