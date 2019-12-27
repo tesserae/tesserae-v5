@@ -458,7 +458,7 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
         frequency as output
     positions : 1d np.array of ints
         token positions in the unit where matches were found
-    form_indices : 1d np.array of ints
+    forms : 1d np.array of ints
         the token forms of the unit
     """
     if len(set(forms[positions])) < 2:
@@ -475,14 +475,18 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     return 0
 
 
-def _get_distance_by_span(matched_positions):
+def _get_distance_by_span(matched_positions, forms):
     """Calculate distance between two matching words
 
     Parameters
     ----------
-    matched_positions : list of int
+    matched_positions : 1d np.array of ints
         the positions at which matched words were found in a unit
+    forms : 1d np.array of ints
+        the token forms of the unit
     """
+    if len(set(forms[positions])) < 2:
+        return 0
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
     if start_pos != end_pos:
@@ -884,25 +888,6 @@ def _score(search_id, target_units, source_units, features, stoplist,
             target_units, source_units,
             target_frequencies_getter, source_frequencies_getter, max_distance,
             features, hits2positions, tag_helper, stoplist_set)
-    luc_ind = -1
-    verg_ind = -1
-    for i, t_unit in enumerate(target_units):
-        if t_unit['tags'][0] == '4.693':
-            luc_ind = i
-            print('Found Lucan 4.693')
-            print(t_unit['snippet'])
-            print(t_unit['features'])
-            break
-    for i, s_unit in enumerate(source_units):
-        if s_unit['tags'][0] == '12.206':
-            verg_ind = i
-            print('Found Vergil 12.206')
-            print(s_unit['snippet'])
-            print(s_unit['features'])
-            break
-    if (luc_ind, verg_ind) in hits2positions:
-        print('Found match')
-        print(hits2positions[(luc_ind, verg_ind)])
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
@@ -912,8 +897,8 @@ def _score(search_id, target_units, source_units, features, stoplist,
         s_positions = positions[:, 1]
         if distance_metric == 'span':
             # adjacent matched words have a distance of 2, etc.
-            target_distance = _get_distance_by_span(t_positions)
-            source_distance = _get_distance_by_span(s_positions)
+            target_distance = _get_distance_by_span(t_positions, target_forms)
+            source_distance = _get_distance_by_span(s_positions, source_forms)
         else:
             target_distance = _get_distance_by_least_frequency(
                     target_frequencies_getter, t_positions,
@@ -921,8 +906,6 @@ def _score(search_id, target_units, source_units, features, stoplist,
             source_distance = _get_distance_by_least_frequency(
                     source_frequencies_getter, s_positions,
                     source_forms)
-        if target_ind == luc_ind and source_ind == verg_ind:
-            print(target_distance, source_distance)
         if source_distance <= 0 or target_distance <= 0:
             # less than two matching tokens in one of the units
             continue
@@ -937,14 +920,10 @@ def _score(search_id, target_units, source_units, features, stoplist,
             match_features -= stoplist_set
             if match_features:
                 match_frequencies = [target_frequencies_getter(target_forms[pos])
-                        for pos in t_positions]
+                        for pos in set(t_positions)]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
-                        for pos in s_positions])
-                if target_ind == luc_ind and source_ind == verg_ind:
-                    print(match_frequencies)
-                    print(list(set(t_positions)))
-                    print(list(set(s_positions)))
+                        for pos in set(s_positions)])
                 score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
                 match_ents.append(Match(
                     search_id=search_id,
