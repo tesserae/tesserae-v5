@@ -485,7 +485,7 @@ def _get_distance_by_span(matched_positions, forms):
     forms : 1d np.array of ints
         the token forms of the unit
     """
-    if len(set(forms[positions])) < 2:
+    if len(set(forms[matched_positions])) < 2:
         return 0
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
