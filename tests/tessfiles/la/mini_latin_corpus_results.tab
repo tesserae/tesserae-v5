@@ -5,15 +5,19 @@
 # target    = ztest.phar
 # unit      = line
 # feature   = stem
-# stopsize  = 6
+# stopsize  = 4
 # stbasis   = corpus
-# stopwords = et quis qui multus bellus bellum
-# max_dist  = 999
+# stopwords = et qui per quis
+# max_dist  = 10
 # dibasis   = freq
 # cutoff    = 0
 # filter    = off
 
 "RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
-1	"luc. 2.701"	"**Italiam**. Vix **fata** sinunt: nam murmure vasto"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, Laviniaque venit"	"fatum-for; italia"	4.535
-2	"luc. 4.131"	"**Primum** **cana** salix madefacto vimine parvam"	"verg. aen. 1.1"	"Arma virumque **cano**, Troiae qui **primus** ab oris"	"canus; primus"	4.352
-3	"luc. 4.578"	"**Ob** ferrum, et **saevis** libertas uritur armis:"	"verg. aen. 1.4"	"vi superum **saevae** memorem Iunonis **ob** iram;"	"ob; saeuus"	4.145
+1	"luc. 6.98"	"Iam **magis** **atque** **magis** praeceps agit omnia fatum:"	"verg. aen. 12.406"	"subvenit; et saevus campis **magis** **ac** **magis** horror"	"atque; magis-magus"	5.083
+2	"luc. 5.1"	"Sic alterna duces **bellorum** vulnera **passos**"	"verg. aen. 1.5"	"multa quoque et **bello** **passus**, dum conderet urbem,"	"pando-patior; bellum-bellus"	5.023
+3	"luc. 2.701"	"**Italiam**. Vix **fata** sinunt: nam murmure vasto"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, Laviniaque venit"	"fatum-for; italia"	4.965
+4	"luc. 4.131"	"**Primum** **cana** salix madefacto vimine parvam"	"verg. aen. 1.1"	"Arma virumque **cano**, Troiae qui **primus** ab oris"	"primus; canus"	4.965
+5	"luc. 9.412"	"Pars erit Europae. Neque enim **plus** **litora** Nili,"	"verg. aen. 1.3"	"**litora**, **multum** ille et terris iactatus et alto"	"litus; multus"	4.832
+6	"luc. 4.578"	"**Ob** ferrum, et **saevis** libertas uritur armis:"	"verg. aen. 1.4"	"vi superum **saevae** memorem Iunonis **ob** iram;"	"ob; saeuus"	4.590
+7	"luc. 1.1"	"**Bella** per Emathios **plus** quam civilia campos"	"verg. aen. 1.5"	"**multa** quoque et **bello** passus, dum conderet urbem,"	"multus; bellum-bellus"	4.333

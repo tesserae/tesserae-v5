@@ -298,22 +298,57 @@ def _load_v3_results(minitext_path, tab_filename):
     return v3_results
 
 
+def _build_relations(results):
+    relations = {}
+    for match in results:
+        target_loc = match['target_tag'].split()[-1]
+        source_loc = match['source_tag'].split()[-1]
+        if target_loc not in relations:
+            relations[target_loc] = {source_loc: match}
+        elif source_loc not in relations[target_loc]:
+            relations[target_loc][source_loc] = match
+    return relations
+
+
 def _check_search_results(v5_results, v3_results):
-    assert len(v5_results) == len(v3_results)
-    for v5_r, v3_r in zip(v5_results, v3_results):
-        assert v5_r['source_tag'].split()[-1] == v3_r['source_tag'].split()[-1]
-        assert v5_r['target_tag'].split()[-1] == v3_r['target_tag'].split()[-1]
-        # v3 scores were truncated to the third decimal point
-        v5_score = v5_r['score']
-        v3_score = v3_r['score']
-        assert f'{v5_score:.3f}' == f'{v3_score:.3f}'
-        v5_r_match_fs = set(v5_r['matched_features'])
-        v3_r_match_fs = set()
-        for match_f in v3_r['matched_features']:
-            for f in match_f.split('-'):
-                v3_r_match_fs.add(f)
-        assert len(v3_r_match_fs) == len(v5_r_match_fs)
-        assert len(v5_r_match_fs & v3_r_match_fs) == len(v5_r_match_fs)
+    v3_relations = _build_relations(v3_results)
+    v5_relations = _build_relations(v5_results)
+    score_discrepancies = []
+    match_discrepancies = []
+    in_v5_not_in_v3 = []
+    in_v3_not_in_v5 = []
+    for target_loc in v3_relations:
+        for source_loc in v3_relations[target_loc]:
+            if target_loc not in v5_relations or \
+                    source_loc not in v5_relations[target_loc]:
+                in_v3_not_in_v5.append(v3_relations[target_loc][source_loc])
+                continue
+            v3_match = v3_relations[target_loc][source_loc]
+            v5_match = v5_relations[target_loc][source_loc]
+            v3_score = v3_match['score']
+            v5_score = v5_match['score']
+            if f'{v5_score:.3f}' != f'{v3_score:.3f}':
+                score_discrepancies.append((target_loc, source_loc,
+                    v5_score-v3_score))
+            v5_match_features = set(v5_match['matched_features'])
+            v3_match_features = set()
+            for match_f in v3_match['matched_features']:
+                for f in match_f.split('-'):
+                    v3_match_features.add(f)
+            only_in_v5 = v5_match_features - v3_match_features
+            only_in_v3 = v3_match_features - v5_match_features
+            if only_in_v5 or only_in_v3:
+                match_discrepancies.append((target_loc, source_loc, only_in_v5,
+                    only_in_v3))
+    for target_loc in v5_relations:
+        for source_loc in v5_relations[target_loc]:
+            if target_loc not in v3_relations or \
+                    source_loc not in v3_relations[target_loc]:
+                in_v5_not_in_v3.append(v5_relations[target_loc][source_loc])
+    assert not score_discrepancies
+    assert not match_discrepancies
+    assert not in_v5_not_in_v3
+    assert not in_v3_not_in_v5
 
 
 def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
@@ -326,7 +361,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     matcher = SparseMatrixSearch(minipop)
     text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'line', 'lemmata',
-            stopwords=['et', 'qui', 'quis', 'pilum', 'pila', 'signum'],
+            stopwords=['et', 'neque', 'qui'],
             stopword_basis='texts', score_basis='stem',
             frequency_basis='texts', max_distance=10,
             distance_metric='frequency', min_score=0)
@@ -416,7 +451,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     matcher = SparseMatrixSearch(minipop)
     text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'line', 'lemmata',
-            stopwords=6,
+            stopwords=4,
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='frequency', min_score=0)
