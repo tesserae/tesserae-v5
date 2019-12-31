@@ -3,6 +3,7 @@ import csv
 import itertools
 import os
 from pathlib import Path
+import pprint
 import re
 import time
 import uuid
@@ -291,8 +292,8 @@ def _load_v3_results(minitext_path, tab_filename):
                 'target_tag': data[1][1:-1],
                 'matched_features': data[5][1:-1].split('; '),
                 'score': float(data[6]),
-                'source_snippet': data[4][1:-1].replace('*', ''),
-                'target_snippet': data[2][1:-1].replace('*', ''),
+                'source_snippet': data[4][1:-1],
+                'target_snippet': data[2][1:-1],
                 'highlight': ''
             })
     return v3_results
@@ -345,6 +346,10 @@ def _check_search_results(v5_results, v3_results):
             if target_loc not in v3_relations or \
                     source_loc not in v3_relations[target_loc]:
                 in_v5_not_in_v3.append(v5_relations[target_loc][source_loc])
+    pprint.pprint(score_discrepancies)
+    pprint.pprint(match_discrepancies)
+    pprint.pprint(in_v5_not_in_v3)
+    pprint.pprint(in_v3_not_in_v5)
     assert not score_discrepancies
     assert not match_discrepancies
     assert not in_v5_not_in_v3
@@ -400,6 +405,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
+    print(len(v5_results), len(v3_results))
     _check_search_results(v5_results, v3_results)
 
 
@@ -478,7 +484,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     matcher = SparseMatrixSearch(minipop)
     text_ids, params, v5_matches = matcher.match(search_result.id,
             texts, 'phrase', 'lemmata',
-            stopwords=8,
+            stopwords=10,
             stopword_basis='corpus', score_basis='stem',
             frequency_basis='corpus', max_distance=10,
             distance_metric='span', min_score=0)
