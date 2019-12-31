@@ -490,7 +490,7 @@ def _get_distance_by_span(matched_positions, forms):
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
     if start_pos != end_pos:
-        np.abs(end_pos - start_pos) + 1
+        return np.abs(end_pos - start_pos) + 1
     return 0
 
 
