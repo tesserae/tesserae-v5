@@ -179,9 +179,9 @@ class BaseTokenizer(object):
         for val in featurized.values():
             if isinstance(val[0], list):
                 for v in val:
-                    features = features.union(set(v))
+                    features.update(v)
             else:
-                features = features.union(set(val))
+                features.update(val)
 
         return tokens, tags, list(features)
 
