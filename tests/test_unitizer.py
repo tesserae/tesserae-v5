@@ -96,7 +96,8 @@ def _get_correct_units(unit_tessfiles, unit_type):
                     if re.search(r'[\d]', cur_token_display):
                         print(tokens[t])
                     test_unit['tokens'].append({
-                        'display': cur_token_display,
+                        # ignore elision mark
+                        'display': cur_token_display.strip("'"),
                         'form': cur_token_form,
                         'stem': reverse_stems[t]
                     })
