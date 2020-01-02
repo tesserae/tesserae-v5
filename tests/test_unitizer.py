@@ -116,6 +116,9 @@ def correct_units(unit_tessfiles):
     return results
 
 
+WORD_PATTERN = re.compile(r'[\w]', flags=re.UNICODE)
+
+
 def test_unitize(unitizer_inputs, correct_units):
     correct_lines = correct_units['lines']
     correct_phrases = correct_units['phrases']
@@ -137,6 +140,9 @@ def test_unitize(unitizer_inputs, correct_units):
         text_correct_lines = correct_lines[i]
         assert len(lines) == len(text_correct_lines)
         for j, line in enumerate(lines):
+            line_snippet = line.snippet
+            assert WORD_PATTERN.search(line_snippet[0]) is not None
+            assert not line_snippet.endswith(' / ')
             if isinstance(text_correct_lines[j]['locus'], str):
                 assert line.tags[0] == text_correct_lines[j]['locus']
             else:
@@ -166,7 +172,8 @@ def test_unitize(unitizer_inputs, correct_units):
 
         text_correct_phrases = correct_phrases[i]
         assert len(phrases) == len(text_correct_phrases)
-        for j, phrase in enumerate(phrases[:-1]):
+        for j, phrase in enumerate(phrases):
+            assert WORD_PATTERN.search(phrase.snippet[0]) is not None
             if isinstance(text_correct_phrases[j]['locus'], str):
                 assert phrase.tags[0] == text_correct_phrases[j]['locus']
             else:

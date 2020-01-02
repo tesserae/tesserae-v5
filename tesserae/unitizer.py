@@ -161,12 +161,17 @@ class Unitizer(object):
             # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
-                self.phrases[-1].snippet = ''.join(phrase_stash)
+                first_pos = 0
+                while re.search(r'[\w]', phrase_stash[first_pos],
+                        flags=re.UNICODE) is None:
+                    first_pos += 1
+                if first_pos < len(phrase_stash):
+                    self.phrases[-1].snippet = ''.join(phrase_stash[first_pos])
+                    self.phrases.append(
+                        Unit(text=metadata,
+                             index=len(self.phrases),
+                             unit_type='phrase'))
                 phrase_stash = []
-                self.phrases.append(
-                    Unit(text=metadata,
-                         index=len(self.phrases),
-                         unit_type='phrase'))
 
                 try:
                     if tags[tag_idx] not in self.phrases[-1].tags:
@@ -180,7 +185,7 @@ class Unitizer(object):
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
 
-                self.lines[-1].snippet = ''.join(line_stash)
+                self.lines[-1].snippet = ''.join(line_stash[:-1])
                 line_stash = []
                 self.lines.append(
                     Unit(text=metadata,
