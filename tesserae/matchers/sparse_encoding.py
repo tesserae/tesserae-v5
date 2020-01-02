@@ -442,6 +442,21 @@ def _score_by_text_frequencies(search_id, connection, feature, texts,
             tag_helper)
 
 
+def _get_trivial_distance(positions):
+    """Calculates the distance between two positions
+
+    Parameters
+    ----------
+    positions : 1d np.array of ints
+        token positions in the unit where matches were found
+    """
+    diff = np.abs(positions[0] - positions[1])
+    if diff:
+        return diff + 1
+    else:
+        return 0
+
+
 def _get_distance_by_least_frequency(get_freq, positions, forms):
     """Obtains the distance by least frequency for a unit
 
@@ -463,6 +478,8 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     """
     if len(set(forms[positions])) < 2:
         return 0
+    if len(positions) == 2:
+        return _get_trivial_distance(positions)
     sorted_positions = np.array(sorted(positions))
     freqs = [get_freq(f) for f in forms[sorted_positions]]
     freq_sort = np.argsort(freqs)
@@ -487,6 +504,8 @@ def _get_distance_by_span(matched_positions, forms):
     """
     if len(set(forms[matched_positions])) < 2:
         return 0
+    if len(matched_positions) == 2:
+        return _get_trivial_distance(matched_positions)
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
     if start_pos != end_pos:
@@ -766,92 +785,8 @@ def get_hits2positions(target_units, source_units, stoplist_set, features_size):
             coo.row, coo.col, target_breaks, source_breaks)
 
 
-def get_two_position_matches(search_id, target_units, source_units,
-        target_frequencies_getter, source_frequencies_getter, max_distance,
-        features, hits2positions, tag_helper, stoplist_set):
-    """
-
-    Parameters
-    ----------
-    hits2positions : dict [(int, int), 2d np.array of ints]
-        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
-        contains
-
-    Returns
-    -------
-    doubles_hits : list of (int, int)
-        each tuple in the list represents matches where exactly two positions
-        matched per unit; the first int in the tuple is an index to the target
-        units and the second int is an index to the source units
-    doubles_positions : 3d np.array of ints
-        the dimensionality is ``len(doubles_hits)`` x 2 x 2; each 2x2 array
-        along the first dimension represents which positions matched in the
-        target and source units; these correspond with the unit indices in
-        ``double_hits``; the first column is target position information; the
-        second column is source position information
-
-    """
-    match_ents = []
-    doubles_hits = [(t_ind, s_ind)
-            for (t_ind, s_ind), positions in hits2positions.items()
-            if len(positions) == 2]
-    doubles_positions = np.array([hits2positions[hit] for hit in doubles_hits])
-    # find true distances between words for each unit
-    true_distances = np.abs(np.diff(doubles_positions, axis=1))
-    true_distances = true_distances.reshape((true_distances.shape[0], 2))
-    # account for v3 distance counting
-    v3_distances = true_distances.sum(axis=1) + 2
-    # keep only matches with nonzero distances
-    keep_inds = np.all(true_distances, axis=1).reshape(true_distances.shape[0])
-    # keep only matches with distances less than the max_distance
-    keep_inds = (keep_inds &
-            (v3_distances <= max_distance))
-    doubles_hits = np.array(doubles_hits)[keep_inds]
-    doubles_positions = doubles_positions[keep_inds]
-    v3_distances = v3_distances[keep_inds]
-    for (target_ind, source_ind), positions, distance in zip(
-            doubles_hits, doubles_positions, v3_distances):
-        target_unit = target_units[target_ind]
-        source_unit = source_units[source_ind]
-        target_forms = np.array(target_unit['forms'])
-        source_forms = np.array(source_unit['forms'])
-        t_positions = [int(p) for p in positions[:, 0]]
-        s_positions = [int(p) for p in positions[:, 1]]
-        target_features = target_unit['features']
-        source_features = source_unit['features']
-        match_features = set(itertools.chain.from_iterable([
-                set(target_features[t_pos]).intersection(
-                    set(source_features[s_pos]))
-                for t_pos, s_pos in zip(t_positions, s_positions)]))
-        match_features -= stoplist_set
-        if match_features:
-            match_frequencies = [target_frequencies_getter(target_forms[pos])
-                for pos in t_positions]
-            match_frequencies.extend(
-                [source_frequencies_getter(source_forms[pos])
-                for pos in s_positions])
-            score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
-            match_ents.append(Match(
-                search_id=search_id,
-                source_unit=source_unit['_id'],
-                target_unit=target_unit['_id'],
-                source_tag=tag_helper.get_display_tag(source_unit['text'],
-                    source_unit['tags']),
-                target_tag=tag_helper.get_display_tag(target_unit['text'],
-                    target_unit['tags']),
-                matched_features=[features[int(mf)].token
-                    for mf in match_features],
-                score=score,
-                source_snippet=source_unit['snippet'],
-                target_snippet=target_unit['snippet'],
-                highlight=[(s_pos, t_pos)
-                    for s_pos, t_pos in zip(s_positions, t_positions)]
-            ))
-    return match_ents
-
-
 def _gen_matches(hits2positions):
-    """Generate match information where at least 3 positions matched
+    """Generate match information where at least 2 positions matched
 
     Parameters
     ----------
@@ -870,7 +805,7 @@ def _gen_matches(hits2positions):
         corresponding source positions
     """
     overhits2positions = {k: np.array(v) for k, v in hits2positions.items()
-            if len(v) >= 3}
+            if len(v) >= 2}
     for (t_ind, s_ind), positions in overhits2positions.items():
         yield (t_ind, s_ind, positions)
 
@@ -884,10 +819,6 @@ def _score(search_id, target_units, source_units, features, stoplist,
     stoplist_set = set(stoplist)
     hits2positions = get_hits2positions(
             target_units, source_units, stoplist_set, features_size)
-    match_ents = get_two_position_matches(search_id,
-            target_units, source_units,
-            target_frequencies_getter, source_frequencies_getter, max_distance,
-            features, hits2positions, tag_helper, stoplist_set)
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
