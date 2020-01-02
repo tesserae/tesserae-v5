@@ -164,32 +164,32 @@ def test_unitize(unitizer_inputs, correct_units):
                 assert len(lemmata) == len(correct['stem'])
                 assert all(map(lambda x: x in correct['stem'], lemmata))
 
-    text_correct_phrases = correct_phrases[i]
-    assert len(phrases) == len(text_correct_phrases)
-    for j, phrase in enumerate(phrases[:-1]):
-        if isinstance(text_correct_phrases[j]['locus'], str):
-            assert phrase.tags[0] == text_correct_phrases[j]['locus']
-        else:
-            assert phrase.tags == text_correct_phrases[j]['locus']
-        if len(phrase.tokens) != len(text_correct_phrases[j]['tokens']):
-            print(list(zip([t['display'] for t in phrase.tokens] + [''], [t['display'] for t in text_correct_phrases[j]['tokens']])))
-        assert len(phrase.tokens) == len(text_correct_phrases[j]['tokens'])
-        predicted = [t for t in phrase.tokens if re.search(r'[\w]', t['display'])]
-        for k in range(len(predicted)):
-            token = predicted[k]
-            correct = text_correct_phrases[j]['tokens'][k]
-
-            assert token['display'] == correct['display']
-
-            if token['features']['form'][0] > -1:
-                form = feature_dict['form'][token['features']['form'][0]].token
-                lemmata = [feature_dict['lemmata'][l].token for l in token['features']['lemmata']]
+        text_correct_phrases = correct_phrases[i]
+        assert len(phrases) == len(text_correct_phrases)
+        for j, phrase in enumerate(phrases[:-1]):
+            if isinstance(text_correct_phrases[j]['locus'], str):
+                assert phrase.tags[0] == text_correct_phrases[j]['locus']
             else:
-                form = ''
-                lemmata = ['']
-            if form != correct['form']:
-                print(token, correct)
-                print(form, correct['form'])
-            assert form == correct['form']
-            assert len(lemmata) == len(correct['stem'])
-            assert all(map(lambda x: x in correct['stem'], lemmata))
+                assert phrase.tags == text_correct_phrases[j]['locus']
+            if len(phrase.tokens) != len(text_correct_phrases[j]['tokens']):
+                print(list(zip([t['display'] for t in phrase.tokens] + [''], [t['display'] for t in text_correct_phrases[j]['tokens']])))
+            assert len(phrase.tokens) == len(text_correct_phrases[j]['tokens'])
+            predicted = [t for t in phrase.tokens if re.search(r'[\w]', t['display'])]
+            for k in range(len(predicted)):
+                token = predicted[k]
+                correct = text_correct_phrases[j]['tokens'][k]
+
+                assert token['display'] == correct['display']
+
+                if token['features']['form'][0] > -1:
+                    form = feature_dict['form'][token['features']['form'][0]].token
+                    lemmata = [feature_dict['lemmata'][l].token for l in token['features']['lemmata']]
+                else:
+                    form = ''
+                    lemmata = ['']
+                if form != correct['form']:
+                    print(token, correct)
+                    print(form, correct['form'])
+                assert form == correct['form']
+                assert len(lemmata) == len(correct['stem'])
+                assert all(map(lambda x: x in correct['stem'], lemmata))
