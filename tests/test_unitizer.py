@@ -64,16 +64,43 @@ def unitizer_inputs(unit_tessfiles, unit_connection):
     yield inputs
 
 
-def _get_correct_units(unit_tessfiles, unit_type):
+def _extract_unit_information(units, tokens, reverse_stems):
+    test_units = []
+    for unit in units:
+        test_unit = {
+            'locus': unit['LOCUS'],
+            'tokens': []
+        }
+
+        for t in unit['TOKEN_ID']:
+            cur_token = tokens[t]
+            if cur_token['TYPE'] == 'WORD':
+                cur_token_display = cur_token['DISPLAY']
+                cur_token_form = cur_token['FORM']
+                if re.search(r'[\d]', cur_token_display):
+                    print(tokens[t])
+                test_unit['tokens'].append({
+                    # ignore elision mark
+                    'display': cur_token_display.strip("'"),
+                    'form': cur_token_form,
+                    'stem': reverse_stems[t]
+                })
+        test_units.append(test_unit)
+    return test_units
+
+
+@pytest.fixture(scope='module')
+def correct_units(unit_tessfiles):
+    results = {'lines': [], 'phrases': []}
     unit_data = []
     for t in unit_tessfiles:
         base, _ = os.path.splitext(t.path)
-        with open(base + '.' + unit_type + '.json', 'r') as f:
-            units = json.load(f)
+        with open(base + '.line.json', 'r') as f:
+            lines = json.load(f)
+        with open(base + '.phrase.json', 'r') as f:
+            phrases = json.load(f)
         with open(base + '.token.json', 'r') as f:
             tokens = json.load(f)
-        with open(base + '.index_word.json', 'r') as f:
-            forms = json.load(f)
         with open(base + '.index_stem.json', 'r') as f:
             stems = json.load(f)
         reverse_stems = defaultdict(list)
@@ -81,42 +108,16 @@ def _get_correct_units(unit_tessfiles, unit_type):
             for token_id in token_ids:
                 reverse_stems[int(token_id)].append(stem)
 
-        test_units = []
-        for unit in units:
-            test_unit = {
-                'locus': unit['LOCUS'],
-                'tokens': []
-            }
-
-            for t in unit['TOKEN_ID']:
-                cur_token = tokens[t]
-                if cur_token['TYPE'] == 'WORD':
-                    cur_token_display = cur_token['DISPLAY']
-                    cur_token_form = cur_token['FORM']
-                    if re.search(r'[\d]', cur_token_display):
-                        print(tokens[t])
-                    test_unit['tokens'].append({
-                        # ignore elision mark
-                        'display': cur_token_display.strip("'"),
-                        'form': cur_token_form,
-                        'stem': reverse_stems[t]
-                    })
-            test_units.append(test_unit)
-        unit_data.append(test_units)
-    return unit_data
+        results['lines'].append(_extract_unit_information(
+            lines, tokens, reverse_stems))
+        results['phrases'].append(_extract_unit_information(
+            phrases, tokens, reverse_stems))
+    return results
 
 
-@pytest.fixture(scope='module')
-def correct_lines(unit_tessfiles):
-    return _get_correct_units(unit_tessfiles, 'line')
-
-
-@pytest.fixture(scope='module')
-def correct_phrases(unit_tessfiles):
-    return _get_correct_units(unit_tessfiles, 'phrase')
-
-
-def test_unitize(unitizer_inputs, correct_lines, correct_phrases):
+def test_unitize(unitizer_inputs, correct_units):
+    correct_lines = correct_units['lines']
+    correct_phrases = correct_units['phrases']
     for i, indata in enumerate(unitizer_inputs):
         tokens, tags, features = indata
 
