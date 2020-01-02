@@ -52,13 +52,14 @@ def unit_tessfiles(mini_greek_metadata, mini_latin_metadata):
 @pytest.fixture(scope='module')
 def unitizer_inputs(unit_tessfiles, unit_connection):
     inputs = []
+    tokenizer_selector = {
+        'latin': LatinTokenizer(unit_connection),
+        'greek': GreekTokenizer(unit_connection)
+    }
     for t in unit_tessfiles:
         tessfile = TessFile(t.path, metadata=t)
-        if t.language == 'latin':
-            tok = LatinTokenizer(unit_connection)
-        if t.language == 'greek':
-            tok = GreekTokenizer(unit_connection)
-        tokens, tags, features = tok.tokenize(tessfile.read(), text=t)
+        tokens, tags, features = tokenizer_selector[t.language].tokenize(
+                tessfile.read(), text=t)
         features.sort(key=lambda x: x.index)
         inputs.append((tokens, tags, features))
     yield inputs
@@ -191,5 +192,4 @@ def test_unitize(unitizer_inputs, correct_units):
                 print(form, correct['form'])
             assert form == correct['form']
             assert len(lemmata) == len(correct['stem'])
-            print(token['display'], form, lemmata, correct['display'], correct['form'], correct['stem'])
             assert all(map(lambda x: x in correct['stem'], lemmata))
