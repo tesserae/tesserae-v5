@@ -1,9 +1,34 @@
 import collections
-import multiprocessing as mp
 import re
 import unicodedata
 
 from tesserae.db.entities import Entity, Feature, Token
+
+
+def _get_db_features_by_type(conn, language, feature_types):
+    """Get Feature entities from the database, sorted by their types
+
+    Parameters
+    ----------
+    conn : TessMongoConnection
+        The database to query for features
+    language : str
+        The language of the features to get from the database
+    feature_types : iterable of str
+        The feature types to sort by
+
+    Returns
+    -------
+    dict[str, list of Features]
+        Mapping between feature type and the Features of that type
+    """
+    all_features = conn.find(Feature.collection, language=language)
+    result = {ft: [] for ft in feature_types}
+    for f in all_features:
+        ft = f.feature
+        if ft in result:
+            result[ft].append(f)
+    return result
 
 
 class BaseTokenizer(object):
@@ -138,17 +163,10 @@ class BaseTokenizer(object):
         tokens = []
 
         # Convert all computed features into entities, discarding duplicates.
-        p = mp.Pool()
-        results = p.starmap(
-            create_features,
-            [(list(
-                self.connection.find(Feature.collection,
-                                     language=language,
-                                     feature=f)),
-                text_id, language, f, featurized[f])
-             for f in featurized.keys()])
-        p.close()
-        p.join()
+        db_features = _get_db_features_by_type(self.connection, language,
+                featurized.keys())
+        results = [create_features(db_features[ft], text_id, language, ft,
+            featurized[ft]) for ft in featurized.keys()]
 
         for feature_list, feature in results:
             featurized[feature] = feature_list
