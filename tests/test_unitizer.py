@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import os
 import re
@@ -31,7 +32,7 @@ def unit_connection(request):
 
 
 @pytest.fixture(scope='module')
-def unit_tessfiles(test_data):
+def unit_tessfiles(mini_greek_metadata, mini_latin_metadata):
     """Create text entities for the test texts.
 
     Fixtures
@@ -39,7 +40,11 @@ def unit_tessfiles(test_data):
     test_data
         A small set of sample texts and other entities.
     """
-    tessfiles = [Text(**text) for text in test_data['texts']]
+    tessfiles = []
+    for metadata in mini_greek_metadata:
+        tessfiles.append(Text.json_decode(metadata))
+    for metadata in mini_latin_metadata:
+        tessfiles.append(Text.json_decode(metadata))
     tessfiles.sort(key=lambda x: x.path)
     return tessfiles
 
@@ -59,78 +64,55 @@ def unitizer_inputs(unit_tessfiles, unit_connection):
     yield inputs
 
 
-
-@pytest.fixture(scope='module')
-def correct_lines(unit_tessfiles):
-    line_data = []
+def _get_correct_units(unit_tessfiles, unit_type):
+    unit_data = []
     for t in unit_tessfiles:
         base, _ = os.path.splitext(t.path)
-        with open(base + '.line.json', 'r') as f:
-            lines = json.load(f)
+        with open(base + '.' + unit_type + '.json', 'r') as f:
+            units = json.load(f)
         with open(base + '.token.json', 'r') as f:
             tokens = json.load(f)
         with open(base + '.index_word.json', 'r') as f:
             forms = json.load(f)
         with open(base + '.index_stem.json', 'r') as f:
             stems = json.load(f)
+        reverse_stems = defaultdict(list)
+        for stem, token_ids in stems.items():
+            for token_id in token_ids:
+                reverse_stems[int(token_id)].append(stem)
 
-        test_lines = []
-        feature_idx = 0
-        print(len(lines))
-        for line in lines:
-            test_line = {
-                'locus': line['LOCUS'],
+        test_units = []
+        for unit in units:
+            test_unit = {
+                'locus': unit['LOCUS'],
                 'tokens': []
             }
 
-            for t in line['TOKEN_ID']:
-                if tokens[t]['TYPE'] == 'WORD':
-                    test_line['tokens'].append({
-                        'display': tokens[t]['DISPLAY'].strip("'"),
-                        'form': forms[feature_idx][0],
-                        'stem': stems[feature_idx] if not re.search(r'^[\d]+$', tokens[t]['DISPLAY']) else ['']
+            for t in unit['TOKEN_ID']:
+                cur_token = tokens[t]
+                if cur_token['TYPE'] == 'WORD':
+                    cur_token_display = cur_token['DISPLAY']
+                    cur_token_form = cur_token['FORM']
+                    if re.search(r'[\d]', cur_token_display):
+                        print(tokens[t])
+                    test_unit['tokens'].append({
+                        'display': cur_token_display,
+                        'form': cur_token_form,
+                        'stem': reverse_stems[t]
                     })
-                    feature_idx += 1
-            test_lines.append(test_line)
-        line_data.append(test_lines)
-    return line_data
+            test_units.append(test_unit)
+        unit_data.append(test_units)
+    return unit_data
+
+
+@pytest.fixture(scope='module')
+def correct_lines(unit_tessfiles):
+    return _get_correct_units(unit_tessfiles, 'line')
 
 
 @pytest.fixture(scope='module')
 def correct_phrases(unit_tessfiles):
-        phrase_data = []
-        for t in unit_tessfiles:
-            base, _ = os.path.splitext(t.path)
-            with open(base + '.phrase.json', 'r') as f:
-                phrases = json.load(f)
-            with open(base + '.token.json', 'r') as f:
-                tokens = json.load(f)
-            with open(base + '.index_word.json', 'r') as f:
-                forms = json.load(f)
-            with open(base + '.index_stem.json', 'r') as f:
-                stems = json.load(f)
-
-            test_phrases = []
-            feature_idx = 0
-            for phrase in phrases:
-                test_phrase = {
-                    'locus': phrase['LOCUS'],
-                    'tokens': []
-                }
-
-                for t in phrase['TOKEN_ID']:
-                    if tokens[t]['TYPE'] == 'WORD':
-                        if re.search(r'[\d]', tokens[t]['DISPLAY']):
-                            print(tokens[t])
-                        test_phrase['tokens'].append({
-                            'display': tokens[t]['DISPLAY'].strip("'"),
-                            'form': forms[feature_idx][0],
-                            'stem': stems[feature_idx]
-                        })
-                        feature_idx += 1
-                test_phrases.append(test_phrase)
-            phrase_data.append(test_phrases)
-        return phrase_data
+    return _get_correct_units(unit_tessfiles, 'phrase')
 
 
 def test_unitize(unitizer_inputs, correct_lines, correct_phrases):
@@ -140,9 +122,9 @@ def test_unitize(unitizer_inputs, correct_lines, correct_phrases):
         feature_dict = {}
         for feature in features:
             if feature.feature in feature_dict:
-                feature_dict[feature.feature].append(feature)
+                feature_dict[feature.feature][feature.index] = feature
             else:
-                feature_dict[feature.feature] = [feature]
+                feature_dict[feature.feature] = {feature.index: feature}
 
         features = feature_dict
 
@@ -177,7 +159,6 @@ def test_unitize(unitizer_inputs, correct_lines, correct_phrases):
                     print(form, correct['form'])
                 assert form == correct['form']
                 assert len(lemmata) == len(correct['stem'])
-                print(token['display'], form, lemmata, correct['display'], correct['form'], correct['stem'])
                 assert all(map(lambda x: x in correct['stem'], lemmata))
 
     text_correct_phrases = correct_phrases[i]
