@@ -66,7 +66,9 @@ class Match(Entity):
                 highlight
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.source_unit, self.target_unit]
+        self._ignore = [self.search_id, self.source_unit, self.target_unit]
+        if isinstance(self.search_id, Entity):
+            self.search_id = self.search_id.id
         if isinstance(self.source_unit, Entity):
             self.source_unit = self.source_unit.id
         if isinstance(self.target_unit, Entity):
@@ -74,14 +76,14 @@ class Match(Entity):
 
         obj = super(Match, self).json_encode(exclude=exclude)
 
-        self.source_unit, self.target_unit = self._ignore
+        self.search_id, self.source_unit, self.target_unit = self._ignore
         del self._ignore
 
         return obj
 
     def unique_values(self):
         uniques = {
-            'search_id': self.search_id,
+            'search_id': self.search_id if not isinstance(self.search_id, Entity) else self.search_id.id,
             'source_unit': self.source_unit,
             'target_unit': self.target_unit
         }
