@@ -7,8 +7,10 @@ import queue
 import time
 import traceback
 
+from bson.objectid import ObjectId
+
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import ResultsStatus
+from tesserae.db.entities import Search
 import tesserae.matchers
 
 
@@ -97,32 +99,88 @@ class SearchProcess(multiprocessing.Process):
             mechanism for receiving search requests
 
         """
-        super().__init__(target=self.await_job)
-        self.connection = TessMongoConnection(**db_cred)
-        self.queue = queue
+        super().__init__(target=self.await_job, args=(db_cred, queue))
 
-    def await_job(self):
+    def await_job(self, db_cred, queue):
         """Waits for search job"""
+        connection = TessMongoConnection(**db_cred)
         while True:
-            results_id, search_type, search_params = self.queue.get(block=True)
+            results_id, search_type, search_params = queue.get(block=True)
             if results_id is None:
                 break
-            self.run_search(results_id, search_type, search_params)
+            self.run_search(connection, results_id, search_type, search_params)
 
-    def run_search(self, results_id, search_type, search_params):
+    def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
+        results_status = Search(results_id=results_id,
+                status=Search.INIT, msg='')
+        connection.insert(results_status)
         try:
-            matcher = tesserae.matchers.search_types[search_type](self.connection)
-            matches, match_set = matcher.match(**search_params)
-            self.connection.insert(matches)
-            self.connection.insert(match_set)
-            results_status = ResultsStatus(results_id=results_id,
-                    status=ResultsStatus.DONE,
-                    match_set_id=match_set.id,
-                    msg='Done in {} seconds'.format(time.time()-start_time))
-            self.connection.insert(results_status)
+            search_id = results_status.id
+            matcher = tesserae.matchers.matcher_map[search_type](connection)
+            results_status.status = Search.RUN
+            connection.update(results_status)
+            text_ids, params, matches = matcher.match(search_id, **search_params)
+            connection.insert_nocheck(matches)
+
+            results_status.texts = text_ids
+            results_status.parameters = params
+            results_status.matches = matches
+            results_status.status = Search.DONE
+            results_status.msg='Done in {} seconds'.format(time.time()-start_time)
+            connection.update(results_status)
         except:
-            results_status = ResultsStatus(results_id=results_id,
-                    status=ResultsStatus.FAILED, msg=traceback.format_exc())
-            self.connection.insert(results_status)
+            results_status.status = Search.FAILED
+            results_status.msg=traceback.format_exc()
+            connection.update(results_status)
+
+
+def check_cache(connection, source, target, method):
+    """Check whether search results are already in the database
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    source
+        See API documentation for form
+    target
+        See API documnetation for form
+    method
+        See API documentation for form
+
+    Returns
+    -------
+    UUID or None
+        If the search results are already in the database, return the
+        results_id associated with them; otherwise return None
+
+    Notes
+    -----
+    Helpful links
+        https://docs.mongodb.com/manual/tutorial/query-embedded-documents/
+        https://docs.mongodb.com/manual/tutorial/query-arrays/
+        https://docs.mongodb.com/manual/reference/operator/query/and/
+    """
+    found = [Search.json_decode(f)
+        for f in connection.connection[Search.collection].find({
+            'texts': [ObjectId(source['object_id']),
+                ObjectId(target['object_id'])],
+            'parameters.unit_types': [source['units'], target['units']],
+            'parameters.method.name': method['name'],
+            'parameters.method.feature': method['feature'],
+            '$and': [
+                {'parameters.method.stopwords': {'$all': method['stopwords']}},
+                {'parameters.method.stopwords': {'$size': len(method['stopwords'])}}
+            ],
+            'parameters.method.freq_basis': method['freq_basis'],
+            'parameters.method.max_distance': method['max_distance'],
+            'parameters.method.distance_basis': method['distance_basis']
+        })
+    ]
+    if found:
+        status_found = connection.find(Search.collection,
+                _id=found[0].id)
+        if status_found and status_found[0].status != Search.FAILED:
+            return status_found[0].results_id
+    return None

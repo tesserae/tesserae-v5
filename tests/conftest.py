@@ -1,5 +1,6 @@
 """Utility operations for unit tests across multiple modules.
 """
+from pathlib import Path
 import pytest
 
 import datetime
@@ -29,6 +30,65 @@ def pytest_configure(config):
     if config.option.db_pwd:
         password = getpass.getpass(prompt='Test Database Password: ')
         setattr(config.option, 'db_passwd', password)
+
+
+@pytest.fixture(scope='session')
+def mini_latin_metadata(tessfiles_latin_path):
+    return [
+        {
+            'title': 'miniaeneid',
+            'author': 'minivergil',
+            'language': 'latin',
+            'year': -19,
+            'unit_types': ['line', 'phrase'],
+            'path': str(tessfiles_latin_path.joinpath('mini.aen.tess'))
+        },
+        {
+            'title': 'miniphar',
+            'author': 'minilucan',
+            'language': 'latin',
+            'year': 65,
+            'unit_types': ['line', 'phrase'],
+            'path': str(tessfiles_latin_path.joinpath('mini.phar.tess'))
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
+def mini_greek_metadata(tessfiles_greek_path):
+    return [
+        {
+            'title': 'miniiliad',
+            'author': 'minihomer',
+            'language': 'greek',
+            'year': -1260,
+            'unit_types': ['line', 'phrase'],
+            'path': str(tessfiles_greek_path.joinpath('mini.il.tess'))
+        },
+        {
+            'title': 'minigorgis',
+            'author': 'miniplato',
+            'language': 'greek',
+            'year': -283,
+            'unit_types': ['line', 'phrase'],
+            'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess'))
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
+def tessfiles_path():
+    return Path(__file__).resolve().parent.joinpath('tessfiles')
+
+
+@pytest.fixture(scope='session')
+def tessfiles_greek_path(tessfiles_path):
+    return tessfiles_path.joinpath('grc')
+
+
+@pytest.fixture(scope='session')
+def tessfiles_latin_path(tessfiles_path):
+    return tessfiles_path.joinpath('la')
 
 
 @pytest.fixture(scope='session')

@@ -1,9 +1,34 @@
 import collections
-import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db.entities import Entity, Feature, Frequency, Token
+from tesserae.db.entities import Entity, Feature, Token
+
+
+def _get_db_features_by_type(conn, language, feature_types):
+    """Get Feature entities from the database, sorted by their types
+
+    Parameters
+    ----------
+    conn : TessMongoConnection
+        The database to query for features
+    language : str
+        The language of the features to get from the database
+    feature_types : iterable of str
+        The feature types to sort by
+
+    Returns
+    -------
+    dict[str, list of Features]
+        Mapping between feature type and the Features of that type
+    """
+    all_features = conn.find(Feature.collection, language=language)
+    result = {ft: [] for ft in feature_types}
+    for f in all_features:
+        ft = f.feature
+        if ft in result:
+            result[ft].append(f)
+    return result
 
 
 class BaseTokenizer(object):
@@ -64,7 +89,7 @@ class BaseTokenizer(object):
 
         # Extract .tess file markup and remove from the normalized string
         tags = re.findall(r'([<][^>]+[>])', raw, flags=re.UNICODE)
-        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
 
         # Apply lowercase and NKFD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
@@ -110,7 +135,7 @@ class BaseTokenizer(object):
 
         # Compute the display version of each token by stripping the metadata
         # tags and converting newlines to their symbolic form.
-        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,
@@ -138,17 +163,10 @@ class BaseTokenizer(object):
         tokens = []
 
         # Convert all computed features into entities, discarding duplicates.
-        p = mp.Pool()
-        results = p.starmap(
-            create_features,
-            [(list(
-                self.connection.find(Feature.collection,
-                                     language=language,
-                                     feature=f)),
-                text_id, language, f, featurized[f])
-             for f in featurized.keys()])
-        p.close()
-        p.join()
+        db_features = _get_db_features_by_type(self.connection, language,
+                featurized.keys())
+        results = [create_features(db_features[ft], text_id, language, ft,
+            featurized[ft]) for ft in featurized.keys()]
 
         for feature_list, feature in results:
             featurized[feature] = feature_list
@@ -179,9 +197,9 @@ class BaseTokenizer(object):
         for val in featurized.values():
             if isinstance(val[0], list):
                 for v in val:
-                    features = features.union(set(v))
+                    features.update(v)
             else:
-                features = features.union(set(val))
+                features.update(val)
 
         return tokens, tags, list(features)
 
