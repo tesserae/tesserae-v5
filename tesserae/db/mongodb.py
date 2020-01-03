@@ -173,6 +173,37 @@ class TessMongoConnection():
             raise ValueError("No entities provided.")
         return result
 
+    def insert_nocheck(self, entity):
+        """Insert one or more entities into the database without checking
+        whether similar entities already exist in the database.  You have been
+        warned.
+
+        Parameters
+        ----------
+        entity : tesserae.db.entities.Entity or list of Entity
+            The entities to insert into the database.
+
+        Raises
+        ------
+        ValueError
+            Raised when provided entity could not be inserted
+
+        """
+        if not isinstance(entity, list):
+            entity = [entity]
+
+        try:
+            collection = self.connection[entity[0].__class__.collection]
+            result = collection.insert_many(
+                [e.json_encode(exclude=['_id']) for e in entity])
+            assert len(entity) == len(result.inserted_ids)
+            for e, e_id in zip(entity, result.inserted_ids):
+                e.id = e_id
+        except IndexError:
+            result = []
+
+        return result
+
     def insert(self, entity):
         """Insert one or more entities into the database.
 
