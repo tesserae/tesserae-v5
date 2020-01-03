@@ -8,8 +8,10 @@ computed components are inserted into the database.
 import argparse
 import getpass
 import time
+import uuid
 
 from tesserae.db import TessMongoConnection
+from tesserae.db.entities import Search
 from tesserae.matchers.sparse_encoding import SparseMatrixSearch
 from tesserae.utils.ingest import ingest_text
 
@@ -100,7 +102,10 @@ def main():
 
     engine = SparseMatrixSearch(connection)
     start = time.time()
-    matches, match_set = engine.match([source, target], args.unit, args.feature,
+    search = Search(results_id=uuid.uuid4().hex)
+    connection.insert(search)
+    texts, params, matches = engine.match(search,
+                  [source, target], args.unit, args.feature,
                   stopwords=args.n_stopwords,
                   stopword_basis=args.stopword_basis,
                   score_basis=args.score_basis,
@@ -110,18 +115,21 @@ def main():
                   min_score=args.min_score,
                   parallel=args.parallel)
     end = time.time() - start
+    search.texts = texts
+    search.parameters = params
+    search.matches = matches
     print(f'Search found {len(matches)} matches in {end}s.')
-    connection.insert(match_set)
     connection.insert(matches)
+    connection.update(search)
     matches.sort(key=lambda x: x.score, reverse=True)
     print('The Top 10 Matches')
     print('------------------')
     print()
     print("Result\tScore\tSource Locus\tTarget Locus\tShared")
     for i, m in enumerate(matches[:10]):
-        units = connection.find('units', _id=m.units)
-        shared = m.tokens
-        print(f'{i}.\t{m.score}\t{units[0].tags[0]}\t{units[1].tags[0]}\t{[t.token for t in shared]}')
+        units = connection.find('units', _id=[m.source_unit, m.target_unit])
+        shared = m.matched_features
+        print(f'{i}.\t{m.score}\t{units[0].tags[0]}\t{units[1].tags[0]}\t{[t for t in shared]}')
 
 
 if __name__ == '__main__':
