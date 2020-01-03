@@ -234,7 +234,6 @@ class TessMongoConnection():
         except IndexError:
             exists = []
 
-
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
             new_ents = []
