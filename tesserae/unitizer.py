@@ -112,7 +112,7 @@ class Unitizer(object):
         line_stash = []
         # Add the token to the current line and phrase and determine if it is
         # a unit delimiter.
-        for i, t in enumerate(tokens):
+        for t in tokens:
             # Ensure that the token is valid
             if not isinstance(t, Token):
                 raise InvalidTokenError(t)
@@ -125,20 +125,14 @@ class Unitizer(object):
             word = re.search(r'[\w]', t.display, flags=re.UNICODE)
 
             line = self.lines[-1]
+            # Handle seeing multiple phrase delimiters in a row
             if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
                 phrase = self.phrases[-2]
             else:
                 phrase = self.phrases[-1]
 
-            # Get the current line and phrase
-            # if '<' not in t.display:
-            # line.tokens.append(t)
-            # t.line = line
-            # phrase.tokens.append(t)
-            # t.phrase = phrase
-
             if isinstance(t.features, dict) and len(t.features) > 0:
-                tok =  {'_id': t.id, 'index': t.index, 'display': t.display, 'features': {}}
+                tok =  {'index': t.index, 'display': t.display, 'features': {}}
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
@@ -149,14 +143,6 @@ class Unitizer(object):
                 line.tokens.append(tok)
                 phrase.tokens.append(tok)
 
-
-            # Handle seeing multiple phrase delimiters in a row
-            # if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
-            #     self.phrases[-2].tokens.append(t)
-            #     t.phrase = self.phrases[-2]
-            # else:
-            #     self.phrases[-1].tokens.append(t)
-            #     t.phrase = self.phrases[-1]
 
             # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
