@@ -200,3 +200,18 @@ def test_unitize(unitizer_inputs, correct_units):
                 assert form == correct['form']
                 assert len(lemmata) == len(correct['stem'])
                 assert all(map(lambda x: x in correct['stem'], lemmata))
+
+
+def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('linebreak.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+    first_tag = phrases[0].tags[0]
+    for phrase in phrases[1:]:
+        assert phrase.tags[0] == first_tag
