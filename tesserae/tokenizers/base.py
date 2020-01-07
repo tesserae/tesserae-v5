@@ -134,7 +134,7 @@ class BaseTokenizer(object):
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
-        tags = [re.search(r'([\d]+[.a-z\d]*)', t).groups()[0] for t in tags]
+        tags = [t[:-1].split()[-1] for t in tags]
 
         # Compute the display version of each token by stripping the metadata
         # tags and converting newlines to their symbolic form.

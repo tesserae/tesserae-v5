@@ -215,3 +215,15 @@ def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
     first_tag = phrases[0].tags[0]
     for phrase in phrases[1:]:
         assert phrase.tags[0] == first_tag
+
+
+def test_unitize_nonumber_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('nonumber.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
