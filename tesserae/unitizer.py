@@ -152,7 +152,7 @@ class Unitizer(object):
                         flags=re.UNICODE) is None:
                     first_pos += 1
                 if first_pos < len(phrase_stash):
-                    self.phrases[-1].snippet = ''.join(phrase_stash[first_pos])
+                    self.phrases[-1].snippet = ''.join(phrase_stash[first_pos:])
                     self.phrases.append(
                         Unit(text=metadata,
                              index=len(self.phrases),
@@ -167,17 +167,39 @@ class Unitizer(object):
 
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
-            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE): # and len(self.lines[-1].tokens) > 1:
+            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE):
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
+                elif len(phrase_stash) >= 2 and \
+                        re.search(r'([\n])|( / )',
+                                phrase_stash[-2], flags=re.UNICODE):
+                    # This happens when there was a blank line in the file;
+                    # count as the end of a phrase
+                    first_pos = 0
+                    while re.search(r'[\w]', phrase_stash[first_pos],
+                            flags=re.UNICODE) is None:
+                        first_pos += 1
+                    # keep one line delimiter to indicate that this phrase was
+                    # broken by a blank line
+                    if first_pos < len(phrase_stash) - 1:
+                        self.phrases[-1].snippet = ''.join(
+                                phrase_stash[first_pos:-1])
+                        self.phrases.append(
+                            Unit(text=metadata,
+                                 index=len(self.phrases),
+                                 unit_type='phrase'))
+                    phrase_stash = []
 
-                self.lines[-1].snippet = ''.join(line_stash[:-1])
+                if len(self.lines[-1].tokens) > 0:
+                    self.lines[-1].snippet = ''.join(line_stash[:-1])
+                    self.lines.append(
+                        Unit(text=metadata,
+                             index=len(self.lines),
+                             unit_type='line'))
+                    tag_idx += 1
+                # the line stash always gets reset when encountering a line
+                # delimiter, whether the line is non-blank or not
                 line_stash = []
-                self.lines.append(
-                    Unit(text=metadata,
-                         index=len(self.lines),
-                         unit_type='line'))
-                tag_idx += 1
 
                 try:
                     if tags[tag_idx] not in self.lines[-1].tags:

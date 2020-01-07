@@ -242,3 +242,35 @@ def test_unitize_nonumber_file(unit_connection, tessfiles_latin_path):
             tessfile.read(), text=t)
     lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
+
+
+def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
+    # when there is no ending punctuation despite coming to the end of a poem
+    # and another poem starts after a blank line
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('nopunctuation.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 68
+    for prev_phrase, cur_phrase in zip(phrases[:-1], phrases[1:]):
+        if '2.13' in prev_phrase.tags[0] and '2.14' in cur_phrase.tags[0]:
+            prev_phrase.snippet == 'quin et Prometheus et Pelopis parens / dulci laborem decipitur sono / nec curat Orion leones / aut timidos agitare lyncas / '
+            assert cur_phrase.snippet == 'Eheu fugaces, Postume, Postume, / labuntur anni nec pietas moram / rugis et instanti senectae / adferet indomitaeque morti, / non, si trecenis quotquot eunt dies, / amice, places inlacrimabilem / Plutona tauris, qui ter amplum / Geryonen Tityonque tristi / conpescit unda, scilicet omnibus / quicumque terrae munere vescimur / enaviganda, sive reges / sive inopes erimus coloni. / '
+            assert prev_phrase.tokens[-1]['display'] == 'lyncas'
+            break
+
+
+def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('notag.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
