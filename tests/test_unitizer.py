@@ -258,9 +258,8 @@ def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
     assert len(lines) == 68
     for prev_phrase, cur_phrase in zip(phrases[:-1], phrases[1:]):
         if '2.13' in prev_phrase.tags[0] and '2.14' in cur_phrase.tags[0]:
-            prev_phrase.snippet == 'quin et Prometheus et Pelopis parens / dulci laborem decipitur sono / nec curat Orion leones / aut timidos agitare lyncas / '
-            assert cur_phrase.snippet == 'Eheu fugaces, Postume, Postume, / labuntur anni nec pietas moram / rugis et instanti senectae / adferet indomitaeque morti, / non, si trecenis quotquot eunt dies, / amice, places inlacrimabilem / Plutona tauris, qui ter amplum / Geryonen Tityonque tristi / conpescit unda, scilicet omnibus / quicumque terrae munere vescimur / enaviganda, sive reges / sive inopes erimus coloni. / '
-            assert prev_phrase.tokens[-1]['display'] == 'lyncas'
+            assert prev_phrase.snippet == 'quin et Prometheus et Pelopis parens / dulci laborem decipitur sono / nec curat Orion leones / aut timidos agitare lyncas / Eheu fugaces, Postume, Postume, / labuntur anni nec pietas moram / rugis et instanti senectae / adferet indomitaeque morti, / non, si trecenis quotquot eunt dies, / amice, places inlacrimabilem / Plutona tauris, qui ter amplum / Geryonen Tityonque tristi / conpescit unda, scilicet omnibus / quicumque terrae munere vescimur / enaviganda, sive reges / sive inopes erimus coloni. / '
+            assert cur_phrase.snippet == 'frustra cruento Marte carebimus / fractisque rauci fluctibus Hadriae, / frustra per autumnos nocentem / corporibus metuemus Austrum: / '
             break
 
 

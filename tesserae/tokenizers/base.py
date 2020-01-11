@@ -94,7 +94,7 @@ class BaseTokenizer(object):
         # Remove what appear to be Tesserae line delimiters
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
 
-        # Apply lowercase and NKFD normalization to the token string
+        # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
         # If requested, split based on the language's split pattern.
@@ -131,6 +131,9 @@ class BaseTokenizer(object):
             Features associated with the tokens to be inserted into the
             database.
         """
+        # eliminate any lines that don't begin with a tag
+        raw = '\n'.join([line for line in raw.split('\n')
+            if line.strip().startswith('<') and '>' in line]) + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
