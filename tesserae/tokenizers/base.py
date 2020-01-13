@@ -55,7 +55,7 @@ class BaseTokenizer(object):
         self.connection = connection
 
         # This pattern is used over and over again
-        self.word_characters = 'a-zA-Z'
+        self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
         self.diacriticals = \
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
@@ -187,7 +187,7 @@ class BaseTokenizer(object):
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if re.search('[' + self.word_characters + ']+', d, flags=re.UNICODE):
+            if self.word_regex.search(d):
                 features = {key: val[norm_i]
                             for key, val in featurized.items()}
                 norm_i += 1

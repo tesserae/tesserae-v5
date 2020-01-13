@@ -19,8 +19,10 @@ class GreekTokenizer(BaseTokenizer):
         # diacriticals should not be considered part of ``word_characters`` so
         # that extraneous diacritical marks unattended by a proper word
         # character to bind to do not appear as proper words during
-        # tokenization of display tokens (see BaseTokenizer.tokenize)
-        self.word_characters = 'Ά-ώ' + self.sigma_alt
+        # tokenization of display tokens (see BaseTokenizer.tokenize);
+        # also ignore the middle dot character, which is a punctuation mark
+        self.word_regex = re.compile('[ΆΈ-ώ' + self.sigma_alt + ']+',
+                flags=re.UNICODE)
 
         self.diacrit_sub1 = \
             r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'

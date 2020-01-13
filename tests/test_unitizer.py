@@ -297,3 +297,16 @@ def test_unitize_feature_miscount2_file(unit_connection, tessfiles_greek_path):
             tessfile.read(), text=t)
     lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
+
+
+def test_unitize_feature_miscount3_file(unit_connection, tessfiles_greek_path):
+    tokenizer = GreekTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_greek_path.joinpath('feature_miscount3.tess')),
+            language='greek')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+    assert len(lines[0].tokens) == 7
