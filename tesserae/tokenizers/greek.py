@@ -66,7 +66,7 @@ class GreekTokenizer(BaseTokenizer):
                             flags=re.UNICODE)
 
         # Remove digits and single-quotes from the normalized output
-        normalized = re.sub(r"['\d]+", r'', normalized, flags=re.UNICODE)
+        normalized = re.sub(r"['\d]+", r' ', normalized, flags=re.UNICODE)
 
         # Split the output into a list of normalized tokens if requested
         if split:
