@@ -16,7 +16,11 @@ class GreekTokenizer(BaseTokenizer):
         self.acute = '\u0301'
         self.sigma = 'σ\b'
         self.sigma_alt = 'ς'
-        self.word_characters = 'Ά-ώ' + self.sigma_alt + self.diacriticals
+        # diacriticals should not be considered part of ``word_characters`` so
+        # that extraneous diacritical marks unattended by a proper word
+        # character to bind to do not appear as proper words during
+        # tokenization of display tokens (see BaseTokenizer.tokenize)
+        self.word_characters = 'Ά-ώ' + self.sigma_alt
 
         self.diacrit_sub1 = \
             r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
