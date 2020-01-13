@@ -204,7 +204,7 @@ def test_unitize(unitizer_inputs, correct_units):
 
 def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
     tokenizer = LatinTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_latin_path.joinpath('linebreak.tess')),
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.linebreak.tess')),
             language='latin')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -219,7 +219,7 @@ def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
 
 def test_unitize_doublelinebreak_file(unit_connection, tessfiles_latin_path):
     tokenizer = LatinTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_latin_path.joinpath('doublelinebreak.tess')),
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.doublelinebreak.tess')),
             language='latin')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -234,7 +234,7 @@ def test_unitize_doublelinebreak_file(unit_connection, tessfiles_latin_path):
 
 def test_unitize_nonumber_file(unit_connection, tessfiles_latin_path):
     tokenizer = LatinTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_latin_path.joinpath('nonumber.tess')),
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.nonumber.tess')),
             language='latin')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -248,7 +248,7 @@ def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
     # when there is no ending punctuation despite coming to the end of a poem
     # and another poem starts after a blank line
     tokenizer = LatinTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_latin_path.joinpath('nopunctuation.tess')),
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.nopunctuation.tess')),
             language='latin')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -265,7 +265,7 @@ def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
 
 def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
     tokenizer = LatinTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_latin_path.joinpath('notag.tess')),
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.notag.tess')),
             language='latin')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -275,9 +275,9 @@ def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
     assert len(lines) == 1
 
 
-def test_unitize_feature_miscount_file(unit_connection, tessfiles_greek_path):
+def test_unitize_lone_diacrit_file(unit_connection, tessfiles_greek_path):
     tokenizer = GreekTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_greek_path.joinpath('feature_miscount.tess')),
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.lone_diacrit.tess')),
             language='greek')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -287,9 +287,9 @@ def test_unitize_feature_miscount_file(unit_connection, tessfiles_greek_path):
     assert len(lines) == 1
 
 
-def test_unitize_feature_miscount2_file(unit_connection, tessfiles_greek_path):
+def test_unitize_elision_file(unit_connection, tessfiles_greek_path):
     tokenizer = GreekTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_greek_path.joinpath('feature_miscount2.tess')),
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.elision.tess')),
             language='greek')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
@@ -299,9 +299,9 @@ def test_unitize_feature_miscount2_file(unit_connection, tessfiles_greek_path):
     assert len(lines) == 1
 
 
-def test_unitize_feature_miscount3_file(unit_connection, tessfiles_greek_path):
+def test_unitize_middot_file(unit_connection, tessfiles_greek_path):
     tokenizer = GreekTokenizer(unit_connection)
-    t = Text(path=str(tessfiles_greek_path.joinpath('feature_miscount3.tess')),
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.middot.tess')),
             language='greek')
     tessfile = TessFile(t.path, metadata=t)
     unitizer = Unitizer()
