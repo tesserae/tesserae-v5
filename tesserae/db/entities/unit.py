@@ -90,5 +90,5 @@ class Unit(Entity):
         return (
             f'Unit(text={self.text}, index={self.index}, tags={self.tags}, '
             f'unit_type={self.unit_type}, tokens={self.tokens}, '
-            f'features={self.features})'
+            f'snippet={self.snippet})'
         )

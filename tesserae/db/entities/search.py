@@ -75,3 +75,11 @@ class Search(Entity):
             'results_id': self.results_id
         }
         return uniques
+
+    def __repr__(self):
+        return (
+            f'Search(results_id={self.results_id}, texts={self.texts}, '
+            f'parameters={self.parameters}, '
+            f'status={self.status}, msg={self.msg}, '
+            f'matches={self.matches})'
+        )

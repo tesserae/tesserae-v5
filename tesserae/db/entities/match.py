@@ -89,6 +89,12 @@ class Match(Entity):
 
     def __repr__(self):
         return (
-            f'Match(units={self.units}, tokens={self.tokens}, '
-            f'score={self.score}, match_set={self.match_set})'
+            f'Match(search_id={self.search_id}, '
+            f'source_unit={self.source_unit}, target_unit={self.target_unit}, '
+            f'source_tag={self.source_tag}, target_tag={self.target_tag}, '
+            f'matched_features={self.matched_features}, '
+            f'score={self.score}, '
+            f'source_snippet={self.source_snippet}, '
+            f'target_snippet={self.target_snippet}, '
+            f'highlight={self.highlight})'
         )

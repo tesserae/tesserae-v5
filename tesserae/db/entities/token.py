@@ -70,12 +70,14 @@ class Token(Entity):
     def json_encode(self, exclude=None):
         self._ignore = [self.text, self.features]
 
-        self.text = self.text.id if self.text is not None else None
+        if isinstance(self.text, Entity):
+            self.text = self.text.id
         for key, val in self.features.items():
             if isinstance(val, Entity):
                 self.features[key] = val.id
             elif isinstance(val, collections.Sequence):
-                self.features[key] = [v.id for v in val]
+                self.features[key] = [v.id if isinstance(v, Entity) else v
+                        for v in val]
 
         obj = super(Token, self).json_encode(exclude=exclude)
 
@@ -86,7 +88,8 @@ class Token(Entity):
 
     def unique_values(self):
         uniques = {
-            'text': self.text.id if isinstance(self.text, Entity) else self.text,
+            'text': self.text.id if isinstance(self.text, Entity) else \
+                    self.text,
             'index': self.index
         }
         return uniques

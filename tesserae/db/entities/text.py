@@ -15,8 +15,8 @@ class Text(Entity):
 
     Text entries in the Tesserae database contain metadata about text files
     available to Tesserae. The language, title, author, and year are attributes
-    of the text's creation. The id, hash, path, and unit types are all
-    for internal bookeeping purposes.
+    of the text's creation. The id and path are for internal bookeeping
+    purposes.
 
     Parameters
     ----------
@@ -30,12 +30,8 @@ class Text(Entity):
         Full name of the text's author.
     year : int, optional
         Year that the text was written/published.
-    unit_types : str or list of str, optional
-        Available methods for splitting a text into units.
-    is_prose : bool
-        Is this text prose?  Default is True.
-    extras : dict, optional
-        User-specified attributes
+    path : str
+        Path to .tess file
 
     Attributes
     ----------
@@ -49,12 +45,8 @@ class Text(Entity):
         Full name of the text's author.
     year : int
         Year that the text was written/published.
-    unit_types : list of str
-        Available methods for splitting a text into units.
-    is_prose : bool
-        Is this text prose?
-    extras : dict
-        User-specified attributes
+    path : str
+        Path to .tess file
 
     """
 
@@ -68,13 +60,7 @@ class Text(Entity):
         self.title: typing.Optional[str] = title
         self.author: typing.Optional[str] = author
         self.year: typing.Optional[int] = year
-        self.unit_types: typing.List[str] = \
-            unit_types if unit_types is not None else []
         self.path: typing.Optional[str] = path
-        self.is_prose: bool = is_prose
-        self.hash: typing.Optional[str] = hash
-        self.extras: typing.Dict[typing.Any, typing.Any] = \
-            extras if extras is not None else {}
 
     def unique_values(self):
         return {
@@ -87,7 +73,5 @@ class Text(Entity):
         return (
             f'Text(language={self.language}, title={self.title}, '
             f'author={self.author}, year={self.year}, '
-            f'unit_types={self.unit_types}, path={self.path}, '
-            f'is_prose={self.is_prose}, hash={self.hash}, '
-            f'extras={self.extras})'
+            f'path={self.path})'
         )
