@@ -1,7 +1,5 @@
 import pytest
 
-from test_base_tokenizer import TestBaseTokenizer
-
 import json
 import os
 import re
@@ -11,19 +9,63 @@ import sys
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
+from tesserae.db.entities.text import Text
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.utils import TessFile
 
 
 @pytest.fixture(scope='module')
+def latin_tessfiles(test_data, token_connection):
+    # Get the test data and filter for Latin texts only.
+    tessfiles = [t for t in test_data['texts'] if t['language'] == 'latin']
+    tessfiles = [Text(**text) for text in tessfiles]
+
+    # Prep the database with the text metadata
+    token_connection.insert(tessfiles)
+
+    # Create file readers for each text
+    tessfiles = [TessFile(text.path, metadata=text) for text in tessfiles]
+
+    yield sorted(tessfiles, key=lambda x: x.metadata.path)
+
+    token_connection.delete([t.metadata for t in tessfiles])
+
+
+@pytest.fixture(scope='module')
 def latin_tokens(latin_files):
-    tokens = []
-    for fname in latin_files:
-        fname = os.path.splitext(fname)[0] + '.tokens.json'
-        with open(fname, 'r') as f:
-            ts = [t for t in json.load(f)]
-            tokens.append(ts)
-    return tokens
+    latin_tokens = []
+
+    tessfiles = sorted(
+                    filter(lambda x: os.path.splitext(x)[1] == '.tess',
+                           latin_files))
+
+    for fname in tessfiles:
+        text = os.path.splitext(fname)[0]
+
+        with open(text + '.token.json', 'r') as f:
+            tokens = json.load(f)
+
+        with open(text + '.index_word.json', 'r') as f:
+            forms = json.load(f)
+
+        with open(text + '.index_stem.json', 'r') as f:
+            stems = json.load(f)
+
+        with open(text + '.index_3gr.json', 'r') as f:
+            trigrams = json.load(f)
+
+        idx = 0
+        text_tokens = []
+        for i in range(len(tokens)):
+            if tokens[i]['TYPE'] == 'WORD' and not re.search(r'[\d]', tokens[i]['DISPLAY']):
+                text_tokens.append({
+                    'display': tokens[i]['DISPLAY'],
+                    'form': forms[idx][0],
+                    'lemmata': stems[idx]
+                    })
+                idx += 1
+        latin_tokens.append(text_tokens)
+    return latin_tokens
 
 
 @pytest.fixture(scope='module')
@@ -41,191 +83,56 @@ def latin_word_frequencies(latin_files):
     return freqs
 
 
-class TestLatinTokenizer(TestBaseTokenizer):
-    __test_class__ = LatinTokenizer
+def test_init(token_connection):
+    t = LatinTokenizer(token_connection)
+    assert t.connection is token_connection
+    assert hasattr(t, 'jv_replacer')
+    assert isinstance(t.jv_replacer, JVReplacer)
+    assert hasattr(t, 'lemmatizer')
+    assert isinstance(t.lemmatizer, Lemmata)
 
-    def test_init(self):
-        t = self.__test_class__()
-        assert hasattr(t, 'jv_replacer')
-        assert isinstance(t.jv_replacer, JVReplacer)
-        assert hasattr(t, 'lemmatizer')
-        assert isinstance(t.lemmatizer, Lemmata)
 
-    def test_normalize(self, latin_files, latin_tokens):
-        la = self.__test_class__()
+def test_normalize(token_connection, latin_tessfiles, latin_tokens):
+    la = LatinTokenizer(token_connection)
 
-        for i in range(len(latin_files)):
-            fname = latin_files[i]
-            ref_tokens = [t for t in latin_tokens[i] if 'FORM' in t]
+    for i, tessfile in enumerate(latin_tessfiles):
+        tokens, tags = la.normalize(tessfile.read())
+        correct = map(lambda x: x[0] == x[1]['form'],
+                      zip(tokens, latin_tokens[i]))
+        for j, c in enumerate(correct):
+            if not c:
+                print(latin_tokens[i][j])
+                break
+        assert all(correct)
 
-            t = TessFile(fname)
+        for i, line in enumerate(tessfile.readlines()):
+            correct_tag = line[:line.find('>') + 1]
+            assert tags[i] == correct_tag
 
-            tokens = la.normalize(t.read())
 
-            correct = map(lambda x: ('FORM' in x[1] and x[0] == x[1]['FORM']) or x[0] == '',
-                          zip(tokens, ref_tokens))
+def test_tokenize(token_connection, latin_tessfiles, latin_tokens):
+    la = LatinTokenizer(token_connection)
 
-            # token_idx = 0
-            #
-            # for i, line in enumerate(t.readlines(include_tag=False)):
-            #     tokens = [t for t in la.normalize(line)
-            #         if re.search(r'[a-zA-Z]+', t, flags=re.UNICODE) is not None]
-            #
-            #     # print(tokens)
-            #
-            #     offset = token_idx + len(tokens)
-            #
-            #     correct = map(lambda x: ('FORM' in x[1] and x[0] == x[1]['FORM']) or x[0] == '',
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #
-            #     if not all(correct):
-            #         print(fname, i, line)
-            #         print(ref_tokens[token_idx:offset])
-            #         for j in range(len(tokens)):
-            #             if tokens[j] != ref_tokens[token_idx + j]['FORM']:
-            #                 print('{}->{}'.format(tokens[j], ref_tokens[token_idx + j]['FORM']))
-            #
-            #     assert all(correct)
-            #
-            #     token_idx = offset
+    for i, tessfile in enumerate(latin_tessfiles):
+        tokens, tags, features = la.tokenize(
+            tessfile.read(), text=tessfile.metadata)
 
-    def test_tokenize(self, latin_files, latin_tokens, latin_word_frequencies):
-        la = self.__test_class__()
+        tokens = filter(lambda x: re.search(r'[\w]', x.display), tokens)
 
-        for k in range(len(latin_files)):
-            fname = latin_files[k]
-            ref_tokens = [t for t in latin_tokens[k] if 'FORM' in t]
-            ref_freqs = latin_word_frequencies[k]
+        for j, token in enumerate(tokens):
+            # Detect all connected
+            assert token.display == latin_tokens[i][j]['display']
+            assert token.features['form'].token == latin_tokens[i][j]['form']
+            assert all([
+                any(
+                    map(lambda x: lemma.token == x,
+                        latin_tokens[i][j]['lemmata']))
+                for lemma in token.features['lemmata']])
 
-            t = TessFile(fname)
+        for i, line in enumerate(tessfile.readlines()):
+            correct_tag = line[:line.find('>') + 1].split()[-1].strip('>')
+            assert tags[i] == correct_tag
 
-            tokens, frequencies = la.tokenize(t.read(), text=t.metadata)
-            tokens = [t for t in tokens
-                      if re.search(r'^[a-zA-Z]+$', t.display,
-                      flags=re.UNICODE)]
 
-            correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-                          zip(tokens, ref_tokens))
-
-            if not all(correct):
-                print(fname)
-                for j in range(len(tokens)):
-                    if tokens[j].display != ref_tokens[j]['DISPLAY']:
-                        print('{}->{}'.format(tokens[j].display, ref_tokens[j]['DISPLAY']))
-
-            assert all(correct)
-
-            correct = map(lambda x: ('FORM' in x[1] and x[0].form == x[1]['FORM']) or not x[0].form,
-                          zip(tokens, ref_tokens))
-
-            if not all(correct):
-                print(fname)
-                # for j in range(len(tokens)):
-                #     if tokens[j].form != ref_tokens[j]['FORM']:
-                #         print('{}->{}'.format(tokens[j].form, ref_tokens[j]['FORM']))
-
-            assert all(correct)
-
-            for key in ref_freqs:
-                assert key in la.frequencies
-                assert la.frequencies[key] == ref_freqs[key]
-
-            diff = []
-            for word in frequencies:
-                if word.form not in ref_freqs and re.search(r'[a-zA-Z]', word.form, flags=re.UNICODE):
-                    diff.append(word.form)
-            print(diff)
-            assert len(diff) == 0
-
-            keys = sorted(list(ref_freqs.keys()))
-            frequencies.sort(key=lambda x: x.form)
-            correct = map(
-                lambda x: x[0].form == x[1] and
-                          x[0].frequency == ref_freqs[x[1]],
-                zip(frequencies, keys))
-
-            assert all(correct)
-
-            la.clear()
-
-            # token_idx = 0
-            #
-            # for i, line in enumerate(t.readlines(include_tag=False)):
-            #     tokens, frequencies = la.tokenize(line)
-            #     tokens = [t for t in tokens
-            #               if re.search(r'^[a-zA-Z]+$', t.display,
-            #                            flags=re.UNICODE)]
-            #
-            #     offset = token_idx + len(tokens)
-            #     # print([(t.display, ref_tokens[i + token_idx]['DISPLAY']) for i, t in enumerate(tokens)])
-            #
-            #     correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #
-            #     if not all(correct):
-            #         print(fname, i, line)
-            #         for j in range(len(tokens)):
-            #             if tokens[j].display != ref_tokens[token_idx + j]['DISPLAY']:
-            #                 print('{}->{}'.format(tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
-            #
-            #     assert all(correct)
-            #
-            #     correct = map(lambda x: ('FORM' in x[1] and x[0].form == x[1]['FORM']) or not x[0].form,
-            #                   zip(tokens, ref_tokens[token_idx:offset]))
-            #
-            #     if not all(correct):
-            #         print(fname, i, line)
-            #         for j in range(len(tokens)):
-            #             if tokens[j].form != ref_tokens[token_idx + j]['FORM']:
-            #                 print('{}->{}'.format(tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-            #
-            #     assert all(correct)
-            #
-            #     token_idx = offset
-            #
-            # la_tokens = [t for t in la.tokens
-            #           if re.search(r'^[a-zA-Z]+$', t.display, flags=re.UNICODE)]
-            #
-            # correct = map(lambda x: x[0].display == x[1]['DISPLAY'],
-            #               zip(la_tokens, ref_tokens))
-            #
-            # print(len(la_tokens), len(ref_tokens))
-            #
-            # if not all(correct):
-            #     for j in range(len(la_tokens)):
-            #         if tokens[j].display != ref_tokens[j]['DISPLAY']:
-            #             print('{}->{}'.format(la_tokens[j].display, ref_tokens[token_idx + j]['DISPLAY']))
-            #
-            # assert all(correct)
-            #
-            # correct = map(lambda x: x[0].form == x[1]['FORM'],
-            #               zip(la_tokens, ref_tokens))
-            #
-            # if not all(correct):
-            #     for j in range(len(la_tokens)):
-            #         if tokens[j].form != ref_tokens[j]['FORM']:
-            #             print('{}->{}'.format(la_tokens[j].form, ref_tokens[token_idx + j]['FORM']))
-            #
-            # assert all(correct)
-            #
-            # for key in ref_freqs:
-            #     assert key in la.frequencies
-            #     assert la.frequencies[key] == ref_freqs[key]
-            #
-            # diff = []
-            # for word in frequencies:
-            #     if word.form not in ref_freqs and re.search(r'[a-zA-Z]', word.form, flags=re.UNICODE):
-            #         diff.append(word.form)
-            # print(diff)
-            # assert len(diff) == 0
-            #
-            # keys = sorted(list(ref_freqs.keys()))
-            # frequencies.sort(key=lambda x: x.form)
-            # correct = map(
-            #     lambda x: x[0].form == x[1] and
-            #               x[0].frequency == ref_freqs[x[1]],
-            #     zip(frequencies, keys))
-            #
-            # assert all(correct)
-            #
-            # la.clear()
+def test_featurize(token_connection):
+    pass
