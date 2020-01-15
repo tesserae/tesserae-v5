@@ -97,7 +97,5 @@ class Token(Entity):
     def __repr__(self):
         return (
             f'Token(text={self.text}, index={self.index}, '
-            f'display={self.display}, features={self.features}, '
-            f'line={self.line}, phrase={self.phrase}, '
-            f'frequency={self.frequency})'
+            f'display={self.display}, features={self.features})'
         )
