@@ -97,6 +97,9 @@ class BaseTokenizer(object):
         # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
+        # Remove digits
+        normalized = re.sub(r'\d+', r'', normalized, flags=re.UNICODE)
+
         # If requested, split based on the language's split pattern.
         if split:
             normalized = re.split(self.split_pattern, normalized,
