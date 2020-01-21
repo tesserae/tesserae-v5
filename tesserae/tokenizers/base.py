@@ -55,7 +55,7 @@ class BaseTokenizer(object):
         self.connection = connection
 
         # This pattern is used over and over again
-        self.word_characters = 'a-zA-Z'
+        self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
         self.diacriticals = \
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
@@ -91,8 +91,14 @@ class BaseTokenizer(object):
         tags = re.findall(r'([<][^>]+[>])', raw, flags=re.UNICODE)
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
 
-        # Apply lowercase and NKFD normalization to the token string
+        # Remove what appear to be Tesserae line delimiters
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+
+        # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
+
+        # Remove digits
+        normalized = re.sub(r'\d+', r'', normalized, flags=re.UNICODE)
 
         # If requested, split based on the language's split pattern.
         if split:
@@ -128,14 +134,18 @@ class BaseTokenizer(object):
             Features associated with the tokens to be inserted into the
             database.
         """
+        # eliminate any lines that don't begin with a tag
+        raw = '\n'.join([line for line in raw.split('\n')
+            if line.strip().startswith('<') and '>' in line]) + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
-        tags = [re.search(r'([\d]+[.a-z\d]*)', t).groups()[0] for t in tags]
+        tags = [t[:-1].split()[-1] for t in tags]
 
         # Compute the display version of each token by stripping the metadata
         # tags and converting newlines to their symbolic form.
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,
@@ -180,7 +190,7 @@ class BaseTokenizer(object):
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if re.search('[' + self.word_characters + ']+', d, flags=re.UNICODE):
+            if self.word_regex.search(d):
                 features = {key: val[norm_i]
                             for key, val in featurized.items()}
                 norm_i += 1

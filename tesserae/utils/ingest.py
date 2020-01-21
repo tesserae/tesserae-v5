@@ -61,7 +61,7 @@ def ingest_text(connection, text):
     unitizer = Unitizer()
     lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
-    result = connection.insert(tokens)
-    result = connection.insert(lines + phrases)
+    result = connection.insert_nocheck(tokens)
+    result = connection.insert_nocheck(lines + phrases)
 
     return text_id
