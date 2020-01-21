@@ -62,13 +62,13 @@ class EnglishTokenizer(BaseTokenizer):
         Example
         -------
         Suppose we have the following tokens to featurize:
-        >>> tokens = ['plates', 'fringe']
+        >>> tokens = ['rung', 'defeated']
 
         Then the result would look something like this:
         >>> result = {
         >>>     'lemmata': [
-        >>>         ['arma', 'armo'],
-        >>>         ['canus', 'cano']
+        >>>         ['rung', 'ring'],
+        >>>         ['defeated', 'defeat']
         >>>     ]
         >>> }
 
