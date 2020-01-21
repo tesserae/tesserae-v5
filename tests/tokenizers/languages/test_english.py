@@ -6,16 +6,16 @@ from tesserae.tokenizers import EnglishTokenizer
 def test_normalize(token_connection):
     eng = EnglishTokenizer(token_connection)
 
-    raw_lines = [
-        '<English Test 1> Will this work as expected?',
-        '<English Test 2> Porcupine',
-        '<English Test 3> Old McDonald had a farm',
-    ]
+    raw_lines = (
+        '<English Test 1> Will this work as expected?\n'
+        '<English Test 2> Porcupine\n'
+        '<English Test 3> Old McDonald had a farm\n'
+    )
 
     ref_tokens = [
         'will', 'this', 'work', 'as', 'expected',
         'porcupine',
-        'old', 'mcdonald', 'had', 'a', 'farm',
+        'old', 'mcdonald', 'had', 'a', 'farm'
     ]
 
     tokens, tags = eng.normalize(raw_lines)
@@ -29,7 +29,7 @@ def test_normalize(token_connection):
 
     assert all(correct)
 
-    for tag, line in zip(tags, raw_lines):
+    for tag, line in zip(tags, raw_lines.split('\n')):
         correct_tag = line[:line.find('>') + 1]
         assert tag == correct_tag
 
@@ -37,11 +37,11 @@ def test_normalize(token_connection):
 def test_tokenize(token_connection):
     eng = EnglishTokenizer(token_connection)
 
-    raw_lines = [
-        '<English Test 1> Will this work as expected?',
-        '<English Test 2> Porcupine',
-        '<English Test 3> Old McDonald had a farm',
-    ]
+    raw_lines = (
+        '<English Test 1> Will this work as expected?\n'
+        '<English Test 2> Porcupine\n'
+        '<English Test 3> Old McDonald had a farm\n'
+    )
     display_tokens = [
         'Will', 'this', 'work', 'as', 'expected',
         'Porcupine',
@@ -60,7 +60,7 @@ def test_tokenize(token_connection):
 
 
     tokens, tags, features = eng.tokenize(raw_lines)
-    tokens = [t for t in filter(lambda x: re.search(r'[\w]', x.display), tokens)]
+    tokens = [t for t in tokens if re.search(r'\w+', t.display)]
 
     correct = map(
         lambda x: x[0].display == x[1] and x[0].features['form'].token == x[2] and all([
@@ -76,7 +76,7 @@ def test_tokenize(token_connection):
                 print(f'Display: "{token.display}" should be "{ref_display}"')
             if token.features['form'].token != ref_form:
                 print('Form: "{}" should be "{}"'.format(
-                    token.features['form'], ref_form))
+                    token.features['form'].token, ref_form))
             if not all([
                 any(
                     map(lambda y: lemma.token == y, ref_lemmata)
@@ -86,6 +86,6 @@ def test_tokenize(token_connection):
                     [lemma.token for lemma in token.features['lemmata']], ref_lemmata))
     assert all(correct)
 
-    for tag, line in zip(tags, raw_lines):
-        correct_tag = line[:line.find('>') + 1].split()[-1].strip('>')
+    for tag, line in zip(tags, raw_lines.split('\n')):
+        correct_tag = line[:line.find('>')].split()[-1]
         assert tag == correct_tag

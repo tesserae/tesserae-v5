@@ -47,7 +47,7 @@ class LatinTokenizer(BaseTokenizer):
         if split:
             normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
             normalized = [t for t in normalized
-                          if t and re.search(r'[\w]+', t)]
+                          if t and self.word_regex.search(t)]
 
         return normalized, tags
 

@@ -11,7 +11,7 @@ class EnglishTokenizer(BaseTokenizer):
         super(EnglishTokenizer, self).__init__(connection)
 
         self.split_pattern = \
-            r'[^\w]+'
+            '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
 
     def normalize(self, raw, split=True):
         """Normalize an English word.
@@ -37,7 +37,8 @@ class EnglishTokenizer(BaseTokenizer):
 
         if split:
             normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-            normalized = [t for t in normalized if t]
+            normalized = [t for t in normalized
+                    if t and self.word_regex.search(t)]
 
         return normalized, tags
 
