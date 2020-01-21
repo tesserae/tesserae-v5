@@ -1,169 +1,312 @@
-import pytest
-
-from tesserae.unitizer import Unitizer
-
+from collections import defaultdict
 import json
 import os
 import re
 
-from tesserae.db import Text
+import pytest
+
+from tesserae.db import TessMongoConnection, Unit, Text
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
+from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile
 
 
 @pytest.fixture(scope='module')
-def units(tessfiles):
-    data = []
-    for root, dirs, files in os.walk(tessfiles):
-        if 'new' not in root and re.search(r'poetry|prose', root):
-            fdata = {}
-            for fname in files:
-                parts = fname.split('.')
-                if '.tess' in fname:
-                    metadata = Text(
-                        title=parts[0],
-                        author=parts[1],
-                        language='greek' if 'grc' in root else 'latin',
-                        path=os.path.join(root, fname))
-                    fdata['metadata'] = metadata
-                if '.json' in fname:
-                    feature = parts[2]
-                    with open(os.path.join(root, fname), 'r') as f:
-                        fdata[feature] = json.load(f)
-            data.append(fdata)
-    return data
+def unit_connection(request):
+    """Create a new TessMongoConnection for this task.
+
+    Fixtures
+    --------
+    request
+        The configuration to connect to the MongoDB test server.
+    """
+    conf = request.config
+    conn = TessMongoConnection(conf.getoption('db_host'),
+                               conf.getoption('db_port'),
+                               conf.getoption('db_user'),
+                               password=conf.getoption('db_passwd',
+                                                       default=None),
+                               db=conf.getoption('db_name',
+                                                 default=None))
+    return conn
 
 
-class TestUnitizer(object):
-    def test_init(self):
-        u = Unitizer()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
+@pytest.fixture(scope='module')
+def unit_tessfiles(mini_greek_metadata, mini_latin_metadata):
+    """Create text entities for the test texts.
 
-    def test_clear(self):
-        u = Unitizer()
+    Fixtures
+    --------
+    test_data
+        A small set of sample texts and other entities.
+    """
+    tessfiles = []
+    for metadata in mini_greek_metadata:
+        tessfiles.append(Text.json_decode(metadata))
+    for metadata in mini_latin_metadata:
+        tessfiles.append(Text.json_decode(metadata))
+    tessfiles.sort(key=lambda x: x.path)
+    return tessfiles
 
-        vals = list(range(0, 100))
 
-        u.lines.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
+@pytest.fixture(scope='module')
+def unitizer_inputs(unit_tessfiles, unit_connection):
+    inputs = []
+    tokenizer_selector = {
+        'latin': LatinTokenizer(unit_connection),
+        'greek': GreekTokenizer(unit_connection)
+    }
+    for t in unit_tessfiles:
+        tessfile = TessFile(t.path, metadata=t)
+        tokens, tags, features = tokenizer_selector[t.language].tokenize(
+                tessfile.read(), text=t)
+        features.sort(key=lambda x: x.index)
+        inputs.append((tokens, tags, features))
+    yield inputs
 
-        u.lines.extend(vals)
-        u.phrases.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
 
-        u.lines.extend(vals)
-        u.phrases.extend(vals)
-        u.clear()
-        assert hasattr(u, 'lines')
-        assert u.lines == []
-        assert hasattr(u, 'phrases')
-        assert u.phrases == []
+def _extract_unit_information(units, tokens, reverse_stems):
+    test_units = []
+    for unit in units:
+        test_unit = {
+            'locus': unit['LOCUS'],
+            'tokens': []
+        }
 
-        for i in [None, 'a', 1, 1.0, True, False, b'a', r'a']:
-            u.lines = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
+        for t in unit['TOKEN_ID']:
+            cur_token = tokens[t]
+            if cur_token['TYPE'] == 'WORD':
+                cur_token_display = cur_token['DISPLAY']
+                cur_token_form = cur_token['FORM']
+                if re.search(r'[\d]', cur_token_display):
+                    print(tokens[t])
+                test_unit['tokens'].append({
+                    # ignore elision mark
+                    'display': cur_token_display.strip("'"),
+                    'form': cur_token_form,
+                    'stem': reverse_stems[t]
+                })
+        test_units.append(test_unit)
+    return test_units
 
-            u.phrases = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
 
-            u.lines = i
-            u.phrases = i
-            u.clear()
-            assert hasattr(u, 'lines')
-            assert u.lines == []
-            assert hasattr(u, 'phrases')
-            assert u.phrases == []
+@pytest.fixture(scope='module')
+def correct_units(unit_tessfiles):
+    results = {'lines': [], 'phrases': []}
+    unit_data = []
+    for t in unit_tessfiles:
+        base, _ = os.path.splitext(t.path)
+        with open(base + '.line.json', 'r') as f:
+            lines = json.load(f)
+        with open(base + '.phrase.json', 'r') as f:
+            phrases = json.load(f)
+        with open(base + '.token.json', 'r') as f:
+            tokens = json.load(f)
+        with open(base + '.index_stem.json', 'r') as f:
+            stems = json.load(f)
+        reverse_stems = defaultdict(list)
+        for stem, token_ids in stems.items():
+            for token_id in token_ids:
+                reverse_stems[int(token_id)].append(stem)
 
-    def test_unitize(self, units):
-        for unit in units:
-            u = Unitizer()
-            metadata = unit['metadata']
-            tess = TessFile(metadata.path, metadata=metadata)
-            tokens = unit['tokens']
-            lines = unit['lines']
-            phrases = unit['phrases']
+        results['lines'].append(_extract_unit_information(
+            lines, tokens, reverse_stems))
+        results['phrases'].append(_extract_unit_information(
+            phrases, tokens, reverse_stems))
+    return results
 
-            if metadata.language == 'greek':
-                tokenizer = GreekTokenizer()
-            elif metadata.language == 'latin':
-                tokenizer = LatinTokenizer()
 
-            tokenizer.clear()
+WORD_PATTERN = re.compile(r'[\w]', flags=re.UNICODE)
 
-            for i, line in enumerate(tess.readlines(include_tag=False)):
-                stop = (i == len(tess) - 1)
-                u.unitize(line, metadata, tokenizer=tokenizer, stop=stop)
 
-            print(metadata.path)
+def test_unitize(unitizer_inputs, correct_units):
+    correct_lines = correct_units['lines']
+    correct_phrases = correct_units['phrases']
+    for i, indata in enumerate(unitizer_inputs):
+        tokens, tags, features = indata
 
-            assert len(u.lines) == len(lines)
-            for i in range(len(lines)):
-                line_tokens = \
-                    [tokenizer.tokens[j].form for j in u.lines[i].tokens
-                     if re.search(r'[\w\d]', tokenizer.tokens[j].display,
-                                  flags=re.UNICODE) and
-                        tokenizer.tokens[j].form]
+        feature_dict = {}
+        for feature in features:
+            if feature.feature in feature_dict:
+                feature_dict[feature.feature][feature.index] = feature
+            else:
+                feature_dict[feature.feature] = {feature.index: feature}
 
-                correct_tokens = \
-                    [tokens[j]['FORM'] for j in lines[i]['TOKEN_ID']
-                     if 'FORM' in tokens[j] and tokens[j]['FORM']]
+        features = feature_dict
 
-                if line_tokens != correct_tokens:
-                    print('Line {}'.format(i))
-                    print(line_tokens)
-                    print(correct_tokens)
+        unitizer = Unitizer()
+        lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
 
-                assert line_tokens == correct_tokens
+        text_correct_lines = correct_lines[i]
+        assert len(lines) == len(text_correct_lines)
+        for j, line in enumerate(lines):
+            line_snippet = line.snippet
+            assert WORD_PATTERN.search(line_snippet[0]) is not None
+            assert not line_snippet.endswith(' / ')
+            if isinstance(text_correct_lines[j]['locus'], str):
+                assert line.tags[0] == text_correct_lines[j]['locus']
+            else:
+                assert line.tags == text_correct_lines[j]['locus']
+            if len(line.tokens) != len(text_correct_lines[j]['tokens']):
+                print(list(zip([t['display'] for t in line.tokens] + [''], [t['display'] for t in text_correct_lines[j]['tokens']])))
+            assert len(line.tokens) == len(text_correct_lines[j]['tokens'])
+            predicted = [t for t in line.tokens if re.search(r'[\w]', t['display'])]
+            for k in range(len(predicted)):
+                token = predicted[k]
+                correct = text_correct_lines[j]['tokens'][k]
 
-            print(u.phrases[-1].tokens)
-            assert len(u.phrases) == len(phrases)
-            for i in range(len(u.phrases)):
-                phrase_tokens = \
-                    [tokenizer.tokens[j].form for j in u.phrases[i].tokens
-                     if re.search(r'[\w\d]', tokenizer.tokens[j].display,
-                                  flags=re.UNICODE) and
-                        tokenizer.tokens[j].form]
+                assert token['display'] == correct['display']
 
-                correct_tokens = \
-                    [tokens[j]['FORM'] for j in phrases[i]['TOKEN_ID']
-                     if 'FORM' in tokens[j] and tokens[j]['FORM']]
+                if token['features']['form'][0] > -1:
+                    form = feature_dict['form'][token['features']['form'][0]].token
+                    lemmata = [feature_dict['lemmata'][l].token for l in token['features']['lemmata']]
+                else:
+                    form = ''
+                    lemmata = ['']
+                if form != correct['form']:
+                    print(token, correct)
+                    print(form, correct['form'])
+                assert form == correct['form']
+                assert len(lemmata) == len(correct['stem'])
+                assert all(map(lambda x: x in correct['stem'], lemmata))
 
-                if phrase_tokens != correct_tokens:
-                    print('Phrase {}'.format(i))
-                    phrase_tokens = \
-                        [tokenizer.tokens[j].form for j in u.phrases[i - 1].tokens
-                         if re.search(r'[\w]', tokenizer.tokens[j].display,
-                                      flags=re.UNICODE) and
-                            tokenizer.tokens[j].form]
+        text_correct_phrases = correct_phrases[i]
+        assert len(phrases) == len(text_correct_phrases)
+        for j, phrase in enumerate(phrases):
+            assert WORD_PATTERN.search(phrase.snippet[0]) is not None
+            if isinstance(text_correct_phrases[j]['locus'], str):
+                assert phrase.tags[0] == text_correct_phrases[j]['locus']
+            else:
+                assert phrase.tags == text_correct_phrases[j]['locus']
+            if len(phrase.tokens) != len(text_correct_phrases[j]['tokens']):
+                print(list(zip([t['display'] for t in phrase.tokens] + [''], [t['display'] for t in text_correct_phrases[j]['tokens']])))
+            assert len(phrase.tokens) == len(text_correct_phrases[j]['tokens'])
+            predicted = [t for t in phrase.tokens if re.search(r'[\w]', t['display'])]
+            for k in range(len(predicted)):
+                token = predicted[k]
+                correct = text_correct_phrases[j]['tokens'][k]
 
-                    correct_tokens = \
-                        [tokens[j]['FORM'] for j in phrases[i - 1]['TOKEN_ID']
-                         if 'FORM' in tokens[j]]
-                    print(phrase_tokens)
-                    print(correct_tokens)
+                assert token['display'] == correct['display']
 
-                assert phrase_tokens == correct_tokens
+                if token['features']['form'][0] > -1:
+                    form = feature_dict['form'][token['features']['form'][0]].token
+                    lemmata = [feature_dict['lemmata'][l].token for l in token['features']['lemmata']]
+                else:
+                    form = ''
+                    lemmata = ['']
+                if form != correct['form']:
+                    print(token, correct)
+                    print(form, correct['form'])
+                assert form == correct['form']
+                assert len(lemmata) == len(correct['stem'])
+                assert all(map(lambda x: x in correct['stem'], lemmata))
 
-            assert len(u.phrases) == len(phrases)
 
-            u.clear()
-            tokenizer.clear()
+def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.linebreak.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+    first_tag = phrases[0].tags[0]
+    for phrase in phrases[1:]:
+        assert phrase.tags[0] == first_tag
+
+
+def test_unitize_doublelinebreak_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.doublelinebreak.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+    first_tag = phrases[0].tags[0]
+    for phrase in phrases[1:]:
+        assert phrase.tags[0] == first_tag
+
+
+def test_unitize_nonumber_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.nonumber.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+
+
+def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
+    # when there is no ending punctuation despite coming to the end of a poem
+    # and another poem starts after a blank line
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.nopunctuation.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 68
+    for prev_phrase, cur_phrase in zip(phrases[:-1], phrases[1:]):
+        if '2.13' in prev_phrase.tags[0] and '2.14' in cur_phrase.tags[0]:
+            assert prev_phrase.snippet == 'quin et Prometheus et Pelopis parens / dulci laborem decipitur sono / nec curat Orion leones / aut timidos agitare lyncas / Eheu fugaces, Postume, Postume, / labuntur anni nec pietas moram / rugis et instanti senectae / adferet indomitaeque morti, / non, si trecenis quotquot eunt dies, / amice, places inlacrimabilem / Plutona tauris, qui ter amplum / Geryonen Tityonque tristi / conpescit unda, scilicet omnibus / quicumque terrae munere vescimur / enaviganda, sive reges / sive inopes erimus coloni. / '
+            assert cur_phrase.snippet == 'frustra cruento Marte carebimus / fractisque rauci fluctibus Hadriae, / frustra per autumnos nocentem / corporibus metuemus Austrum: / '
+            break
+
+
+def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_latin_path.joinpath('test.notag.tess')),
+            language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+
+
+def test_unitize_lone_diacrit_file(unit_connection, tessfiles_greek_path):
+    tokenizer = GreekTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.lone_diacrit.tess')),
+            language='greek')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+
+
+def test_unitize_elision_file(unit_connection, tessfiles_greek_path):
+    tokenizer = GreekTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.elision.tess')),
+            language='greek')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+
+
+def test_unitize_middot_file(unit_connection, tessfiles_greek_path):
+    tokenizer = GreekTokenizer(unit_connection)
+    t = Text(path=str(tessfiles_greek_path.joinpath('test.middot.tess')),
+            language='greek')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
+    assert len(lines) == 1
+    assert len(lines[0].tokens) == 7

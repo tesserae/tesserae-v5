@@ -17,7 +17,7 @@
             "author": "lucan",
             "year": 61,
             "unit_types": ["line", "phrase"],
-            "path": "la/lucan.bellum_civile.part.1.tess",
+            "path": "la/lucan.bellum_civile.tess",
             "is_prose": false,
             "hash": "9777e8cf1abacec70a22735131ebed4c",
             "extras": {}

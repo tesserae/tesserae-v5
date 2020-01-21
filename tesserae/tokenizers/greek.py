@@ -16,7 +16,13 @@ class GreekTokenizer(BaseTokenizer):
         self.acute = '\u0301'
         self.sigma = 'σ\b'
         self.sigma_alt = 'ς'
-        self.word_characters = 'Ά-ώ' + self.sigma_alt + self.diacriticals
+        # diacriticals should not be considered part of ``word_characters`` so
+        # that extraneous diacritical marks unattended by a proper word
+        # character to bind to do not appear as proper words during
+        # tokenization of display tokens (see BaseTokenizer.tokenize);
+        # also ignore the middle dot character, which is a punctuation mark
+        self.word_regex = re.compile('[ΆΈ-ώ' + self.sigma_alt + ']+',
+                flags=re.UNICODE)
 
         self.diacrit_sub1 = \
             r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
@@ -24,10 +30,10 @@ class GreekTokenizer(BaseTokenizer):
             r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
         self.split_pattern = ''.join([
-            '[\\s]+|[^\\w\\d',
+            '( / )|([\\s]+)|([^\\w\\d',
             self.diacriticals,
             self.sigma_alt,
-            '\']'])
+            r"])"])
 
         self.lemmatizer = Lemmata('lemmata', 'greek')
 
@@ -62,13 +68,14 @@ class GreekTokenizer(BaseTokenizer):
                             flags=re.UNICODE)
 
         # Remove digits and single-quotes from the normalized output
-        normalized = re.sub("['\d]+", r'', normalized, flags=re.UNICODE)
+        normalized = re.sub(r"['\d]+", r' ', normalized, flags=re.UNICODE)
 
         # Split the output into a list of normalized tokens if requested
         if split:
             normalized = re.split(self.split_pattern, normalized,
                                   flags=re.UNICODE)
-            normalized = [t for t in normalized if t]
+            normalized = [t for t in normalized
+                          if t and re.search(r'[\w]+', t)]
 
         return normalized, tags
 

@@ -1,9 +1,34 @@
 import collections
-import multiprocessing as mp
 import re
 import unicodedata
 
-from tesserae.db.entities import Entity, Feature, Frequency, Token
+from tesserae.db.entities import Entity, Feature, Token
+
+
+def _get_db_features_by_type(conn, language, feature_types):
+    """Get Feature entities from the database, sorted by their types
+
+    Parameters
+    ----------
+    conn : TessMongoConnection
+        The database to query for features
+    language : str
+        The language of the features to get from the database
+    feature_types : iterable of str
+        The feature types to sort by
+
+    Returns
+    -------
+    dict[str, list of Features]
+        Mapping between feature type and the Features of that type
+    """
+    all_features = conn.find(Feature.collection, language=language)
+    result = {ft: [] for ft in feature_types}
+    for f in all_features:
+        ft = f.feature
+        if ft in result:
+            result[ft].append(f)
+    return result
 
 
 class BaseTokenizer(object):
@@ -30,12 +55,12 @@ class BaseTokenizer(object):
         self.connection = connection
 
         # This pattern is used over and over again
-        self.word_characters = 'a-zA-Z'
+        self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
         self.diacriticals = \
             '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
 
         self.split_pattern = \
-            '[\\s]+|[^\\w\\d' + self.diacriticals + ']+'
+            '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
 
     def featurize(self, tokens):
         """Abstract method to extract features from tokens.
@@ -103,10 +128,16 @@ class BaseTokenizer(object):
 
         # Extract .tess file markup and remove from the normalized string
         tags = re.findall(r'([<][^>]+[>])', raw, flags=re.UNICODE)
-        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
 
-        # Apply lowercase and NKFD normalization to the token string
+        # Remove what appear to be Tesserae line delimiters
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+
+        # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
+
+        # Remove digits
+        normalized = re.sub(r'\d+', r'', normalized, flags=re.UNICODE)
 
         # If requested, split based on the language's split pattern.
         if split:
@@ -143,19 +174,18 @@ class BaseTokenizer(object):
             database.
 
         """
-        # If dealing with a list of strings, attempt to join the individual
-        # string entries with spaces.
-        if isinstance(raw, list):
-            raw = ' '.join(raw)
-
+        # eliminate any lines that don't begin with a tag
+        raw = '\n'.join([line for line in raw.split('\n')
+            if line.strip().startswith('<') and '>' in line]) + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
-        tags = [re.search(r'([\d]+[.a-z\d]*)', t).groups()[0] for t in tags]
+        tags = [t[:-1].split()[-1] for t in tags]
 
         # Compute the display version of each token by stripping the metadata
         # tags and converting newlines to their symbolic form.
-        raw = re.sub(r'[<][^>]+[>]', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,
@@ -183,17 +213,10 @@ class BaseTokenizer(object):
         tokens = []
 
         # Convert all computed features into entities, discarding duplicates.
-        p = mp.Pool()
-        results = p.starmap(
-            create_features,
-            [(list(
-                self.connection.find(Feature.collection,
-                                     language=language,
-                                     feature=f)),
-                text_id, language, f, featurized[f])
-             for f in featurized.keys()])
-        p.close()
-        p.join()
+        db_features = _get_db_features_by_type(self.connection, language,
+                featurized.keys())
+        results = [create_features(db_features[ft], text_id, language, ft,
+            featurized[ft]) for ft in featurized.keys()]
 
         for feature_list, feature in results:
             featurized[feature] = feature_list
@@ -207,7 +230,7 @@ class BaseTokenizer(object):
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if re.search('[' + self.word_characters + ']+', d, flags=re.UNICODE):
+            if self.word_regex.search(d):
                 features = {key: val[norm_i]
                             for key, val in featurized.items()}
                 norm_i += 1
@@ -224,9 +247,9 @@ class BaseTokenizer(object):
         for val in featurized.values():
             if isinstance(val[0], list):
                 for v in val:
-                    features = features.union(set(v))
+                    features.update(v)
             else:
-                features = features.union(set(val))
+                features.update(val)
 
         return tokens, tags, list(features)
 

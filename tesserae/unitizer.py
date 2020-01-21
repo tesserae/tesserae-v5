@@ -1,7 +1,7 @@
 import collections
 import re
 
-from tesserae.db import Text, Token, Unit
+from tesserae.db import Feature, Text, Token, Unit
 from tesserae.tokenizers import BaseTokenizer
 
 
@@ -55,7 +55,7 @@ class Unitizer(object):
         self.lines = []
         self.phrases = []
 
-    def unitize(self, tokens, tags, metadata, tokenizer=None, stop=False):
+    def unitize(self, tokens, tags, metadata, tokenizer=None):
         """Split a poem into line and phrase units.
 
         Parameters
@@ -108,58 +108,56 @@ class Unitizer(object):
         except IndexError:
             pass
 
+        phrase_stash = []
+        line_stash = []
         # Add the token to the current line and phrase and determine if it is
         # a unit delimiter.
-        for i, t in enumerate(tokens):
+        for t in tokens:
             # Ensure that the token is valid
             if not isinstance(t, Token):
                 raise InvalidTokenError(t)
+
+            phrase_stash.append(t.display)
+            line_stash.append(t.display)
 
             # Search for a phrase delimiter
             phrase_delim = re.search(r'[.?!;:]', t.display, flags=re.UNICODE)
             word = re.search(r'[\w]', t.display, flags=re.UNICODE)
 
             line = self.lines[-1]
+            # Handle seeing multiple phrase delimiters in a row
             if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
                 phrase = self.phrases[-2]
             else:
                 phrase = self.phrases[-1]
 
-            # Get the current line and phrase
-            # if '<' not in t.display:
-            # line.tokens.append(t)
-            # t.line = line
-            # phrase.tokens.append(t)
-            # t.phrase = phrase
-            
             if isinstance(t.features, dict) and len(t.features) > 0:
-                tok =  {'_id': t.id, 'index': t.index, 'display': t.display, 'features': {}}
+                tok =  {'index': t.index, 'display': t.display, 'features': {}}
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
                     if isinstance(val, collections.Sequence) and not isinstance(val, str):
-                        tok['features'][key].extend([v.index for v in val])
+                        tok['features'][key].extend([v.index if isinstance(v, Feature) else '' for v in val])
                     else:
-                        tok['features'][key].append(val.index)
+                        tok['features'][key].append(val.index if isinstance(val, Feature) else '')
                 line.tokens.append(tok)
                 phrase.tokens.append(tok)
 
 
-            # Handle seeing multiple phrase delimiters in a row
-            # if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
-            #     self.phrases[-2].tokens.append(t)
-            #     t.phrase = self.phrases[-2]
-            # else:
-            #     self.phrases[-1].tokens.append(t)
-            #     t.phrase = self.phrases[-1]
-
-            # If this token contains a phrasee delimiter (one of .?!;:),
+            # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
-                self.phrases.append(
-                    Unit(text=metadata,
-                         index=len(self.phrases),
-                         unit_type='phrase'))
+                first_pos = 0
+                while re.search(r'[\w]', phrase_stash[first_pos],
+                        flags=re.UNICODE) is None:
+                    first_pos += 1
+                if first_pos < len(phrase_stash):
+                    self.phrases[-1].snippet = ''.join(phrase_stash[first_pos:])
+                    self.phrases.append(
+                        Unit(text=metadata,
+                             index=len(self.phrases),
+                             unit_type='phrase'))
+                phrase_stash = []
 
                 try:
                     if tags[tag_idx] not in self.phrases[-1].tags:
@@ -169,15 +167,39 @@ class Unitizer(object):
 
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
-            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE) and len(self.lines[-1].tokens) > 1:
+            if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE):
                 if len(self.phrases[-1].tokens) == 0:
                     self.phrases[-1].tags.pop()
+                elif len(phrase_stash) >= 2 and \
+                        re.search(r'([\n])|( / )',
+                                phrase_stash[-2], flags=re.UNICODE):
+                    # This happens when there was a blank line in the file;
+                    # count as the end of a phrase
+                    first_pos = 0
+                    while re.search(r'[\w]', phrase_stash[first_pos],
+                            flags=re.UNICODE) is None:
+                        first_pos += 1
+                    # keep one line delimiter to indicate that this phrase was
+                    # broken by a blank line
+                    if first_pos < len(phrase_stash) - 1:
+                        self.phrases[-1].snippet = ''.join(
+                                phrase_stash[first_pos:-1])
+                        self.phrases.append(
+                            Unit(text=metadata,
+                                 index=len(self.phrases),
+                                 unit_type='phrase'))
+                    phrase_stash = []
 
-                self.lines.append(
-                    Unit(text=metadata,
-                         index=len(self.lines),
-                         unit_type='line'))
-                tag_idx += 1
+                if len(self.lines[-1].tokens) > 0:
+                    self.lines[-1].snippet = ''.join(line_stash[:-1])
+                    self.lines.append(
+                        Unit(text=metadata,
+                             index=len(self.lines),
+                             unit_type='line'))
+                    tag_idx += 1
+                # the line stash always gets reset when encountering a line
+                # delimiter, whether the line is non-blank or not
+                line_stash = []
 
                 try:
                     if tags[tag_idx] not in self.lines[-1].tags:
@@ -187,14 +209,16 @@ class Unitizer(object):
                 except IndexError:
                     pass
 
-        if stop and len(self.lines[-1].tokens) == 0:
-            self.lines.pop()
+        for i in range(len(self.lines) - 1, -1, -1):
+            if len(self.lines[i].tokens) < 2:
+                self.lines.pop(i)
+            else:
+                break
 
-        if stop:
-            for i in range(len(self.phrases) - 1, 0, -1):
-                if len(self.phrases[i].tokens) < 2:
-                    self.phrases.pop()
-                else:
-                    break
+        for i in range(len(self.phrases) - 1, -1, -1):
+            if len(self.phrases[i].tokens) < 2:
+                self.phrases.pop(i)
+            else:
+                break
 
         return self.lines, self.phrases

@@ -95,6 +95,7 @@ def test_normalize(token_connection, greek_tessfiles, greek_tokens):
     for i, tessfile in enumerate(greek_tessfiles):
         correct_tokens = [t for t in greek_tokens[i] if t['form']]
         tokens, tags = grc.normalize(tessfile.read())
+        tokens = [t for t in tokens if re.search(r'[\w]+', t)]
         correct = map(lambda x: x[0] == x[1]['form'],
                       zip(tokens, correct_tokens))
         for j, c in enumerate(correct):
@@ -115,12 +116,15 @@ def test_tokenize(token_connection, greek_tessfiles, greek_tokens):
         print(tessfile.metadata.title)
         tokens, tags, features = grc.tokenize(
             tessfile.read(), text=tessfile.metadata)
+        tokens = [t for t in tokens if re.search(r'[\w]+', t.display)]
 
         for j, token in enumerate(tokens):
             # Detect all connected
             assert token.display == greek_tokens[i][j]['display']
-            if tessfile.metadata.title == 'gorgias':
-                print(token.display, greek_tokens[i][j])
+            # if tessfile.metadata.title == 'gorgias':
+            #     print(token.display, greek_tokens[i][j])
+            # print(token.display, token.features['form'].token, [t.token for t in token.features['lemmata']])
+            # print(greek_tokens[i][j])
             assert token.features['form'].token == greek_tokens[i][j]['form']
             assert all([
                 any(
