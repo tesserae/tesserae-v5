@@ -85,3 +85,10 @@ class Unit(Entity):
             'index': self.index,
             'unit_type': self.unit_type}
         return uniques
+
+    def __repr__(self):
+        return (
+            f'Unit(text={self.text}, index={self.index}, tags={self.tags}, '
+            f'unit_type={self.unit_type}, tokens={self.tokens}, '
+            f'snippet={self.snippet})'
+        )
