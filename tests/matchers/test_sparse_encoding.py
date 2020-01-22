@@ -1,5 +1,4 @@
 import copy
-import csv
 import itertools
 import os
 from pathlib import Path
@@ -11,7 +10,7 @@ import uuid
 import math
 import pytest
 
-from tesserae.db import Feature, Match, Search, Text, Token, Unit, \
+from tesserae.db import Feature, Search, Text, Unit, \
                         TessMongoConnection
 from tesserae.matchers.sparse_encoding import \
         SparseMatrixSearch, get_text_frequencies, get_corpus_frequencies

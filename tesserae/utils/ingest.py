@@ -82,7 +82,7 @@ def reingest_text(connection, text):
     Returns
     -------
     ObjectId
-        database identifier for the Text object just added
+        database identifier for the Text object just re-added
 
     """
     pass
