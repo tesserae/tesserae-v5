@@ -1,7 +1,8 @@
 from tesserae.db.entities import Feature
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
-from tesserae.utils import TessFile
+from tesserae.utils.tessfile import TessFile
+from tesserae.utils.delete import remove_text
 
 
 _tokenizers = {
@@ -85,4 +86,6 @@ def reingest_text(connection, text):
         database identifier for the Text object just re-added
 
     """
-    pass
+    remove_text(connection, text)
+    text.id = None
+    return ingest_text(connection, text)
