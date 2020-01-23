@@ -75,6 +75,7 @@ setup(
     author='Jeff Kinnison',
     author_email='jkinniso@nd.edu',
     packages=['tesserae',
+              'tesserae.cli',
               'tesserae.db',
               'tesserae.db.entities',
               'tesserae.matchers',
