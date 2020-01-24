@@ -64,7 +64,7 @@ def parse_args(args=None):
         type=str,
         help='path to reingest file (see mass_reingest.py for details)')
 
-    default_lfn = 'mass_reingest.py.log'
+    default_lfn = 'mass_reingest.log'
     p.add_argument(
         '--lfn',
         type=str,
