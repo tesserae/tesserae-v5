@@ -113,8 +113,29 @@ class SearchProcess(multiprocessing.Process):
     def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
-        results_status = Search(results_id=results_id,
-                status=Search.INIT, msg='')
+        parameters = {
+            'source': {
+                'object_id': str(search_params['source'].text.id),
+                'units': search_params['source'].unit_type
+            },
+            'target': {
+                'object_id': str(search_params['target'].text.id),
+                'units': search_params['target'].unit_type
+            },
+            'method': {
+                'name': search_type,
+                'feature': search_params['feature'],
+                'stopwords': search_params['stopwords'],
+                'freq_basis': search_params['frequency_basis'],
+                'max_distance': search_params['max_distance'],
+                'distance_basis': search_params['distance_metric']
+            }
+        }
+        results_status = Search(
+            results_id=results_id,
+            status=Search.INIT, msg='',
+            parameters=parameters
+        )
         connection.insert(results_status)
         try:
             search_id = results_status.id
@@ -125,7 +146,6 @@ class SearchProcess(multiprocessing.Process):
             connection.insert_nocheck(matches)
 
             results_status.texts = text_ids
-            results_status.parameters = params
             results_status.matches = matches
             results_status.status = Search.DONE
             results_status.msg='Done in {} seconds'.format(time.time()-start_time)
