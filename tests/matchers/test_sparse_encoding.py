@@ -14,6 +14,7 @@ from tesserae.db import Feature, Search, Text, Unit, \
                         TessMongoConnection
 from tesserae.matchers.sparse_encoding import \
         SparseMatrixSearch, get_text_frequencies, get_corpus_frequencies
+from tesserae.matchers.text_options import TextOptions
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile, ingest_text
@@ -363,12 +364,15 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(search_result.id,
-            texts, 'line', 'lemmata',
-            stopwords=['et', 'neque', 'qui'],
-            stopword_basis='texts', score_basis='stem',
-            frequency_basis='texts', max_distance=10,
-            distance_metric='frequency', min_score=0)
+    text_ids, params, v5_matches = matcher.match(
+        search_result.id,
+        TextOptions(texts[0], 'line'),
+        TextOptions(texts[1], 'line'),
+        'lemmata',
+        stopwords=['et', 'neque', 'qui'],
+        stopword_basis='texts', score_basis='stem',
+        frequency_basis='texts', max_distance=10,
+        distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
@@ -389,12 +393,16 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(search_result.id,
-            texts, 'phrase', 'lemmata',
-            stopwords=['ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
-            stopword_basis='texts', score_basis='stem',
-            frequency_basis='texts', max_distance=10,
-            distance_metric='span', min_score=0)
+    text_ids, params, v5_matches = matcher.match(
+        search_result.id,
+        TextOptions(texts[0], 'phrase'),
+        TextOptions(texts[1], 'phrase'),
+        'lemmata',
+        stopwords=[
+            'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
+        stopword_basis='texts', score_basis='stem',
+        frequency_basis='texts', max_distance=10,
+        distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
@@ -454,12 +462,15 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(search_result.id,
-            texts, 'line', 'lemmata',
-            stopwords=4,
-            stopword_basis='corpus', score_basis='stem',
-            frequency_basis='corpus', max_distance=10,
-            distance_metric='frequency', min_score=0)
+    text_ids, params, v5_matches = matcher.match(
+        search_result.id,
+        TextOptions(texts[0], 'line'),
+        TextOptions(texts[1], 'line'),
+        'lemmata',
+        stopwords=4,
+        stopword_basis='corpus', score_basis='stem',
+        frequency_basis='corpus', max_distance=10,
+        distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params
@@ -481,12 +492,15 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(search_result.id,
-            texts, 'phrase', 'lemmata',
-            stopwords=10,
-            stopword_basis='corpus', score_basis='stem',
-            frequency_basis='corpus', max_distance=10,
-            distance_metric='span', min_score=0)
+    text_ids, params, v5_matches = matcher.match(
+        search_result.id,
+        TextOptions(texts[0], 'phrase'),
+        TextOptions(texts[1], 'phrase'),
+        'lemmata',
+        stopwords=10,
+        stopword_basis='corpus', score_basis='stem',
+        frequency_basis='corpus', max_distance=10,
+        distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.texts = text_ids
     search_result.parameters = params

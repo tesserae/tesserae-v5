@@ -114,7 +114,7 @@ class SparseMatrixSearch(object):
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def match(self, search_id, texts, unit_type, feature, stopwords=10,
+    def match(self, search_id, source, target, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency', min_score=6):
@@ -128,10 +128,10 @@ class SparseMatrixSearch(object):
         ----------
         search_id : bson.objectid.ObjectId
             The search job associated with this matching work.
-        texts : list of tesserae.db.Text
-            The texts to match. Texts are matched in
-        unit_type : {'line','phrase'}
-            The type of unit to match on.
+        source : tesserae.matchers.text_options.TextOptions
+            The source text to compare against, specifying by which units.
+        target : tesserae.matchers.text_options.TextOptions
+            The target text to compare against, specifying by which units.
         feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
         stopwords : int or list of str
@@ -161,53 +161,64 @@ class SparseMatrixSearch(object):
         ValueError
             Raised when a parameter was poorly specified
         """
+        texts = [source.text, target.text]
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
             stoplist = self.create_stoplist(
                 stopwords,
                 'form' if feature == 'form' else 'lemmata',
-                texts[0].language,
+                source.text.language,
                 basis=stopword_basis)
         else:
-            stoplist = self.get_stoplist(stopwords,
-                    'form' if feature == 'form' else 'lemmata',
-                    texts[0].language)
+            stoplist = self.get_stoplist(
+                stopwords,
+                'form' if feature == 'form' else 'lemmata',
+                source.text.language)
 
         features = sorted(
                 self.connection.find(
-                    Feature.collection, language=texts[0].language,
+                    Feature.collection, language=source.text.language,
                     feature=feature),
                 key=lambda x: x.index)
         if len(features) <= 0:
             raise ValueError(
-                f'Feature type "{feature}" for language "{texts[0].language}" '
+                f'Feature type "{feature}" for language '
+                f'"{source.text.language}" '
                 f'was not found in the database.')
 
-        target_units = _get_units(self.connection, [texts[1]], unit_type,
-                feature)
-        source_units = _get_units(self.connection, [texts[0]], unit_type,
-                feature)
+        target_units = _get_units(self.connection, target, feature)
+        source_units = _get_units(self.connection, source, feature)
 
         tag_helper = TagHelper(self.connection, texts)
 
         if frequency_basis != 'texts':
-            match_ents = _score_by_corpus_frequencies(search_id,
-                    self.connection, feature,
-                    texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance, tag_helper)
+            match_ents = _score_by_corpus_frequencies(
+                search_id,
+                self.connection, feature,
+                texts, target_units, source_units, features, stoplist,
+                distance_metric, max_distance, tag_helper)
         else:
-            match_ents = _score_by_text_frequencies(search_id,
-                    self.connection, feature,
-                    texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance, tag_helper)
+            match_ents = _score_by_text_frequencies(
+                search_id,
+                self.connection, feature,
+                texts, target_units, source_units, features, stoplist,
+                distance_metric, max_distance, tag_helper)
 
-        stopword_tokens = [s.token
-                for s in self.connection.find(
-                    Feature.collection, index=[int(i) for i in stoplist],
-                    language=texts[0].language, feature=feature)]
+        stopword_tokens = [
+            s.token
+            for s in self.connection.find(
+                Feature.collection, index=[int(i) for i in stoplist],
+                language=texts[0].language, feature=feature)]
         parameters = {
-            'unit_types': [unit_type for _ in range(len(texts))],
+            'source': {
+                'object_id': str(source.text.id),
+                'units': source.unit_type
+            },
+            'target': {
+                'object_id': str(target.text.id),
+                'units': target.unit_type
+            },
             'method': {
                 'name': self.matcher_type,
                 'feature': feature,
@@ -221,13 +232,13 @@ class SparseMatrixSearch(object):
         return [t.id for t in texts], parameters, match_ents
 
 
-def _get_units(connection, texts, unit_type, feature):
-    units = []
-    for t in texts:
-        units.extend([u for u in connection.aggregate(
+def _get_units(connection, textoptions, feature):
+    return [
+        u for u in connection.aggregate(
             Unit.collection,
             [
-                {'$match': {'text': t.id, 'unit_type': unit_type}},
+                {'$match': {'text': textoptions.text.id, 'unit_type':
+                            textoptions.unit_type}},
                 {'$project': {
                     '_id': True,
                     'text': True,
@@ -240,15 +251,17 @@ def _get_units(connection, texts, unit_type, feature):
                         '$reduce': {
                             'input': '$tokens.features.form',
                             'initialValue': [],
-                            'in': { '$concatArrays': ['$$value', '$$this'] }
+                            'in': {
+                                '$concatArrays': ['$$value', '$$this']
+                            }
                         }
                     },
                     'features': '$tokens.features.'+feature,
                 }}
             ],
             encode=False
-        )])
-    return units
+        )
+    ]
 
 
 def get_text_frequencies(connection, feature, text_id):

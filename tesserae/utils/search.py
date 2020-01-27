@@ -162,16 +162,19 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/tutorial/query-arrays/
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
-    found = [Search.json_decode(f)
+    found = [
+        Search.json_decode(f)
         for f in connection.connection[Search.collection].find({
-            'texts': [ObjectId(source['object_id']),
-                ObjectId(target['object_id'])],
-            'parameters.unit_types': [source['units'], target['units']],
+            'parameters.source.object_id': str(source['object_id']),
+            'parameters.source.units': source['units'],
+            'parameters.target.object_id': str(target['object_id']),
+            'parameters.target.units': target['units'],
             'parameters.method.name': method['name'],
             'parameters.method.feature': method['feature'],
             '$and': [
                 {'parameters.method.stopwords': {'$all': method['stopwords']}},
-                {'parameters.method.stopwords': {'$size': len(method['stopwords'])}}
+                {'parameters.method.stopwords': {
+                    '$size': len(method['stopwords'])}}
             ],
             'parameters.method.freq_basis': method['freq_basis'],
             'parameters.method.max_distance': method['max_distance'],
@@ -179,8 +182,9 @@ def check_cache(connection, source, target, method):
         })
     ]
     if found:
-        status_found = connection.find(Search.collection,
-                _id=found[0].id)
+        status_found = connection.find(
+            Search.collection,
+            _id=found[0].id)
         if status_found and status_found[0].status != Search.FAILED:
             return status_found[0].results_id
     return None
