@@ -142,17 +142,17 @@ class SearchProcess(multiprocessing.Process):
             matcher = tesserae.matchers.matcher_map[search_type](connection)
             results_status.status = Search.RUN
             connection.update(results_status)
-            text_ids, params, matches = matcher.match(search_id, **search_params)
+            matches = matcher.match(search_id, **search_params)
             connection.insert_nocheck(matches)
 
-            results_status.texts = text_ids
             results_status.matches = matches
             results_status.status = Search.DONE
-            results_status.msg='Done in {} seconds'.format(time.time()-start_time)
+            results_status.msg = 'Done in {} seconds'.format(
+                time.time() - start_time)
             connection.update(results_status)
         except:
             results_status.status = Search.FAILED
-            results_status.msg=traceback.format_exc()
+            results_status.msg = traceback.format_exc()
             connection.update(results_status)
 
 

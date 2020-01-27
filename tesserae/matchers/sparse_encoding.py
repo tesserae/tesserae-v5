@@ -205,31 +205,7 @@ class SparseMatrixSearch(object):
                 texts, target_units, source_units, features, stoplist,
                 distance_metric, max_distance, tag_helper)
 
-        stopword_tokens = [
-            s.token
-            for s in self.connection.find(
-                Feature.collection, index=[int(i) for i in stoplist],
-                language=texts[0].language, feature=feature)]
-        parameters = {
-            'source': {
-                'object_id': str(source.text.id),
-                'units': source.unit_type
-            },
-            'target': {
-                'object_id': str(target.text.id),
-                'units': target.unit_type
-            },
-            'method': {
-                'name': self.matcher_type,
-                'feature': feature,
-                'stopwords': stopword_tokens,
-                'freq_basis': frequency_basis,
-                'max_distance': max_distance,
-                'distance_basis': distance_metric
-            }
-        }
-
-        return [t.id for t in texts], parameters, match_ents
+        return match_ents
 
 
 def _get_units(connection, textoptions, feature):

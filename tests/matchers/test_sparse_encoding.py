@@ -364,7 +364,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    v5_matches = matcher.match(
         search_result.id,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
@@ -374,8 +374,6 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
         frequency_basis='texts', max_distance=10,
         distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.texts = text_ids
-    search_result.parameters = params
     search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -393,7 +391,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    v5_matches = matcher.match(
         search_result.id,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
@@ -404,8 +402,6 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
         frequency_basis='texts', max_distance=10,
         distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.texts = text_ids
-    search_result.parameters = params
     search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -462,7 +458,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    v5_matches = matcher.match(
         search_result.id,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
@@ -472,8 +468,6 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
         frequency_basis='corpus', max_distance=10,
         distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.texts = text_ids
-    search_result.parameters = params
     search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -492,7 +486,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    text_ids, params, v5_matches = matcher.match(
+    v5_matches = matcher.match(
         search_result.id,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
@@ -502,8 +496,6 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
         frequency_basis='corpus', max_distance=10,
         distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.texts = text_ids
-    search_result.parameters = params
     search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
