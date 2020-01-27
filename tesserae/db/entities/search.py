@@ -11,6 +11,7 @@ from bson.objectid import ObjectId
 
 from tesserae.db.entities import Entity
 
+
 class Search(Entity):
     """The gestalt of parameters, statuses, and results of a search query
 
@@ -40,32 +41,30 @@ class Search(Entity):
     DONE = 'Done'
     FAILED = 'Failed'
 
-    def __init__(self, id=None, results_id=None, texts=None, parameters=None,
+    def __init__(
+        self, id=None, results_id=None, parameters=None,
             status=None, msg=None, matches=None):
         super().__init__(id=id)
         self.results_id: typing.Optional[str] = results_id \
-                if results_id is not None else ''
-        self.texts: typing.Optional[
-                typing.List[typing.Union[ObjectId, Entity]]] = \
-                        texts if texts is not None else []
-        self.parameters: typing.Mapping[Any, Any] = parameters \
-                if parameters is not None else {}
+            if results_id is not None else ''
+        self.parameters: typing.Mapping[typing.Any, typing.Any] = parameters \
+            if parameters is not None else {}
         self.status: typing.Optional[str] = status \
-                if status is not None else Search.FAILED
+            if status is not None else Search.FAILED
         self.msg: typing.Optional[str] = msg \
-                if msg is not None else ''
+            if msg is not None else ''
         self.matches: typing.Optional[typing.List[ObjectId]] = matches \
-                if matches is not None else []
+            if matches is not None else []
 
     def json_encode(self, exclude=None):
-        self._ignore = [self.texts, self.matches]
-        self.texts = [t.id if isinstance(t, Entity) else t for t in self.texts]
-        self.matches = [m.id if isinstance(m, Entity) else m
-                for m in self.matches]
+        self._ignore = [self.matches]
+        self.matches = [
+            m.id if isinstance(m, Entity) else m
+            for m in self.matches]
 
         obj = super().json_encode(exclude=exclude)
 
-        self.texts, self.matches = self._ignore
+        self.matches = self._ignore[0]
         del self._ignore
 
         return obj
@@ -78,7 +77,7 @@ class Search(Entity):
 
     def __repr__(self):
         return (
-            f'Search(results_id={self.results_id}, texts={self.texts}, '
+            f'Search(results_id={self.results_id}, '
             f'parameters={self.parameters}, '
             f'status={self.status}, msg={self.msg}, '
             f'matches={self.matches})'
