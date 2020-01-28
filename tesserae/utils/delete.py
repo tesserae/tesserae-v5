@@ -30,9 +30,12 @@ def remove_text(connection, text):
         ]
     )
     if searches:
-        connection.connection[Match.collection].delete_many(
+        matchdb = connection.connection[Match.collection]
+        matchdb.delete_many(
             {'search_id': {'$in': [s.id for s in searches]}}
         )
+        # remember to re-index after removing Match entities
+        matchdb.reindex()
         connection.delete(searches)
 
     connection.connection[Feature.collection].update_many(

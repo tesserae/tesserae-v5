@@ -7,10 +7,8 @@ import queue
 import time
 import traceback
 
-from bson.objectid import ObjectId
-
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Search
+from tesserae.db.entities import Match, Search
 import tesserae.matchers
 
 
@@ -40,6 +38,11 @@ class AsynchronousSearcher:
         """
         self.num_workers = num_workers
         self.db_cred = db_cred
+
+        # index Match entities by Search.id
+        connection = TessMongoConnection(**db_cred)
+        connection.connection[Match.collection].create_index('search_id')
+
         self.queue = multiprocessing.Queue()
         self.workers = []
         for _ in range(self.num_workers):
@@ -75,7 +78,7 @@ class AsynchronousSearcher:
             defined in tesserae.matchers.search_types (located in the
             __init__.py file).
         search_params : dict
-            search parameters 
+            search parameters
 
         """
         self.queue.put_nowait((results_id, search_type, search_params))
