@@ -35,6 +35,17 @@ def minipop(request, mini_greek_metadata, mini_latin_metadata):
         conn.connection.drop_collection(coll_name)
 
 
+@pytest.fixture(scope='session')
+def punctpop(request, mini_punctuation_metadata):
+    conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    for metadata in mini_punctuation_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    yield conn
+    for coll_name in conn.connection.list_collection_names():
+        conn.connection.drop_collection(coll_name)
+
+
 @pytest.fixture(scope='module')
 def search_connection(request):
     """Create a new TessMongoConnection for this task.
@@ -505,3 +516,28 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     v3_results = _load_v3_results(
             texts[0].path, 'mini_greek_corpus_results.tab')
     _check_search_results(v5_results, v3_results)
+
+
+def test_mini_punctuation(punctpop, mini_punctuation_metadata):
+    texts = punctpop.find(
+        Text.collection,
+        title=[m['title'] for m in mini_punctuation_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(
+        results_id=results_id,
+        status=Search.INIT,
+        msg='',
+        # see tesserae.utils.search for how to actually set up Search
+    )
+    punctpop.insert(search_result)
+    matcher = SparseMatrixSearch(punctpop)
+    matcher.match(
+        search_result.id,
+        TextOptions(texts[0], 'phrase'),
+        TextOptions(texts[1], 'phrase'),
+        'lemmata',
+        stopwords=10,
+        stopword_basis='corpus', score_basis='stem',
+        frequency_basis='corpus', max_distance=10,
+        distance_metric='span', min_score=0)
+    # the point of this test is to make sure no Exception is thrown

@@ -40,7 +40,6 @@ def mini_latin_metadata(tessfiles_latin_path):
             'author': 'minivergil',
             'language': 'latin',
             'year': -19,
-            'unit_types': ['line', 'phrase'],
             'path': str(tessfiles_latin_path.joinpath('mini.aen.tess'))
         },
         {
@@ -48,7 +47,6 @@ def mini_latin_metadata(tessfiles_latin_path):
             'author': 'minilucan',
             'language': 'latin',
             'year': 65,
-            'unit_types': ['line', 'phrase'],
             'path': str(tessfiles_latin_path.joinpath('mini.phar.tess'))
         },
     ]
@@ -62,7 +60,6 @@ def mini_greek_metadata(tessfiles_greek_path):
             'author': 'minihomer',
             'language': 'greek',
             'year': -1260,
-            'unit_types': ['line', 'phrase'],
             'path': str(tessfiles_greek_path.joinpath('mini.il.tess'))
         },
         {
@@ -70,8 +67,27 @@ def mini_greek_metadata(tessfiles_greek_path):
             'author': 'miniplato',
             'language': 'greek',
             'year': -283,
-            'unit_types': ['line', 'phrase'],
             'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess'))
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
+def mini_punctuation_metadata(tessfiles_latin_path):
+    return [
+        {
+            'title': 'minicivdei',
+            'author': 'miniaug',
+            'language': 'latin',
+            'year': 426,
+            'path': str(tessfiles_latin_path.joinpath('mini.aug.tess'))
+        },
+        {
+            'title': 'minidiv',
+            'author': 'minicicero',
+            'language': 'latin',
+            'year': -44,
+            'path': str(tessfiles_latin_path.joinpath('mini.cic.tess'))
         },
     ]
 

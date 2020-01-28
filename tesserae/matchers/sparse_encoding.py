@@ -564,7 +564,11 @@ def _extract_features_and_positions(units, stoplist_set):
         end_break_inds = break_inds[-1]
         cur_features = unit['features']
         for i, features in enumerate(cur_features):
-            valid_features = [f for f in features if f not in stoplist_set]
+            valid_features = [
+                f for f in features
+                if f not in stoplist_set and f >= 0]
+            if -1 in valid_features:
+                print(unit)
             feature_inds.extend(valid_features)
             pos_inds.extend([end_break_inds + i] * len(valid_features))
         break_inds.append(end_break_inds + len(cur_features))
@@ -637,6 +641,8 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     for sw in stoplist_set:
         if np.any(feature_inds == sw):
             raise Exception('Stopword in Unit x Feature Matrix!')
+    print('negative features:', np.sum(feature_inds < 0))
+    print(feature_inds[feature_inds < 0])
     return (
         csr_matrix(
             (np.ones(len(pos_inds), dtype=np.bool), (pos_inds, feature_inds)),
