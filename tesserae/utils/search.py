@@ -145,7 +145,6 @@ class SearchProcess(multiprocessing.Process):
             matches = matcher.match(search_id, **search_params)
             connection.insert_nocheck(matches)
 
-            results_status.matches = matches
             results_status.status = Search.DONE
             results_status.msg = 'Done in {} seconds'.format(
                 time.time() - start_time)

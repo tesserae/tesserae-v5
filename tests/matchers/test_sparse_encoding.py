@@ -374,7 +374,6 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
         frequency_basis='texts', max_distance=10,
         distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
@@ -402,7 +401,6 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
         frequency_basis='texts', max_distance=10,
         distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
@@ -468,7 +466,6 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
         frequency_basis='corpus', max_distance=10,
         distance_metric='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
@@ -483,7 +480,12 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
         Text.collection,
         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id)
+    search_result = Search(
+        results_id=results_id,
+        status=Search.INIT,
+        msg='',
+        # see tesserae.utils.search for how to actually set up Search
+    )
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
@@ -496,7 +498,6 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
         frequency_basis='corpus', max_distance=10,
         distance_metric='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
-    search_result.matches = v5_matches
     search_result.status = Search.DONE
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)

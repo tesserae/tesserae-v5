@@ -67,7 +67,7 @@ def get_results(connection, results_id):
     db_matches = connection.aggregate(
         Match.collection,
         [
-            {'$match': {'_id': {'$in': found.matches}}},
+            {'$match': {'search_id': found.id}},
             {
                 '$project': {
                     '_id': False,
