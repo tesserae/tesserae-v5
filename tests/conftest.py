@@ -3,14 +3,14 @@
 from pathlib import Path
 import pytest
 
-import datetime
 import getpass
-import glob
 import json
 import os
 
-import numpy as np
 import pymongo
+
+from tesserae.db import TessMongoConnection, Text
+from tesserae.utils import ingest_text
 
 
 def pytest_addoption(parser):
@@ -145,3 +145,17 @@ def test_data(connection, tessfiles):
 def tessfiles():
     return os.path.abspath(
         os.path.join(os.path.dirname(__file__), 'tessfiles'))
+
+
+@pytest.fixture(scope='session')
+def minipop(request, mini_greek_metadata, mini_latin_metadata):
+    conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    for metadata in mini_greek_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    for metadata in mini_latin_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    yield conn
+    for coll_name in conn.connection.list_collection_names():
+        conn.connection.drop_collection(coll_name)

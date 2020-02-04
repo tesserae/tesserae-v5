@@ -1,6 +1,8 @@
 """Helper class and functions for running search
 
-Originally conceived of in order to support asynchronous web API search
+AsynchronousSearcher provides normal Tesserae search capabilities.
+
+bigram_search enables lookup of bigrams for a particular language and unit type
 """
 import multiprocessing
 import queue
@@ -8,12 +10,12 @@ import time
 import traceback
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Match, Search
+from tesserae.db.entities import Match, Search, Unit
 import tesserae.matchers
 
 
 class AsynchronousSearcher:
-    """Asynchronous search resource holder
+    """Asynchronous Tesserae search resource holder
 
     Attributes
     ----------
@@ -152,7 +154,8 @@ class SearchProcess(multiprocessing.Process):
             results_status.msg = 'Done in {} seconds'.format(
                 time.time() - start_time)
             connection.update(results_status)
-        except:
+        # we want to catch all errors and log them into the Search entity
+        except:  # noqa: E722
             results_status.status = Search.FAILED
             results_status.msg = traceback.format_exc()
             connection.update(results_status)
@@ -167,7 +170,7 @@ def check_cache(connection, source, target, method):
     source
         See API documentation for form
     target
-        See API documnetation for form
+        See API documentation for form
     method
         See API documentation for form
 
@@ -210,3 +213,53 @@ def check_cache(connection, source, target, method):
         if status_found and status_found[0].status != Search.FAILED:
             return status_found[0].results_id
     return None
+
+
+def _words_in_different_positions(unit, feature, word1_index, word2_index):
+    word1_positions = set()
+    word2_positions = set()
+    for i, tok in enumerate(unit.tokens):
+        cur_features = tok['features'][feature]
+        if word1_index in cur_features:
+            word1_positions.add(i)
+        if word2_index in cur_features:
+            word2_positions.add(i)
+    return word1_positions - word2_positions and \
+        word2_positions - word1_positions
+
+
+def bigram_search(
+        connection, word1_index, word2_index, feature, unit_type, text_ids):
+    """Retrieves all Units containing the specified words
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    word1_index, word2_index : int
+        Feature index of words to be contained in a Unit
+    feature : {'lemmata', 'form'}
+        Feature type of words to search for
+    unit_type : {'line', 'phrase'}
+        Type of Units to look for
+    text_ids : list of ObjectId
+        The IDs of Texts whose Units are to be searched
+
+    Returns
+    -------
+    list of Unit
+        All Units of the specified texts and ``unit_type`` containing
+        both ``word1_index`` and ``word2_index``
+    """
+    unit_candidates = connection.aggregate(
+        Unit.collection,
+        [
+            {'$match': {'$expr': {'$in': ['$text', text_ids]}}},
+            {'$match': {'tokens.features.'+feature: word1_index}},
+            {'$match': {'tokens.features.'+feature: word2_index}},
+        ]
+    )
+    results = []
+    for u in unit_candidates:
+        if _words_in_different_positions(u, feature, word1_index, word2_index):
+            results.append(u)
+    return results

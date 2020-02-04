@@ -4,18 +4,13 @@ Classes
 -------
 
 """
-from collections import Counter, defaultdict
+from collections import Counter
 import itertools
-import math
-import multiprocessing as mp
-import time
 
-from bson import ObjectId
 import numpy as np
-import pymongo
-from scipy.sparse import csr_matrix, dok_matrix
+from scipy.sparse import csr_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, Token, Text, Unit
+from tesserae.db.entities import Entity, Feature, Match, Unit
 from tesserae.utils.retrieve import TagHelper
 
 
@@ -54,7 +49,8 @@ class SparseMatrixSearch(object):
         if feature is not None:
             pipeline[0]['$match']['feature'] = feature
 
-        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        stoplist = self.connection.aggregate(
+            Feature.collection, pipeline, encode=False)
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
     def create_stoplist(self, n, feature, language, basis='corpus'):
@@ -99,7 +95,8 @@ class SparseMatrixSearch(object):
                     'index': True,
                     'token': True,
                     'frequency': {
-                        '$sum': ['$frequencies.' + str(t_id) for t_id in basis]}
+                        '$sum': [
+                            '$frequencies.' + str(t_id) for t_id in basis]}
                 }}
             ])
 
@@ -109,7 +106,8 @@ class SparseMatrixSearch(object):
             {'$project': {'token': True, 'index': True, 'frequency': True}}
         ])
 
-        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        stoplist = self.connection.aggregate(
+            Feature.collection, pipeline, encode=False)
         stoplist = list(stoplist)
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
@@ -306,8 +304,10 @@ def get_text_frequencies(connection, feature, text_id):
         csr_rows.append(mtindex)
         csr_cols.append(mfindex)
     word_feature_matrix = csr_matrix(
-        (np.ones(len(csr_rows), dtype=np.bool), (np.array(csr_rows),
-            np.array(csr_cols))),
+        (
+            np.ones(len(csr_rows), dtype=np.bool),
+            (np.array(csr_rows), np.array(csr_cols))
+        ),
         shape=(len(tindex2mtindex), len(findex2mfindex))
     )
     # if matching_words_matrix[i, j] == True, then the word represented by
@@ -397,7 +397,8 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies(search_id, connection, feature, texts,
+def _score_by_corpus_frequencies(
+        search_id, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_metric, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
@@ -412,23 +413,26 @@ def _score_by_corpus_frequencies(search_id, connection, feature, texts,
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return _score(search_id, target_units, source_units, features, stoplist,
-            distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter,
-            tag_helper)
+    return _score(
+        search_id, target_units, source_units, features, stoplist,
+        distance_metric,
+        max_distance, source_frequencies_getter, target_frequencies_getter,
+        tag_helper)
 
 
-def _score_by_text_frequencies(search_id, connection, feature, texts,
+def _score_by_text_frequencies(
+        search_id, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_metric, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return _score(search_id, target_units, source_units, features, stoplist,
-            distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter,
-            tag_helper)
+    return _score(
+        search_id, target_units, source_units, features, stoplist,
+        distance_metric,
+        max_distance, source_frequencies_getter, target_frequencies_getter,
+        tag_helper)
 
 
 def _get_trivial_distance(positions):
@@ -516,6 +520,7 @@ def _averaged_freq_getter(d, units_iter):
             if form in cache:
                 continue
             cache[form] = np.mean([d[f] for f in feats])
+
     def _inner(key):
         return cache[key]
     return _inner
@@ -700,14 +705,16 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     """
     # keep track of mapping between matrix row index and target unit index
     # in ``target_units``
-    row2t_unit_ind = np.array([u_ind
-            for u_ind in range(len(target_breaks) - 1)
-            for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
+    row2t_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(target_breaks) - 1)
+        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     # keep track of mapping between matrix column index and source unit index
     # in ``source_units``
-    col2s_unit_ind = np.array([u_ind
-            for u_ind in range(len(source_breaks) - 1)
-            for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
+    col2s_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(source_breaks) - 1)
+        for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
     tmp = {}
     hits2positions = {}
     t_inds = row2t_unit_ind[rows]
@@ -726,7 +733,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     return hits2positions
 
 
-def get_hits2positions(target_units, source_units, stoplist_set, features_size):
+def get_hits2positions(
+        target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -799,13 +807,15 @@ def _gen_matches(hits2positions):
         the first column contains target positions; the second column has
         corresponding source positions
     """
-    overhits2positions = {k: np.array(v) for k, v in hits2positions.items()
-            if len(v) >= 2}
+    overhits2positions = {
+        k: np.array(v) for k, v in hits2positions.items()
+        if len(v) >= 2}
     for (t_ind, s_ind), positions in overhits2positions.items():
         yield (t_ind, s_ind, positions)
 
 
-def _score(search_id, target_units, source_units, features, stoplist,
+def _score(
+        search_id, target_units, source_units, features, stoplist,
         distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
@@ -845,26 +855,32 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
             if match_features:
-                match_frequencies = [target_frequencies_getter(target_forms[pos])
-                        for pos in set(t_positions)]
+                match_frequencies = [
+                    target_frequencies_getter(target_forms[pos])
+                    for pos in set(t_positions)]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
                         for pos in set(s_positions)])
-                score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+                score = np.log(
+                    (np.sum(np.power(match_frequencies, -1))) / distance)
                 match_ents.append(Match(
                     search_id=search_id,
                     source_unit=source_unit['_id'],
                     target_unit=target_unit['_id'],
-                    source_tag=tag_helper.get_display_tag(source_unit['text'],
+                    source_tag=tag_helper.get_display_tag(
+                        source_unit['text'],
                         source_unit['tags']),
-                    target_tag=tag_helper.get_display_tag(target_unit['text'],
+                    target_tag=tag_helper.get_display_tag(
+                        target_unit['text'],
                         target_unit['tags']),
-                    matched_features=[features[int(mf)].token
+                    matched_features=[
+                        features[int(mf)].token
                         for mf in match_features],
                     score=score,
                     source_snippet=source_unit['snippet'],
                     target_snippet=target_unit['snippet'],
-                    highlight=[(int(s_pos), int(t_pos))
+                    highlight=[
+                        (int(s_pos), int(t_pos))
                         for s_pos, t_pos in zip(s_positions, t_positions)]
                 ))
     return match_ents
