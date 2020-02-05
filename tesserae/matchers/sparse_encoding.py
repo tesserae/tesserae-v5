@@ -191,17 +191,19 @@ class SparseMatrixSearch(object):
         tag_helper = TagHelper(self.connection, texts)
 
         if frequency_basis != 'texts':
-            match_ents = _score_by_corpus_frequencies(
-                search_id,
-                self.connection, feature,
-                texts, target_units, source_units, features, stoplist,
-                distance_metric, max_distance, tag_helper)
+            source_frequencies_getter, target_frequencies_getter = \
+                _get_corpus_frequency_getters(
+                    self.connection, feature, texts, target_units, source_units
+                )
         else:
-            match_ents = _score_by_text_frequencies(
-                search_id,
-                self.connection, feature,
-                texts, target_units, source_units, features, stoplist,
-                distance_metric, max_distance, tag_helper)
+            source_frequencies_getter, target_frequencies_getter = \
+                _get_text_frequency_getters(self.connection, feature, texts)
+
+        match_ents = _score(
+            search_id, target_units, source_units, features, stoplist,
+            distance_metric,
+            max_distance, source_frequencies_getter, target_frequencies_getter,
+            tag_helper)
 
         return match_ents
 
@@ -397,10 +399,9 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies(
-        search_id, connection, feature, texts,
-        target_units, source_units,
-        features, stoplist, distance_metric, max_distance, tag_helper):
+def _get_corpus_frequency_getters(
+        connection, feature, texts, target_units,
+        source_units):
     if texts[0].language != texts[1].language:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
@@ -413,26 +414,15 @@ def _score_by_corpus_frequencies(
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return _score(
-        search_id, target_units, source_units, features, stoplist,
-        distance_metric,
-        max_distance, source_frequencies_getter, target_frequencies_getter,
-        tag_helper)
+    return source_frequencies_getter, target_frequencies_getter
 
 
-def _score_by_text_frequencies(
-        search_id, connection, feature, texts,
-        target_units, source_units,
-        features, stoplist, distance_metric, max_distance, tag_helper):
+def _get_text_frequency_getters(connection, feature, texts):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return _score(
-        search_id, target_units, source_units, features, stoplist,
-        distance_metric,
-        max_distance, source_frequencies_getter, target_frequencies_getter,
-        tag_helper)
+    return source_frequencies_getter, target_frequencies_getter
 
 
 def _get_trivial_distance(positions):
