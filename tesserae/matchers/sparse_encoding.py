@@ -200,7 +200,7 @@ class SparseMatrixSearch(object):
                 _get_text_frequency_getters(self.connection, feature, texts)
 
         match_ents = _score(
-            search_id, target_units, source_units, features, stoplist,
+            search_id, target_units, source_units, features, set(stoplist),
             distance_metric,
             max_distance, source_frequencies_getter, target_frequencies_getter,
             tag_helper)
@@ -803,13 +803,12 @@ def _gen_matches(hits2positions):
 
 
 def _score(
-        search_id, target_units, source_units, features, stoplist,
+        search_id, target_units, source_units, features, stoplist_set,
         distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
     match_ents = []
     features_size = len(features)
-    stoplist_set = set(stoplist)
     hits2positions = get_hits2positions(
             target_units, source_units, stoplist_set, features_size)
     for target_ind, source_ind, positions in _gen_matches(hits2positions):
