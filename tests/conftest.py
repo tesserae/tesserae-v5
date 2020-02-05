@@ -150,6 +150,7 @@ def tessfiles():
 @pytest.fixture(scope='session')
 def minipop(request, mini_greek_metadata, mini_latin_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    conn.create_indices()
     for metadata in mini_greek_metadata:
         text = Text.json_decode(metadata)
         ingest_text(conn, text)

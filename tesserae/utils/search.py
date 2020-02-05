@@ -2,7 +2,7 @@
 
 AsynchronousSearcher provides normal Tesserae search capabilities.
 
-bigram_search enables lookup of bigrams for a particular language and unit type
+bigram_search enables lookup of bigrams for specified units of specified texts
 """
 import multiprocessing
 import queue
@@ -10,7 +10,7 @@ import time
 import traceback
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Match, Search, Unit
+from tesserae.db.entities import Search, Unit
 import tesserae.matchers
 
 
@@ -40,10 +40,6 @@ class AsynchronousSearcher:
         """
         self.num_workers = num_workers
         self.db_cred = db_cred
-
-        # index Match entities by Search.id
-        connection = TessMongoConnection(**db_cred)
-        connection.connection[Match.collection].create_index('search_id')
 
         self.queue = multiprocessing.Queue()
         self.workers = []
