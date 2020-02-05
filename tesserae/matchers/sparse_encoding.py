@@ -199,11 +199,20 @@ class SparseMatrixSearch(object):
             source_frequencies_getter, target_frequencies_getter = \
                 _get_text_frequency_getters(self.connection, feature, texts)
 
-        match_ents = _score(
-            search_id, target_units, source_units, features, set(stoplist),
-            distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter,
-            tag_helper)
+        match_ents = []
+        stepsize = 500
+        for su_start in range(0, len(source_units), stepsize):
+            match_ents.extend(
+                _score(
+                    search_id, target_units,
+                    source_units[su_start:su_start+stepsize], features,
+                    set(stoplist),
+                    distance_metric,
+                    max_distance, source_frequencies_getter,
+                    target_frequencies_getter,
+                    tag_helper
+                )
+            )
 
         return match_ents
 
