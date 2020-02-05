@@ -646,8 +646,6 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     for sw in stoplist_set:
         if np.any(feature_inds == sw):
             raise Exception('Stopword in Unit x Feature Matrix!')
-    print('negative features:', np.sum(feature_inds < 0))
-    print(feature_inds[feature_inds < 0])
     return (
         csr_matrix(
             (np.ones(len(pos_inds), dtype=np.bool), (pos_inds, feature_inds)),
