@@ -64,7 +64,7 @@ class Property(Entity):
         if isinstance(self.text, Entity):
             self.text = self.text.id
 
-        obj = super(Unit, self).json_encode(exclude=exclude)
+        obj = super(Property, self).json_encode(exclude=exclude)
 
         self.unit, self.text = self._ignore
         del self._ignore

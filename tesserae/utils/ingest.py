@@ -56,14 +56,16 @@ def ingest_text(connection, text):
         else:
             f.id = feature_cache[(f.feature, f.token)].id
             features_for_update.append(f)
-    insert_features_result = connection.insert(features_for_insert)
-    update_features_result = connection.update(features_for_update)
+    connection.insert(features_for_insert)
+    connection.update(features_for_update)
 
     unitizer = Unitizer()
-    lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
+    lines, phrases, properties = unitizer.unitize(
+        tokens, tags, tessfile.metadata)
 
-    result = connection.insert_nocheck(tokens)
-    result = connection.insert_nocheck(lines + phrases)
+    connection.insert_nocheck(tokens)
+    connection.insert_nocheck(lines + phrases)
+    connection.insert_nocheck(properties)
 
     return text_id
 
