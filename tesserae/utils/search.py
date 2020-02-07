@@ -11,7 +11,7 @@ import time
 import traceback
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Feature, Search, Unit
+from tesserae.db.entities import Feature, Property, Search, Unit
 import tesserae.matchers
 
 
@@ -212,19 +212,6 @@ def check_cache(connection, source, target, method):
     return None
 
 
-def _words_in_different_positions(unit, feature, word1_index, word2_index):
-    word1_positions = set()
-    word2_positions = set()
-    for i, tok in enumerate(unit.tokens):
-        cur_features = tok['features'][feature]
-        if word1_index in cur_features:
-            word1_positions.add(i)
-        if word2_index in cur_features:
-            word2_positions.add(i)
-    return word1_positions - word2_positions and \
-        word2_positions - word1_positions
-
-
 def bigram_search(
         connection, word1_index, word2_index, feature, unit_type, text_ids):
     """Retrieves all Units of a specified type containing the specified words
@@ -247,19 +234,32 @@ def bigram_search(
         All Units of the specified texts and ``unit_type`` containing
         both ``word1_index`` and ``word2_index``
     """
-    unit_candidates = connection.aggregate(
-        Unit.collection,
+    raw_results = connection.aggregate(
+        Property.collection,
         [
-            {'$match': {'$expr': {'$in': ['$text', text_ids]}}},
-            {'$match': {'tokens.features.'+feature: word1_index}},
-            {'$match': {'tokens.features.'+feature: word2_index}},
-        ]
+            {'$match': {
+                'unit_type': unit_type,
+                'feature_type': feature,
+                '$expr': {'$and': [
+                    {'$in': ['$text', text_ids]},
+                    {'$in': ['$feature_index', [word1_index, word2_index]]},
+                ]},
+            }},
+            {'$group': {
+                '_id': '$unit',
+                'positions': {'$addToSet': '$position'}
+            }},
+            {'$match': {'$expr': {'$gte': [{'$size': '$positions'}, 2]}}},
+            {'$lookup': {
+                'from': Unit.collection,
+                'localField': '_id',
+                'foreignField': '_id',
+                'as': 'unit'
+            }}
+        ],
+        encode=False
     )
-    results = []
-    for u in unit_candidates:
-        if _words_in_different_positions(u, feature, word1_index, word2_index):
-            results.append(u)
-    return results
+    return [Unit.json_decode(u['unit'][0]) for u in raw_results]
 
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
