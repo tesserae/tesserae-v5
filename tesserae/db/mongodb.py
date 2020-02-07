@@ -459,6 +459,14 @@ class TessMongoConnection():
         # index Unit entities by Text.id for faster bigram by texts retrieval
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
+        # index Property entities by various keys
+        self.connection[tesserae.db.entities.Property.collection].create_index(
+            [
+                ('unit_type', pymongo.ASCENDING),
+                ('feature_type', pymongo.ASCENDING),
+                ('text', pymongo.ASCENDING),
+                ('feature_index', pymongo.ASCENDING)
+            ])
 
     def drop_indices(self):
         """Drops all indices
