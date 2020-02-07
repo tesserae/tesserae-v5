@@ -4,13 +4,14 @@ AsynchronousSearcher provides normal Tesserae search capabilities.
 
 bigram_search enables lookup of bigrams for specified units of specified texts
 """
+import itertools
 import multiprocessing
 import queue
 import time
 import traceback
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Search, Unit
+from tesserae.db.entities import Feature, Search, Unit
 import tesserae.matchers
 
 
@@ -226,7 +227,7 @@ def _words_in_different_positions(unit, feature, word1_index, word2_index):
 
 def bigram_search(
         connection, word1_index, word2_index, feature, unit_type, text_ids):
-    """Retrieves all Units containing the specified words
+    """Retrieves all Units of a specified type containing the specified words
 
     Parameters
     ----------
@@ -259,3 +260,55 @@ def bigram_search(
         if _words_in_different_positions(u, feature, word1_index, word2_index):
             results.append(u)
     return results
+
+
+def multitext_search(connection, matches, feature_type, unit_type, texts):
+    """Retrieves Units containing matched bigrams
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    matches : list of Match
+        Match entities from which matched bigrams are taken
+    feature_type : {'lemmata', 'form'}
+        Feature type of words to search for
+    unit_type : {'line', 'phrase'}
+        Type of Units to look for
+    texts : list of Text
+        The Texts whose Units are to be searched
+
+    Returns
+    -------
+    list of dict[(str, str), list of Unit]
+        each dictionary within the list corresponds in index to a match from
+        ``matches``; the dictionary contains key-value pairs, where the key is
+        a bigram and the value is a list of Units of type ``unit_type`` that
+        contains the bigram specified by the key; Units are restricted to those
+        which are found in ``texts``
+    """
+    language = texts[0].language
+    token2index = {
+        f.token: f.index
+        for f in connection.find(
+            Feature.collection, feature=feature_type, language=language)}
+
+    bigram_indices = set()
+    for m in matches:
+        for w1, w2 in itertools.combinations(sorted(m.matched_features), 2):
+            bigram_indices.add((token2index[w1], token2index[w2]))
+
+    bigram2units = {
+        bigram: bigram_search(
+            connection, bigram[0], bigram[1], feature_type, unit_type,
+            [t.id for t in texts])
+        for bigram in bigram_indices
+    }
+
+    return [
+        {
+            bigram: bigram2units[
+                (token2index[bigram[0]], token2index[bigram[1]])]
+            for bigram in itertools.combinations(sorted(m.matched_features), 2)
+        }
+        for m in matches
+    ]
