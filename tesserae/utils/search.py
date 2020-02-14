@@ -234,32 +234,46 @@ def bigram_search(
         All Units of the specified texts and ``unit_type`` containing
         both ``word1_index`` and ``word2_index``
     """
+    print('####')
+    print(word1_index, word2_index)
+    pipeline = [
+        {'$match': {
+            'unit_type': unit_type,
+        }},
+        {'$match': {
+            'feature_type': feature,
+        }},
+        {'$match': {
+            '$expr': {'$in': ['$text', text_ids]},
+        }},
+        {'$match': {
+            '$expr': {'$in': ['$feature_index', [word1_index, word2_index]]},
+        }},
+        {'$group': {
+            '_id': '$unit',
+            'positions': {'$addToSet': '$position'}
+        }},
+        {'$match': {'$expr': {'$gte': [{'$size': '$positions'}, 2]}}},
+        {'$lookup': {
+            'from': Unit.collection,
+            'localField': '_id',
+            'foreignField': '_id',
+            'as': 'unit'
+        }}
+    ]
+    start = time.time()
     raw_results = connection.aggregate(
         Property.collection,
-        [
-            {'$match': {
-                'unit_type': unit_type,
-                'feature_type': feature,
-                '$expr': {'$and': [
-                    {'$in': ['$text', text_ids]},
-                    {'$in': ['$feature_index', [word1_index, word2_index]]},
-                ]},
-            }},
-            {'$group': {
-                '_id': '$unit',
-                'positions': {'$addToSet': '$position'}
-            }},
-            {'$match': {'$expr': {'$gte': [{'$size': '$positions'}, 2]}}},
-            {'$lookup': {
-                'from': Unit.collection,
-                'localField': '_id',
-                'foreignField': '_id',
-                'as': 'unit'
-            }}
-        ],
+        pipeline,
         encode=False
     )
-    return [Unit.json_decode(u['unit'][0]) for u in raw_results]
+    # raw_results.batch_size(500)
+    print('Aggregation time:', time.time()-start)
+    start = time.time()
+    results = [Unit.json_decode(u['unit'][0]) for u in raw_results]
+    print('Aggregation ferry time:', time.time()-start)
+    print('Retrieved from aggregation:', len(results))
+    return results
 
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
