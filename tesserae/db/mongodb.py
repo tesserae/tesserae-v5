@@ -24,7 +24,7 @@ use the `pymongo`_ library.
 
 """
 
-from collections import Iterable, Mapping
+from collections import defaultdict, Iterable, Mapping
 import datetime
 try:
     # Python 3.x
@@ -38,6 +38,29 @@ import six
 
 import tesserae.db.entities
 from tesserae.db.entities import Entity
+
+
+def _create_bigram_dbname(language, unit_type, feature, word1, word2):
+    """Create database name for the specified bigram
+
+    Parameters
+    ----------
+    language : str
+    unit_type : str
+    feature : str
+        the type of feature for which ``word1`` and ``word2`` are indices
+    word1 : int
+    word2 : int
+
+    Returns
+    -------
+    str
+        the name of the database for this particular bigram
+
+    """
+    if word1 > word2:
+        word1, word2 = word2, word1
+    return f'{language}_{unit_type}_{feature}_{word1}_{word2}'
 
 
 def _extract_embedded_docs(doc):
@@ -459,14 +482,6 @@ class TessMongoConnection():
         # index Unit entities by Text.id for faster bigram by texts retrieval
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
-        # index Property entities by various keys
-        self.connection[tesserae.db.entities.Property.collection].create_index(
-            [
-                ('unit_type', pymongo.ASCENDING),
-                ('feature_type', pymongo.ASCENDING),
-                ('text', pymongo.ASCENDING),
-                ('feature_index', pymongo.ASCENDING)
-            ])
 
     def drop_indices(self):
         """Drops all indices
@@ -475,6 +490,58 @@ class TessMongoConnection():
         """
         for coll_name in self.connection.list_collection_names():
             self.connection[coll_name].drop_indices()
+
+    def register_bigrams(self, text, units):
+        """Registers bigrams in the database
+
+        Parameters
+        ----------
+        text : tesserae.db.entities.Text
+            text with which to register the bigrams
+        units : list of tesserae.db.entities.Unit
+            units of the text with which to register the bigrams
+
+        """
+        data = {}
+        for u in units:
+            unit_type = u.unit_type
+            if unit_type not in data:
+                data[unit_type] = {}
+            unit_type_level = data[unit_type]
+            by_feature = defaultdict(list)
+            for t in u.tokens:
+                for feature, values in t:
+                    by_feature[feature].append(values)
+            for feature, values in by_feature:
+                if feature not in unit_type_level:
+                    unit_type_level[feature] = {}
+                feature_level = unit_type_level[feature]
+                for pos, indices in enumerate(values):
+                    for word1 in indices:
+                        for inds2 in values[pos+1:]:
+                            for word2 in inds2:
+                                bigram = tuple(sorted(word1, word2))
+                                if bigram not in feature_level:
+                                    feature_level[bigram] = set()
+                                feature_level[bigram].add(unit.id)
+
+        language = text.language
+        text_id = text.id
+        for unit_type, features in data.items():
+            for feature, bigrams in features.items():
+                for (word1, word2), unit_ids in bigrams.items():
+                    dbname = _create_bigram_dbname(
+                        text.language, unit_type, feature, word1, word2)
+                    coll = self.connection[dbname]
+                    result = coll.insert_many(
+                        [
+                            {'unit_id': uid, 'text_id': text_id}
+                            for uid in unit_ids
+                        ]
+                    )
+
+    # TODO finish implementing
+    def find_bigrams(self)
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):

@@ -4,6 +4,7 @@ AsynchronousSearcher provides normal Tesserae search capabilities.
 
 bigram_search enables lookup of bigrams for specified units of specified texts
 """
+from collections import defaultdict
 import itertools
 import multiprocessing
 import queue
@@ -249,6 +250,8 @@ def bigram_search(
         {'$match': {
             '$expr': {'$in': ['$feature_index', [word1_index, word2_index]]},
         }},
+    ]
+    '''
         {'$group': {
             '_id': '$unit',
             'positions': {'$addToSet': '$position'}
@@ -260,17 +263,24 @@ def bigram_search(
             'foreignField': '_id',
             'as': 'unit'
         }}
-    ]
+    '''
     start = time.time()
     raw_results = connection.aggregate(
         Property.collection,
         pipeline,
         encode=False
     )
+    groups = defaultdict(set)
+    for item in raw_results:
+        groups[item['_id']].add(item['position'])
+    units_to_grab = [k for k, v in groups.items() if len(v) >= 2]
     # raw_results.batch_size(500)
     print('Aggregation time:', time.time()-start)
     start = time.time()
-    results = [Unit.json_decode(u['unit'][0]) for u in raw_results]
+    # results = [Unit.json_decode(u['unit'][0]) for u in raw_results]
+    results = connection.aggregate(
+        Unit.collection,
+        [{'$match': {'$expr': {'$in': ['$_id', units_to_grab]}}}])
     print('Aggregation ferry time:', time.time()-start)
     print('Retrieved from aggregation:', len(results))
     return results
