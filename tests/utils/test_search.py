@@ -20,7 +20,7 @@ def test_bigram_search(minipop, mini_latin_metadata):
         Text.collection, language=language
     )
     units = bigram_search(
-        minipop, bellum.index, pando.index, feature, 'line',
+        minipop, bellum.index, pando.index, feature, 'line', language,
         [t.id for t in texts])
     assert len(units) > 0
     for u in units:

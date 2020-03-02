@@ -32,25 +32,49 @@ try:
 except ImportError:
     # Python 2.x
     from urllib import quote_plus
+import sys
+import time
 
 import pymongo
 import six
+from tqdm import tqdm
 
 import tesserae.db.entities
-from tesserae.db.entities import Entity
+from tesserae.db.entities import Entity, Unit
 
 
-def _create_bigram_dbname(language, unit_type, feature, word1, word2):
+# https://goshippo.com/blog/measure-real-size-any-python-object/
+def get_size(obj, seen=None):
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # Important mark as seen *before* entering recursion to gracefully handle
+    # self-referential objects
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
+
+
+def _create_bigram_dbname(text_id, unit_type, feature):
     """Create database name for the specified bigram
 
     Parameters
     ----------
-    language : str
+    text_id : ObjectId
+        ObjectId of Text
     unit_type : str
     feature : str
-        the type of feature for which ``word1`` and ``word2`` are indices
-    word1 : int
-    word2 : int
+        the type of feature of the bigrams
 
     Returns
     -------
@@ -58,9 +82,8 @@ def _create_bigram_dbname(language, unit_type, feature, word1, word2):
         the name of the database for this particular bigram
 
     """
-    if word1 > word2:
-        word1, word2 = word2, word1
-    return f'{language}_{unit_type}_{feature}_{word1}_{word2}'
+    text_id_str = str(text_id)
+    return f'bigrams_{text_id_str}_{unit_type}_{feature}'
 
 
 def _extract_embedded_docs(doc):
@@ -476,12 +499,24 @@ class TessMongoConnection():
 
     def create_indices(self):
         """Creates indices for entities for faster lookup later"""
+        print('Creating indices')
         # index Match entities by Search.id for faster search results retrieval
         self.connection[tesserae.db.entities.Match.collection].create_index(
             'search_id')
         # index Unit entities by Text.id for faster bigram by texts retrieval
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
+        print(len(self.connection.list_collection_names()))
+        for coll_name in tqdm(self.connection.list_collection_names()):
+            # index bigram tables by Text.id for faster bigram by texts
+            # retrieval
+            if coll_name.startswith('bigram_'):
+                self.connection[coll_name].create_index([
+                    ('word1', pymongo.ASCENDING),
+                    ('word2', pymongo.ASCENDING),
+                    ('unit_id', pymongo.ASCENDING)
+                ])
+        print('Finished creating indices')
 
     def drop_indices(self):
         """Drops all indices
@@ -489,7 +524,7 @@ class TessMongoConnection():
         Might be useful if you need to rebuild indices
         """
         for coll_name in self.connection.list_collection_names():
-            self.connection[coll_name].drop_indices()
+            self.connection[coll_name].drop_indexes()
 
     def register_bigrams(self, text, units):
         """Registers bigrams in the database
@@ -501,6 +536,10 @@ class TessMongoConnection():
         units : list of tesserae.db.entities.Unit
             units of the text with which to register the bigrams
 
+        Returns
+        -------
+        None
+
         """
         data = {}
         for u in units:
@@ -510,9 +549,9 @@ class TessMongoConnection():
             unit_type_level = data[unit_type]
             by_feature = defaultdict(list)
             for t in u.tokens:
-                for feature, values in t:
+                for feature, values in t['features'].items():
                     by_feature[feature].append(values)
-            for feature, values in by_feature:
+            for feature, values in by_feature.items():
                 if feature not in unit_type_level:
                     unit_type_level[feature] = {}
                 feature_level = unit_type_level[feature]
@@ -520,28 +559,70 @@ class TessMongoConnection():
                     for word1 in indices:
                         for inds2 in values[pos+1:]:
                             for word2 in inds2:
-                                bigram = tuple(sorted(word1, word2))
+                                bigram = tuple(sorted([word1, word2]))
                                 if bigram not in feature_level:
                                     feature_level[bigram] = set()
-                                feature_level[bigram].add(unit.id)
+                                feature_level[bigram].add(u.id)
 
+        start = time.time()
         language = text.language
         text_id = text.id
         for unit_type, features in data.items():
             for feature, bigrams in features.items():
-                for (word1, word2), unit_ids in bigrams.items():
-                    dbname = _create_bigram_dbname(
-                        text.language, unit_type, feature, word1, word2)
+                for_insert = [
+                    {'unit_id': uid, 'word1': word1, 'word2': word2}
+                    for (word1, word2), unit_ids in bigrams.items()
+                    for uid in unit_ids
+                ]
+                if for_insert:
+                    dbname = _create_bigram_dbname(text_id, unit_type, feature)
                     coll = self.connection[dbname]
-                    result = coll.insert_many(
-                        [
-                            {'unit_id': uid, 'text_id': text_id}
-                            for uid in unit_ids
-                        ]
-                    )
+                    coll.insert_many(for_insert)
 
-    # TODO finish implementing
-    def find_bigrams(self)
+    def find_bigrams(self, text_ids, unit_type, feature, word1, word2):
+        """Looks up bigrams
+
+        Parameters
+        ----------
+        text_ids : list of ObjectId
+            the ObjectIds associated with the Texts in which to find the
+            bigram
+        unit_type : {'line', 'phrase'}
+            the type of Unit in which to look for bigrams
+        feature : str
+            the type of feature to which the bigram belongs
+        word1 : int
+        word2 : int
+            the feature index to a word in the bigram
+
+        Returns
+        -------
+        list of Unit
+            all Units in any of the texts referred to by ``text_ids`` which
+            Units have the type ``unit_type`` and contains both ``word1`` and
+            ``word2`` of feature type ``feature`` in the language ``language``
+
+        """
+        print('Looking up bigram')
+        for text_id in text_ids:
+            bigram_dbname = _create_bigram_dbname(
+                text_id, unit_type, feature)
+            start = time.time()
+            units_agged = self.connection[bigram_dbname].aggregate([
+                {'$match': {'word1': word1, 'word2': word2}},
+                {'$lookup': {
+                    'from': Unit.collection,
+                    'localField': 'unit_id',
+                    'foreignField': '_id',
+                    'as': 'unit'
+                }},
+                {'$project': {'_id': False, 'unit': True}}
+            ])
+            print('Aggregation time:', time.time()-start)
+            start = time.time()
+            results = [Unit.json_decode(u['unit'][0]) for u in units_agged]
+            print('Ferrying time:', time.time()-start)
+        return results
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):

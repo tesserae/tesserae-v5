@@ -150,7 +150,10 @@ def tessfiles():
 @pytest.fixture(scope='session')
 def minipop(request, mini_greek_metadata, mini_latin_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
-    conn.create_indices()
+    print('Dropping collections in minipop')
+    for coll_name in conn.connection.list_collection_names():
+        conn.connection.drop_collection(coll_name)
+    print('Ingesting for minipop')
     for metadata in mini_greek_metadata:
         text = Text.json_decode(metadata)
         ingest_text(conn, text)
@@ -158,5 +161,6 @@ def minipop(request, mini_greek_metadata, mini_latin_metadata):
         text = Text.json_decode(metadata)
         ingest_text(conn, text)
     yield conn
+    print('Dropping collections in minipop')
     for coll_name in conn.connection.list_collection_names():
         conn.connection.drop_collection(coll_name)

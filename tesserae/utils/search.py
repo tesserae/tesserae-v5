@@ -235,55 +235,8 @@ def bigram_search(
         All Units of the specified texts and ``unit_type`` containing
         both ``word1_index`` and ``word2_index``
     """
-    print('####')
-    print(word1_index, word2_index)
-    pipeline = [
-        {'$match': {
-            'unit_type': unit_type,
-        }},
-        {'$match': {
-            'feature_type': feature,
-        }},
-        {'$match': {
-            '$expr': {'$in': ['$text', text_ids]},
-        }},
-        {'$match': {
-            '$expr': {'$in': ['$feature_index', [word1_index, word2_index]]},
-        }},
-    ]
-    '''
-        {'$group': {
-            '_id': '$unit',
-            'positions': {'$addToSet': '$position'}
-        }},
-        {'$match': {'$expr': {'$gte': [{'$size': '$positions'}, 2]}}},
-        {'$lookup': {
-            'from': Unit.collection,
-            'localField': '_id',
-            'foreignField': '_id',
-            'as': 'unit'
-        }}
-    '''
-    start = time.time()
-    raw_results = connection.aggregate(
-        Property.collection,
-        pipeline,
-        encode=False
-    )
-    groups = defaultdict(set)
-    for item in raw_results:
-        groups[item['_id']].add(item['position'])
-    units_to_grab = [k for k, v in groups.items() if len(v) >= 2]
-    # raw_results.batch_size(500)
-    print('Aggregation time:', time.time()-start)
-    start = time.time()
-    # results = [Unit.json_decode(u['unit'][0]) for u in raw_results]
-    results = connection.aggregate(
-        Unit.collection,
-        [{'$match': {'$expr': {'$in': ['$_id', units_to_grab]}}}])
-    print('Aggregation ferry time:', time.time()-start)
-    print('Retrieved from aggregation:', len(results))
-    return results
+    return connection.find_bigrams(text_ids, unit_type, feature,
+                                   word1_index, word2_index)
 
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
@@ -324,7 +277,7 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
     bigram2units = {
         bigram: bigram_search(
             connection, bigram[0], bigram[1], feature_type, unit_type,
-            [t.id for t in texts])
+            language, [t.id for t in texts])
         for bigram in bigram_indices
     }
 
