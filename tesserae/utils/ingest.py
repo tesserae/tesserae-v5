@@ -66,6 +66,7 @@ def ingest_text(connection, text):
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
     connection.insert_nocheck(properties)
+    connection.register_bigrams(text, lines + phrases)
 
     return text_id
 
