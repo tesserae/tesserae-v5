@@ -199,20 +199,15 @@ class SparseMatrixSearch(object):
             source_frequencies_getter, target_frequencies_getter = \
                 _get_text_frequency_getters(self.connection, feature, texts)
 
-        match_ents = []
-        stepsize = 500
-        for su_start in range(0, len(source_units), stepsize):
-            match_ents.extend(
-                _score(
-                    search_id, target_units,
-                    source_units[su_start:su_start+stepsize], features,
-                    set(stoplist),
-                    distance_metric,
-                    max_distance, source_frequencies_getter,
-                    target_frequencies_getter,
-                    tag_helper
-                )
-            )
+        match_ents = _score(
+            search_id, target_units,
+            source_units, features,
+            set(stoplist),
+            distance_metric,
+            max_distance, source_frequencies_getter,
+            target_frequencies_getter,
+            tag_helper
+        )
 
         return match_ents
 
@@ -653,7 +648,8 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     )
 
 
-def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
+def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
+                              su_start):
     """Extract which units matched from the ``match_matrix``
 
     Parameters
@@ -674,6 +670,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     source_breaks : 1d np.array of ints
         like ``target_breaks``, except it keeps track of which columns belong
         to which source unit
+    su_start : int
+        an offset by which to increment source indices
 
     Returns
     -------
@@ -718,6 +716,10 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     s_inds = col2s_unit_ind[cols]
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
+    # although s_inds needs to index the source_breaks by the ordering of this
+    # batch of source_units, s_inds needs to account for source_unit indices as
+    # referenced from outside of this batch
+    s_inds += su_start
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
         key = (t_ind, s_ind)
         if key not in tmp:
@@ -730,7 +732,7 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     return hits2positions
 
 
-def get_hits2positions(
+def gen_hits2positions(
         target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
@@ -764,35 +766,64 @@ def get_hits2positions(
         'forms' list; thus, ...['features'][a] is a list of the Feature indices
         derived from ...['forms'][a].
 
-    Returns
-    -------
+    Yields
+    ------
     dict [(int, int), 2d np.array of ints]
         see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
         contains
 
     """
-    feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
-            source_units, stoplist_set, features_size)
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
             target_units, stoplist_set, features_size)
-    # for every position of each target unit, this matrix multiplication picks
-    # up which source unit positions shared at least one common feature
-    match_matrix = target_feature_matrix.dot(feature_source_matrix)
-    # this data structure keeps track of which target unit position matched
-    # with which source unit position
-    coo = match_matrix.tocoo()
-    return _bin_hits_to_unit_indices(
-            coo.row, coo.col, target_breaks, source_breaks)
+    stepsize = 500
+    for su_start in range(0, len(source_units), stepsize):
+        feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
+            source_units[su_start:su_start+stepsize],
+            stoplist_set,
+            features_size)
+        # for every position of each target unit, this matrix multiplication
+        # picks up which source unit positions shared at least one common
+        # feature
+        match_matrix = target_feature_matrix.dot(feature_source_matrix)
+        # this data structure keeps track of which target unit position matched
+        # with which source unit position
+        coo = match_matrix.tocoo()
+        yield _bin_hits_to_unit_indices(
+                coo.row, coo.col, target_breaks, source_breaks, su_start)
 
 
-def _gen_matches(hits2positions):
+def _gen_matches(target_units, source_units, stoplist_set, features_size):
     """Generate match information where at least 2 positions matched
 
     Parameters
     ----------
-    hits2positions : dict [(int, int), 2d np.array of ints]
-        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
-        contains
+    source_units : list of dict
+        each dictionary represents unit information from the source text
+    target_units : list of dict
+        each dictionary represents unit information from the target text
+    stoplist_set : set of int
+        feature indices on which matches should not be permitted
+    features_size : int
+        the total number of feature types for the class of features contained
+        in ``units``
+
+    Notes
+    -----
+    The dictionaries in the input lists must contain the following string keys
+    and corresponding values:
+    '_id' : bson.objectid.ObjectId
+        ObjectId of the Unit entity in the database
+    'index' : int
+        index of the Unit entity in the database
+    'tags' : list of str
+        tag information for this unit
+    'forms' : list of int
+        the ``...['forms'][y]`` is the integer associated with the form
+        Feature of the word token at position y
+    'features' : list of list of int
+        each position of this list corresponds to the same position in the
+        'forms' list; thus, ...['features'][a] is a list of the Feature indices
+        derived from ...['forms'][a].
 
     Yields
     ------
@@ -804,11 +835,13 @@ def _gen_matches(hits2positions):
         the first column contains target positions; the second column has
         corresponding source positions
     """
-    overhits2positions = {
-        k: np.array(v) for k, v in hits2positions.items()
-        if len(v) >= 2}
-    for (t_ind, s_ind), positions in overhits2positions.items():
-        yield (t_ind, s_ind, positions)
+    for hits2positions in gen_hits2positions(
+            target_units, source_units, stoplist_set, features_size):
+        overhits2positions = {
+            k: np.array(v) for k, v in hits2positions.items()
+            if len(v) >= 2}
+        for (t_ind, s_ind), positions in overhits2positions.items():
+            yield (t_ind, s_ind, positions)
 
 
 def _score(
@@ -818,9 +851,8 @@ def _score(
         tag_helper):
     match_ents = []
     features_size = len(features)
-    hits2positions = get_hits2positions(
-            target_units, source_units, stoplist_set, features_size)
-    for target_ind, source_ind, positions in _gen_matches(hits2positions):
+    for target_ind, source_ind, positions in _gen_matches(
+            target_units, source_units, stoplist_set, features_size):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
         target_forms = np.array(target_unit['forms'])
