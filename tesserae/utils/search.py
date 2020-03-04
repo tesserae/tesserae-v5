@@ -214,7 +214,7 @@ def check_cache(connection, source, target, method):
 
 
 def bigram_search(
-        connection, word1_index, word2_index, feature, unit_type, text_ids):
+        connection, word1_index, word2_index, feature, unit_type, text_id):
     """Retrieves all Units of a specified type containing the specified words
 
     Parameters
@@ -226,8 +226,8 @@ def bigram_search(
         Feature type of words to search for
     unit_type : {'line', 'phrase'}
         Type of Units to look for
-    text_ids : list of ObjectId
-        The IDs of Texts whose Units are to be searched
+    text_id : ObjectId
+        The ID of Text in whose Units the bigram is to be searched
 
     Returns
     -------
@@ -235,8 +235,12 @@ def bigram_search(
         All Units of the specified texts and ``unit_type`` containing
         both ``word1_index`` and ``word2_index``
     """
-    return connection.find_bigrams(text_ids, unit_type, feature,
-                                   word1_index, word2_index)
+    bigram_data = connection.get_bigram_data(text_id, unit_type, feature)
+    bigram = tuple(sorted((word1_index, word2_index)))
+    if bigram not in bigram_data:
+        return []
+    return connection.find(Unit.collection,
+                           _id=[u for u in bigram_data[bigram]])
 
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
@@ -274,12 +278,15 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         for w1, w2 in itertools.combinations(sorted(m.matched_features), 2):
             bigram_indices.add((token2index[w1], token2index[w2]))
 
-    bigram2units = {
-        bigram: bigram_search(
-            connection, bigram[0], bigram[1], feature_type, unit_type,
-            language, [t.id for t in texts])
-        for bigram in bigram_indices
-    }
+    bigram2units = defaultdict(list)
+    for text in texts:
+        bigram_data = connection.get_bigram_data(text.id, unit_type,
+                                                 feature_type)
+        for bigram in bigram_indices:
+            if bigram in bigram_data:
+                bigram2units[bigram].extend([
+                    Unit.json_decode(u) for u in bigram_data[bigram]
+                ])
 
     return [
         {

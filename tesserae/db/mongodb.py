@@ -35,6 +35,7 @@ except ImportError:
 import sys
 import time
 
+import lmdb
 import pymongo
 import six
 from tqdm import tqdm
@@ -499,24 +500,12 @@ class TessMongoConnection():
 
     def create_indices(self):
         """Creates indices for entities for faster lookup later"""
-        print('Creating indices')
         # index Match entities by Search.id for faster search results retrieval
         self.connection[tesserae.db.entities.Match.collection].create_index(
             'search_id')
         # index Unit entities by Text.id for faster bigram by texts retrieval
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
-        print(len(self.connection.list_collection_names()))
-        for coll_name in tqdm(self.connection.list_collection_names()):
-            # index bigram tables by Text.id for faster bigram by texts
-            # retrieval
-            if coll_name.startswith('bigram_'):
-                self.connection[coll_name].create_index([
-                    ('word1', pymongo.ASCENDING),
-                    ('word2', pymongo.ASCENDING),
-                    ('unit_id', pymongo.ASCENDING)
-                ])
-        print('Finished creating indices')
 
     def drop_indices(self):
         """Drops all indices
@@ -569,59 +558,49 @@ class TessMongoConnection():
         text_id = text.id
         for unit_type, features in data.items():
             for feature, bigrams in features.items():
+                dbname = _create_bigram_dbname(text_id, unit_type, feature)
                 for_insert = [
                     {'unit_id': uid, 'word1': word1, 'word2': word2}
                     for (word1, word2), unit_ids in bigrams.items()
                     for uid in unit_ids
                 ]
                 if for_insert:
-                    dbname = _create_bigram_dbname(text_id, unit_type, feature)
                     coll = self.connection[dbname]
                     coll.insert_many(for_insert)
 
-    def find_bigrams(self, text_ids, unit_type, feature, word1, word2):
+    def get_bigram_data(self, text_id, unit_type, feature):
         """Looks up bigrams
 
         Parameters
         ----------
-        text_ids : list of ObjectId
-            the ObjectIds associated with the Texts in which to find the
-            bigram
+        text_id : ObjectId
+            ObjectId associated with the Text of the bigrams to retrieve
         unit_type : {'line', 'phrase'}
             the type of Unit in which to look for bigrams
         feature : str
             the type of feature to which the bigram belongs
-        word1 : int
-        word2 : int
-            the feature index to a word in the bigram
 
         Returns
         -------
-        list of Unit
-            all Units in any of the texts referred to by ``text_ids`` which
-            Units have the type ``unit_type`` and contains both ``word1`` and
-            ``word2`` of feature type ``feature`` in the language ``language``
+        dict[tuple[int, int], list[ObjectId]]
+            mapping between bigram and ObjectId of List of Units to which
+            bigrams belong
 
         """
         print('Looking up bigram')
-        for text_id in text_ids:
-            bigram_dbname = _create_bigram_dbname(
-                text_id, unit_type, feature)
-            start = time.time()
-            units_agged = self.connection[bigram_dbname].aggregate([
-                {'$match': {'word1': word1, 'word2': word2}},
-                {'$lookup': {
-                    'from': Unit.collection,
-                    'localField': 'unit_id',
-                    'foreignField': '_id',
-                    'as': 'unit'
-                }},
-                {'$project': {'_id': False, 'unit': True}}
-            ])
-            print('Aggregation time:', time.time()-start)
-            start = time.time()
-            results = [Unit.json_decode(u['unit'][0]) for u in units_agged]
-            print('Ferrying time:', time.time()-start)
+        start = time.time()
+        bigram_dbname = _create_bigram_dbname(
+            text_id, unit_type, feature)
+        bigram_data = self.connection[bigram_dbname].find({})
+        print('Aggregation time:', time.time()-start)
+        start = time.time()
+        results = defaultdict(list)
+        for item in bigram_data:
+            results[tuple(sorted((item['word1'], item['word2'])))].append(
+                item['unit_id']
+            )
+        print(len(results))
+        print('Ferrying time:', time.time()-start)
         return results
 
 
