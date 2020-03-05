@@ -260,12 +260,12 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
 
     Returns
     -------
-    list of dict[(str, str), list of Unit]
+    list of dict[(str, str), list of ObjectId]
         each dictionary within the list corresponds in index to a match from
         ``matches``; the dictionary contains key-value pairs, where the key is
-        a bigram and the value is a list of Units of type ``unit_type`` that
-        contains the bigram specified by the key; Units are restricted to those
-        which are found in ``texts``
+        a bigram and the value is a list of ObjectIds of Units of type
+        ``unit_type`` that contains the bigram specified by the key; Units are
+        restricted to those which are found in ``texts``
     """
     language = texts[0].language
     token2index = {
@@ -285,7 +285,7 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         for bigram in bigram_indices:
             if bigram in bigram_data:
                 bigram2units[bigram].extend([
-                    Unit.json_decode(u) for u in bigram_data[bigram]
+                    u for u in bigram_data[bigram]
                 ])
 
     return [
