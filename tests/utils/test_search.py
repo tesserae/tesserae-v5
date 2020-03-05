@@ -19,9 +19,10 @@ def test_bigram_search(minipop, mini_latin_metadata):
     texts = minipop.find(
         Text.collection, language=language
     )
-    units = bigram_search(
-        minipop, bellum.index, pando.index, feature, 'line', language,
-        [t.id for t in texts])
+    units = []
+    for t in texts:
+        units.extend(bigram_search(
+            minipop, bellum.index, pando.index, feature, 'line', t.id))
     assert len(units) > 0
     for u in units:
         bellum_found = False

@@ -35,7 +35,9 @@ except ImportError:
 import sys
 import time
 
-import lmdb
+from bson.objectid import ObjectId
+import h5py
+import numpy as np
 import pymongo
 import six
 from tqdm import tqdm
@@ -530,6 +532,7 @@ class TessMongoConnection():
         None
 
         """
+        start = time.time()
         data = {}
         for u in units:
             unit_type = u.unit_type
@@ -552,6 +555,7 @@ class TessMongoConnection():
                                 if bigram not in feature_level:
                                     feature_level[bigram] = set()
                                 feature_level[bigram].add(u.id)
+        print('Bigram extracting time:', time.time()-start)
 
         start = time.time()
         language = text.language
@@ -559,14 +563,13 @@ class TessMongoConnection():
         for unit_type, features in data.items():
             for feature, bigrams in features.items():
                 dbname = _create_bigram_dbname(text_id, unit_type, feature)
-                for_insert = [
-                    {'unit_id': uid, 'word1': word1, 'word2': word2}
-                    for (word1, word2), unit_ids in bigrams.items()
-                    for uid in unit_ids
-                ]
-                if for_insert:
-                    coll = self.connection[dbname]
-                    coll.insert_many(for_insert)
+                with h5py.File(dbname + '.h5', 'w') as ofh:
+                    for (word1, word2), unit_ids in bigrams.items():
+                        data = np.array([[b for b in uid.binary]
+                                         for uid in unit_ids],
+                                        dtype=np.uint8)
+                        dset = ofh.create_dataset(f'{word1}/{word2}', data=data)
+        print('Bigram writing time:', time.time()-start)
 
     def get_bigram_data(self, text_id, unit_type, feature):
         """Looks up bigrams
@@ -591,14 +594,13 @@ class TessMongoConnection():
         start = time.time()
         bigram_dbname = _create_bigram_dbname(
             text_id, unit_type, feature)
-        bigram_data = self.connection[bigram_dbname].find({})
-        print('Aggregation time:', time.time()-start)
-        start = time.time()
-        results = defaultdict(list)
-        for item in bigram_data:
-            results[tuple(sorted((item['word1'], item['word2'])))].append(
-                item['unit_id']
-            )
+        with h5py.File(bigram_dbname + '.h5', 'r') as ifh:
+            results = {}
+            for word1, word1_data in ifh.items():
+                for word2, uids in word1_data.items():
+                    results[tuple(sorted((int(word1), int(word2))))] = [
+                        ObjectId(bytes(uid)) for uid in uids
+                    ]
         print(len(results))
         print('Ferrying time:', time.time()-start)
         return results
