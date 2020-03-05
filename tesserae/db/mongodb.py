@@ -571,7 +571,7 @@ class TessMongoConnection():
                         dset = ofh.create_dataset(f'{word1}/{word2}', data=data)
         print('Bigram writing time:', time.time()-start)
 
-    def get_bigram_data(self, text_id, unit_type, feature):
+    def lookup_bigrams(self, text_id, unit_type, feature, bigrams):
         """Looks up bigrams
 
         Parameters
@@ -582,6 +582,8 @@ class TessMongoConnection():
             the type of Unit in which to look for bigrams
         feature : str
             the type of feature to which the bigram belongs
+        bigrams : iterable of 2-tuple of int
+            the bigrams of interest
 
         Returns
         -------
@@ -592,14 +594,18 @@ class TessMongoConnection():
         """
         print('Looking up bigram')
         start = time.time()
+        results = {}
         bigram_dbname = _create_bigram_dbname(
             text_id, unit_type, feature)
         with h5py.File(bigram_dbname + '.h5', 'r') as ifh:
-            results = {}
-            for word1, word1_data in ifh.items():
-                for word2, uids in word1_data.items():
+            for word1, word2 in bigrams:
+                str1 = str(word1)
+                str2 = str(word2)
+                if str1 in ifh and str2 in ifh[str1] and ifh[str1][str2]:
+                    print(word1, word2)
                     results[tuple(sorted((int(word1), int(word2))))] = [
-                        ObjectId(bytes(uid)) for uid in uids
+                        ObjectId(bytes(uid))
+                        for uid in ifh[str1][str2]
                     ]
         print(len(results))
         print('Ferrying time:', time.time()-start)

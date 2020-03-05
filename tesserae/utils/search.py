@@ -235,8 +235,9 @@ def bigram_search(
         All Units of the specified texts and ``unit_type`` containing
         both ``word1_index`` and ``word2_index``
     """
-    bigram_data = connection.get_bigram_data(text_id, unit_type, feature)
     bigram = tuple(sorted((word1_index, word2_index)))
+    bigram_data = connection.lookup_bigrams(text_id, unit_type, feature,
+                                            [bigram])
     if bigram not in bigram_data:
         return []
     return connection.find(Unit.collection,
@@ -280,13 +281,14 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
 
     bigram2units = defaultdict(list)
     for text in texts:
-        bigram_data = connection.get_bigram_data(text.id, unit_type,
-                                                 feature_type)
-        for bigram in bigram_indices:
-            if bigram in bigram_data:
-                bigram2units[bigram].extend([
-                    u for u in bigram_data[bigram]
-                ])
+        bigram_data = connection.lookup_bigrams(
+            text.id, unit_type, feature_type, bigram_indices)
+        for bigram, data in bigram_data.items():
+            print(bigram)
+            print(data)
+            bigram2units[bigram].extend([
+                u for u in data
+            ])
 
     return [
         {
