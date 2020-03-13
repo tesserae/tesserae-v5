@@ -1,21 +1,21 @@
 """Helper class and functions for running search
 
-Originally conceived of in order to support asynchronous web API search
+AsynchronousSearcher provides normal Tesserae search capabilities.
+
+bigram_search enables lookup of bigrams for specified units of specified texts
 """
 import multiprocessing
 import queue
 import time
 import traceback
 
-from bson.objectid import ObjectId
-
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Search
+from tesserae.db.entities import Search, Unit
 import tesserae.matchers
 
 
 class AsynchronousSearcher:
-    """Asynchronous search resource holder
+    """Asynchronous Tesserae search resource holder
 
     Attributes
     ----------
@@ -40,6 +40,7 @@ class AsynchronousSearcher:
         """
         self.num_workers = num_workers
         self.db_cred = db_cred
+
         self.queue = multiprocessing.Queue()
         self.workers = []
         for _ in range(self.num_workers):
@@ -75,7 +76,7 @@ class AsynchronousSearcher:
             defined in tesserae.matchers.search_types (located in the
             __init__.py file).
         search_params : dict
-            search parameters 
+            search parameters
 
         """
         self.queue.put_nowait((results_id, search_type, search_params))
@@ -113,26 +114,46 @@ class SearchProcess(multiprocessing.Process):
     def run_search(self, connection, results_id, search_type, search_params):
         """Executes search"""
         start_time = time.time()
-        results_status = Search(results_id=results_id,
-                status=Search.INIT, msg='')
+        parameters = {
+            'source': {
+                'object_id': str(search_params['source'].text.id),
+                'units': search_params['source'].unit_type
+            },
+            'target': {
+                'object_id': str(search_params['target'].text.id),
+                'units': search_params['target'].unit_type
+            },
+            'method': {
+                'name': search_type,
+                'feature': search_params['feature'],
+                'stopwords': search_params['stopwords'],
+                'freq_basis': search_params['frequency_basis'],
+                'max_distance': search_params['max_distance'],
+                'distance_basis': search_params['distance_metric']
+            }
+        }
+        results_status = Search(
+            results_id=results_id,
+            status=Search.INIT, msg='',
+            parameters=parameters
+        )
         connection.insert(results_status)
         try:
             search_id = results_status.id
             matcher = tesserae.matchers.matcher_map[search_type](connection)
             results_status.status = Search.RUN
             connection.update(results_status)
-            text_ids, params, matches = matcher.match(search_id, **search_params)
+            matches = matcher.match(search_id, **search_params)
             connection.insert_nocheck(matches)
 
-            results_status.texts = text_ids
-            results_status.parameters = params
-            results_status.matches = matches
             results_status.status = Search.DONE
-            results_status.msg='Done in {} seconds'.format(time.time()-start_time)
+            results_status.msg = 'Done in {} seconds'.format(
+                time.time() - start_time)
             connection.update(results_status)
-        except:
+        # we want to catch all errors and log them into the Search entity
+        except:  # noqa: E722
             results_status.status = Search.FAILED
-            results_status.msg=traceback.format_exc()
+            results_status.msg = traceback.format_exc()
             connection.update(results_status)
 
 
@@ -145,7 +166,7 @@ def check_cache(connection, source, target, method):
     source
         See API documentation for form
     target
-        See API documnetation for form
+        See API documentation for form
     method
         See API documentation for form
 
@@ -162,16 +183,19 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/tutorial/query-arrays/
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
-    found = [Search.json_decode(f)
+    found = [
+        Search.json_decode(f)
         for f in connection.connection[Search.collection].find({
-            'texts': [ObjectId(source['object_id']),
-                ObjectId(target['object_id'])],
-            'parameters.unit_types': [source['units'], target['units']],
+            'parameters.source.object_id': str(source['object_id']),
+            'parameters.source.units': source['units'],
+            'parameters.target.object_id': str(target['object_id']),
+            'parameters.target.units': target['units'],
             'parameters.method.name': method['name'],
             'parameters.method.feature': method['feature'],
             '$and': [
                 {'parameters.method.stopwords': {'$all': method['stopwords']}},
-                {'parameters.method.stopwords': {'$size': len(method['stopwords'])}}
+                {'parameters.method.stopwords': {
+                    '$size': len(method['stopwords'])}}
             ],
             'parameters.method.freq_basis': method['freq_basis'],
             'parameters.method.max_distance': method['max_distance'],
@@ -179,8 +203,59 @@ def check_cache(connection, source, target, method):
         })
     ]
     if found:
-        status_found = connection.find(Search.collection,
-                _id=found[0].id)
+        status_found = connection.find(
+            Search.collection,
+            _id=found[0].id)
         if status_found and status_found[0].status != Search.FAILED:
             return status_found[0].results_id
     return None
+
+
+def _words_in_different_positions(unit, feature, word1_index, word2_index):
+    word1_positions = set()
+    word2_positions = set()
+    for i, tok in enumerate(unit.tokens):
+        cur_features = tok['features'][feature]
+        if word1_index in cur_features:
+            word1_positions.add(i)
+        if word2_index in cur_features:
+            word2_positions.add(i)
+    return word1_positions - word2_positions and \
+        word2_positions - word1_positions
+
+
+def bigram_search(
+        connection, word1_index, word2_index, feature, unit_type, text_ids):
+    """Retrieves all Units containing the specified words
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    word1_index, word2_index : int
+        Feature index of words to be contained in a Unit
+    feature : {'lemmata', 'form'}
+        Feature type of words to search for
+    unit_type : {'line', 'phrase'}
+        Type of Units to look for
+    text_ids : list of ObjectId
+        The IDs of Texts whose Units are to be searched
+
+    Returns
+    -------
+    list of Unit
+        All Units of the specified texts and ``unit_type`` containing
+        both ``word1_index`` and ``word2_index``
+    """
+    unit_candidates = connection.aggregate(
+        Unit.collection,
+        [
+            {'$match': {'$expr': {'$in': ['$text', text_ids]}}},
+            {'$match': {'tokens.features.'+feature: word1_index}},
+            {'$match': {'tokens.features.'+feature: word2_index}},
+        ]
+    )
+    results = []
+    for u in unit_candidates:
+        if _words_in_different_positions(u, feature, word1_index, word2_index):
+            results.append(u)
+    return results

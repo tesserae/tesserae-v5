@@ -168,7 +168,7 @@ class TessMongoConnection():
         try:
             collection = self.connection[entity[0].__class__.collection]
             result = collection.delete_many(
-                self.create_filter(_id=[e.id for e  in entity]))
+                self.create_filter(_id=[e.id for e in entity]))
         except IndexError:
             raise ValueError("No entities provided.")
         return result
@@ -451,56 +451,22 @@ class TessMongoConnection():
         converted = sorted([lower, upper])
         return tuple(converted)
 
-    def get_search_matches(self, matchset_id):
-        """Retrieve all matches associated with a given search
+    def create_indices(self):
+        """Creates indices for entities for faster lookup later"""
+        # index Match entities by Search.id for faster search results retrieval
+        self.connection[tesserae.db.entities.Match.collection].create_index(
+            'search_id')
+        # index Unit entities by Text.id for faster bigram by texts retrieval
+        self.connection[tesserae.db.entities.Unit.collection].create_index(
+            'text')
 
-        Parameters
-        ----------
-        matchset_id : str, ObjectId
-            identifier for a specific MatchSet
+    def drop_indices(self):
+        """Drops all indices
 
-        Returns
-        -------
-        list of matches
+        Might be useful if you need to rebuild indices
         """
-        matches = self.aggregate('matches', [
-            {'$match': {'match_set': ObjectId(matchset_id)}},
-            {'$sort': {'score': -1}},
-            {'$lookup': {
-                'from': 'units',
-                'let': {'m_units': '$units'},
-                'pipeline': [
-                    {'$match': {'$expr': {'$in': ['$_id', '$$m_units']}}},
-                    {'$lookup': {
-                        'from': 'tokens',
-                        'localField': '_id',
-                        # TODO fix so that correct unit is displayed
-                        'foreignField': 'phrase',
-                        'as': 'tokens'
-                    }},
-                    {'$sort': {'index': 1}}
-                ],
-                'as': 'units'
-            }},
-            {'$lookup': {
-                'from': 'tokens',
-                'localField': 'tokens',
-                'foreignField': '_id',
-                'as': 'tokens'
-            }},
-            {'$project': {
-                'units': True,
-                'score': True,
-                'tokens': '$tokens.feature_set'
-            }},
-            {'$lookup': {
-                'from': 'feature_sets',
-                'localField': 'tokens',
-                'foreignField': '_id',
-                'as': 'tokens'
-            }}
-        ])
-        return matches
+        for coll_name in self.connection.list_collection_names():
+            self.connection[coll_name].drop_indices()
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):

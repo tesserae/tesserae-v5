@@ -75,6 +75,7 @@ setup(
     author='Jeff Kinnison',
     author_email='jkinniso@nd.edu',
     packages=['tesserae',
+              'tesserae.cli',
               'tesserae.db',
               'tesserae.db.entities',
               'tesserae.matchers',
@@ -101,6 +102,7 @@ setup(
         'numpy>=1.14.0',
         'pymongo>=3.6.1',
         'scipy',
+        'tqdm',
     ],
     cmdclass={'install': InstallLemmataModels}
 )

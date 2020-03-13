@@ -4,18 +4,13 @@ Classes
 -------
 
 """
-from collections import Counter, defaultdict
+from collections import Counter
 import itertools
-import math
-import multiprocessing as mp
-import time
 
-from bson import ObjectId
 import numpy as np
-import pymongo
-from scipy.sparse import csr_matrix, dok_matrix
+from scipy.sparse import csr_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, Token, Text, Unit
+from tesserae.db.entities import Entity, Feature, Match, Unit
 from tesserae.utils.retrieve import TagHelper
 
 
@@ -54,7 +49,8 @@ class SparseMatrixSearch(object):
         if feature is not None:
             pipeline[0]['$match']['feature'] = feature
 
-        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        stoplist = self.connection.aggregate(
+            Feature.collection, pipeline, encode=False)
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
     def create_stoplist(self, n, feature, language, basis='corpus'):
@@ -99,7 +95,8 @@ class SparseMatrixSearch(object):
                     'index': True,
                     'token': True,
                     'frequency': {
-                        '$sum': ['$frequencies.' + str(t_id) for t_id in basis]}
+                        '$sum': [
+                            '$frequencies.' + str(t_id) for t_id in basis]}
                 }}
             ])
 
@@ -109,12 +106,13 @@ class SparseMatrixSearch(object):
             {'$project': {'token': True, 'index': True, 'frequency': True}}
         ])
 
-        stoplist = self.connection.aggregate(Feature.collection, pipeline, encode=False)
+        stoplist = self.connection.aggregate(
+            Feature.collection, pipeline, encode=False)
         stoplist = list(stoplist)
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def match(self, search_id, texts, unit_type, feature, stopwords=10,
+    def match(self, search_id, source, target, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               frequency_basis='texts', max_distance=10,
               distance_metric='frequency', min_score=6):
@@ -128,10 +126,10 @@ class SparseMatrixSearch(object):
         ----------
         search_id : bson.objectid.ObjectId
             The search job associated with this matching work.
-        texts : list of tesserae.db.Text
-            The texts to match. Texts are matched in
-        unit_type : {'line','phrase'}
-            The type of unit to match on.
+        source : tesserae.matchers.text_options.TextOptions
+            The source text to compare against, specifying by which units.
+        target : tesserae.matchers.text_options.TextOptions
+            The target text to compare against, specifying by which units.
         feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
             The token feature to match on.
         stopwords : int or list of str
@@ -161,73 +159,66 @@ class SparseMatrixSearch(object):
         ValueError
             Raised when a parameter was poorly specified
         """
+        texts = [source.text, target.text]
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
             stoplist = self.create_stoplist(
                 stopwords,
                 'form' if feature == 'form' else 'lemmata',
-                texts[0].language,
+                source.text.language,
                 basis=stopword_basis)
         else:
-            stoplist = self.get_stoplist(stopwords,
-                    'form' if feature == 'form' else 'lemmata',
-                    texts[0].language)
+            stoplist = self.get_stoplist(
+                stopwords,
+                'form' if feature == 'form' else 'lemmata',
+                source.text.language)
 
         features = sorted(
                 self.connection.find(
-                    Feature.collection, language=texts[0].language,
+                    Feature.collection, language=source.text.language,
                     feature=feature),
                 key=lambda x: x.index)
         if len(features) <= 0:
             raise ValueError(
-                f'Feature type "{feature}" for language "{texts[0].language}" '
+                f'Feature type "{feature}" for language '
+                f'"{source.text.language}" '
                 f'was not found in the database.')
 
-        target_units = _get_units(self.connection, [texts[1]], unit_type,
-                feature)
-        source_units = _get_units(self.connection, [texts[0]], unit_type,
-                feature)
+        target_units = _get_units(self.connection, target, feature)
+        source_units = _get_units(self.connection, source, feature)
 
         tag_helper = TagHelper(self.connection, texts)
 
         if frequency_basis != 'texts':
-            match_ents = _score_by_corpus_frequencies(search_id,
-                    self.connection, feature,
-                    texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance, tag_helper)
+            source_frequencies_getter, target_frequencies_getter = \
+                _get_corpus_frequency_getters(
+                    self.connection, feature, texts, target_units, source_units
+                )
         else:
-            match_ents = _score_by_text_frequencies(search_id,
-                    self.connection, feature,
-                    texts, target_units, source_units, features, stoplist,
-                    distance_metric, max_distance, tag_helper)
+            source_frequencies_getter, target_frequencies_getter = \
+                _get_text_frequency_getters(self.connection, feature, texts)
 
-        stopword_tokens = [s.token
-                for s in self.connection.find(
-                    Feature.collection, index=[int(i) for i in stoplist],
-                    language=texts[0].language, feature=feature)]
-        parameters = {
-            'unit_types': [unit_type for _ in range(len(texts))],
-            'method': {
-                'name': self.matcher_type,
-                'feature': feature,
-                'stopwords': stopword_tokens,
-                'freq_basis': frequency_basis,
-                'max_distance': max_distance,
-                'distance_basis': distance_metric
-            }
-        }
+        match_ents = _score(
+            search_id, target_units,
+            source_units, features,
+            set(stoplist),
+            distance_metric,
+            max_distance, source_frequencies_getter,
+            target_frequencies_getter,
+            tag_helper
+        )
 
-        return [t.id for t in texts], parameters, match_ents
+        return match_ents
 
 
-def _get_units(connection, texts, unit_type, feature):
-    units = []
-    for t in texts:
-        units.extend([u for u in connection.aggregate(
+def _get_units(connection, textoptions, feature):
+    return [
+        u for u in connection.aggregate(
             Unit.collection,
             [
-                {'$match': {'text': t.id, 'unit_type': unit_type}},
+                {'$match': {'text': textoptions.text.id, 'unit_type':
+                            textoptions.unit_type}},
                 {'$project': {
                     '_id': True,
                     'text': True,
@@ -240,15 +231,17 @@ def _get_units(connection, texts, unit_type, feature):
                         '$reduce': {
                             'input': '$tokens.features.form',
                             'initialValue': [],
-                            'in': { '$concatArrays': ['$$value', '$$this'] }
+                            'in': {
+                                '$concatArrays': ['$$value', '$$this']
+                            }
                         }
                     },
                     'features': '$tokens.features.'+feature,
                 }}
             ],
             encode=False
-        )])
-    return units
+        )
+    ]
 
 
 def get_text_frequencies(connection, feature, text_id):
@@ -317,8 +310,10 @@ def get_text_frequencies(connection, feature, text_id):
         csr_rows.append(mtindex)
         csr_cols.append(mfindex)
     word_feature_matrix = csr_matrix(
-        (np.ones(len(csr_rows), dtype=np.bool), (np.array(csr_rows),
-            np.array(csr_cols))),
+        (
+            np.ones(len(csr_rows), dtype=np.bool),
+            (np.array(csr_rows), np.array(csr_cols))
+        ),
         shape=(len(tindex2mtindex), len(findex2mfindex))
     )
     # if matching_words_matrix[i, j] == True, then the word represented by
@@ -408,9 +403,9 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def _score_by_corpus_frequencies(search_id, connection, feature, texts,
-        target_units, source_units,
-        features, stoplist, distance_metric, max_distance, tag_helper):
+def _get_corpus_frequency_getters(
+        connection, feature, texts, target_units,
+        source_units):
     if texts[0].language != texts[1].language:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
@@ -423,23 +418,15 @@ def _score_by_corpus_frequencies(search_id, connection, feature, texts,
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return _score(search_id, target_units, source_units, features, stoplist,
-            distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter,
-            tag_helper)
+    return source_frequencies_getter, target_frequencies_getter
 
 
-def _score_by_text_frequencies(search_id, connection, feature, texts,
-        target_units, source_units,
-        features, stoplist, distance_metric, max_distance, tag_helper):
+def _get_text_frequency_getters(connection, feature, texts):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return _score(search_id, target_units, source_units, features, stoplist,
-            distance_metric,
-            max_distance, source_frequencies_getter, target_frequencies_getter,
-            tag_helper)
+    return source_frequencies_getter, target_frequencies_getter
 
 
 def _get_trivial_distance(positions):
@@ -527,6 +514,7 @@ def _averaged_freq_getter(d, units_iter):
             if form in cache:
                 continue
             cache[form] = np.mean([d[f] for f in feats])
+
     def _inner(key):
         return cache[key]
     return _inner
@@ -575,7 +563,11 @@ def _extract_features_and_positions(units, stoplist_set):
         end_break_inds = break_inds[-1]
         cur_features = unit['features']
         for i, features in enumerate(cur_features):
-            valid_features = [f for f in features if f not in stoplist_set]
+            valid_features = [
+                f for f in features
+                if f not in stoplist_set and f >= 0]
+            if -1 in valid_features:
+                print(unit)
             feature_inds.extend(valid_features)
             pos_inds.extend([end_break_inds + i] * len(valid_features))
         break_inds.append(end_break_inds + len(cur_features))
@@ -656,7 +648,8 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     )
 
 
-def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
+def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
+                              su_start):
     """Extract which units matched from the ``match_matrix``
 
     Parameters
@@ -677,6 +670,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     source_breaks : 1d np.array of ints
         like ``target_breaks``, except it keeps track of which columns belong
         to which source unit
+    su_start : int
+        an offset by which to increment source indices
 
     Returns
     -------
@@ -705,20 +700,26 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     """
     # keep track of mapping between matrix row index and target unit index
     # in ``target_units``
-    row2t_unit_ind = np.array([u_ind
-            for u_ind in range(len(target_breaks) - 1)
-            for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
+    row2t_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(target_breaks) - 1)
+        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     # keep track of mapping between matrix column index and source unit index
     # in ``source_units``
-    col2s_unit_ind = np.array([u_ind
-            for u_ind in range(len(source_breaks) - 1)
-            for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
+    col2s_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(source_breaks) - 1)
+        for _ in range(source_breaks[u_ind+1] - source_breaks[u_ind])])
     tmp = {}
     hits2positions = {}
     t_inds = row2t_unit_ind[rows]
     s_inds = col2s_unit_ind[cols]
     t_poses = rows - target_breaks[t_inds]
     s_poses = cols - source_breaks[s_inds]
+    # although s_inds needs to index the source_breaks by the ordering of this
+    # batch of source_units, s_inds needs to account for source_unit indices as
+    # referenced from outside of this batch
+    s_inds += su_start
     for t_ind, s_ind, t_pos, s_pos in zip(t_inds, s_inds, t_poses, s_poses):
         key = (t_ind, s_ind)
         if key not in tmp:
@@ -731,7 +732,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks):
     return hits2positions
 
 
-def get_hits2positions(target_units, source_units, stoplist_set, features_size):
+def gen_hits2positions(
+        target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -764,35 +766,64 @@ def get_hits2positions(target_units, source_units, stoplist_set, features_size):
         'forms' list; thus, ...['features'][a] is a list of the Feature indices
         derived from ...['forms'][a].
 
-    Returns
-    -------
+    Yields
+    ------
     dict [(int, int), 2d np.array of ints]
         see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
         contains
 
     """
-    feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
-            source_units, stoplist_set, features_size)
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
             target_units, stoplist_set, features_size)
-    # for every position of each target unit, this matrix multiplication picks
-    # up which source unit positions shared at least one common feature
-    match_matrix = target_feature_matrix.dot(feature_source_matrix)
-    # this data structure keeps track of which target unit position matched
-    # with which source unit position
-    coo = match_matrix.tocoo()
-    return _bin_hits_to_unit_indices(
-            coo.row, coo.col, target_breaks, source_breaks)
+    stepsize = 500
+    for su_start in range(0, len(source_units), stepsize):
+        feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
+            source_units[su_start:su_start+stepsize],
+            stoplist_set,
+            features_size)
+        # for every position of each target unit, this matrix multiplication
+        # picks up which source unit positions shared at least one common
+        # feature
+        match_matrix = target_feature_matrix.dot(feature_source_matrix)
+        # this data structure keeps track of which target unit position matched
+        # with which source unit position
+        coo = match_matrix.tocoo()
+        yield _bin_hits_to_unit_indices(
+                coo.row, coo.col, target_breaks, source_breaks, su_start)
 
 
-def _gen_matches(hits2positions):
+def _gen_matches(target_units, source_units, stoplist_set, features_size):
     """Generate match information where at least 2 positions matched
 
     Parameters
     ----------
-    hits2positions : dict [(int, int), 2d np.array of ints]
-        see ``_bin_hits_to_unit_indices()`` for details on what this dictionary
-        contains
+    source_units : list of dict
+        each dictionary represents unit information from the source text
+    target_units : list of dict
+        each dictionary represents unit information from the target text
+    stoplist_set : set of int
+        feature indices on which matches should not be permitted
+    features_size : int
+        the total number of feature types for the class of features contained
+        in ``units``
+
+    Notes
+    -----
+    The dictionaries in the input lists must contain the following string keys
+    and corresponding values:
+    '_id' : bson.objectid.ObjectId
+        ObjectId of the Unit entity in the database
+    'index' : int
+        index of the Unit entity in the database
+    'tags' : list of str
+        tag information for this unit
+    'forms' : list of int
+        the ``...['forms'][y]`` is the integer associated with the form
+        Feature of the word token at position y
+    'features' : list of list of int
+        each position of this list corresponds to the same position in the
+        'forms' list; thus, ...['features'][a] is a list of the Feature indices
+        derived from ...['forms'][a].
 
     Yields
     ------
@@ -804,22 +835,24 @@ def _gen_matches(hits2positions):
         the first column contains target positions; the second column has
         corresponding source positions
     """
-    overhits2positions = {k: np.array(v) for k, v in hits2positions.items()
+    for hits2positions in gen_hits2positions(
+            target_units, source_units, stoplist_set, features_size):
+        overhits2positions = {
+            k: np.array(v) for k, v in hits2positions.items()
             if len(v) >= 2}
-    for (t_ind, s_ind), positions in overhits2positions.items():
-        yield (t_ind, s_ind, positions)
+        for (t_ind, s_ind), positions in overhits2positions.items():
+            yield (t_ind, s_ind, positions)
 
 
-def _score(search_id, target_units, source_units, features, stoplist,
+def _score(
+        search_id, target_units, source_units, features, stoplist_set,
         distance_metric,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
     match_ents = []
     features_size = len(features)
-    stoplist_set = set(stoplist)
-    hits2positions = get_hits2positions(
-            target_units, source_units, stoplist_set, features_size)
-    for target_ind, source_ind, positions in _gen_matches(hits2positions):
+    for target_ind, source_ind, positions in _gen_matches(
+            target_units, source_units, stoplist_set, features_size):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
         target_forms = np.array(target_unit['forms'])
@@ -850,26 +883,32 @@ def _score(search_id, target_units, source_units, features, stoplist,
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
             if match_features:
-                match_frequencies = [target_frequencies_getter(target_forms[pos])
-                        for pos in set(t_positions)]
+                match_frequencies = [
+                    target_frequencies_getter(target_forms[pos])
+                    for pos in set(t_positions)]
                 match_frequencies.extend(
                     [source_frequencies_getter(source_forms[pos])
                         for pos in set(s_positions)])
-                score = np.log((np.sum(np.power(match_frequencies, -1))) / distance)
+                score = np.log(
+                    (np.sum(np.power(match_frequencies, -1))) / distance)
                 match_ents.append(Match(
                     search_id=search_id,
                     source_unit=source_unit['_id'],
                     target_unit=target_unit['_id'],
-                    source_tag=tag_helper.get_display_tag(source_unit['text'],
+                    source_tag=tag_helper.get_display_tag(
+                        source_unit['text'],
                         source_unit['tags']),
-                    target_tag=tag_helper.get_display_tag(target_unit['text'],
+                    target_tag=tag_helper.get_display_tag(
+                        target_unit['text'],
                         target_unit['tags']),
-                    matched_features=[features[int(mf)].token
+                    matched_features=[
+                        features[int(mf)].token
                         for mf in match_features],
                     score=score,
                     source_snippet=source_unit['snippet'],
                     target_snippet=target_unit['snippet'],
-                    highlight=[(int(s_pos), int(t_pos))
+                    highlight=[
+                        (int(s_pos), int(t_pos))
                         for s_pos, t_pos in zip(s_positions, t_positions)]
                 ))
     return match_ents

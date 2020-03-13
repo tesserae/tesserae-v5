@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from tesserae.db import TessMongoConnection, Unit, Text
+from tesserae.db import TessMongoConnection, Text
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import TessFile
@@ -93,7 +93,6 @@ def _extract_unit_information(units, tokens, reverse_stems):
 @pytest.fixture(scope='module')
 def correct_units(unit_tessfiles):
     results = {'lines': [], 'phrases': []}
-    unit_data = []
     for t in unit_tessfiles:
         base, _ = os.path.splitext(t.path)
         with open(base + '.line.json', 'r') as f:

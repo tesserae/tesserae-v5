@@ -1,7 +1,8 @@
 from tesserae.db.entities import Feature
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
-from tesserae.utils import TessFile
+from tesserae.utils.tessfile import TessFile
+from tesserae.utils.delete import remove_text
 
 
 _tokenizers = {
@@ -65,3 +66,26 @@ def ingest_text(connection, text):
     result = connection.insert_nocheck(lines + phrases)
 
     return text_id
+
+
+def reingest_text(connection, text):
+    """Ingest a text again
+
+    Intended for use in the case of ingestion failure
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text to be re-ingested
+
+    Returns
+    -------
+    ObjectId
+        database identifier for the Text object just re-added
+
+    """
+    remove_text(connection, text)
+    text.id = None
+    return ingest_text(connection, text)
