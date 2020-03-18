@@ -56,10 +56,10 @@ class TessFile(object):
         self.metadata = metadata
 
         if buffer:
-            self.file = open(path, 'r')
+            self.file = open(path, 'r', encoding='utf-8')
         else:
             self.file = []
-            with open(path, 'r') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     self.file.append(line)
 
