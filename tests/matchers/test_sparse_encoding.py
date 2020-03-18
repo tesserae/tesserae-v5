@@ -143,7 +143,7 @@ def correct_results(tessfiles):
                     'shared': None,
                     'score': None
                 }
-                with open(os.path.join(root, fname), 'r') as f:
+                with open(os.path.join(root, fname), 'r', encoding='utf-8') as f:
                     print(fname)
                     for k, line in enumerate(f.readlines()):
                         print(line)
@@ -258,7 +258,7 @@ def _load_v3_mini_text_stem_freqs(conn, metadata):
     # file
     freqs_path = metadata['path'][:-4] + 'freq_score_stem'
     freqs = {}
-    with open(freqs_path, 'r') as ifh:
+    with open(freqs_path, 'r', encoding='utf-8') as ifh:
         for line in ifh:
             if line.startswith('# count:'):
                 denom = int(line.split()[-1])
@@ -289,7 +289,7 @@ def test_mini_text_frequencies(minipop, mini_latin_metadata,
 def _load_v3_results(minitext_path, tab_filename):
     tab_filepath = Path(minitext_path).resolve().parent.joinpath(tab_filename)
     v3_results = []
-    with open(tab_filepath, 'r') as ifh:
+    with open(tab_filepath, 'r', encoding='utf-8') as ifh:
         for line in ifh:
             if not line.startswith('#'):
                 break
@@ -430,7 +430,7 @@ def _load_v3_mini_corpus_stem_freqs(conn, language, lang_path):
             {'_id': False, 'index': True, 'token': True})
     token2index = {e['token']: e['index'] for e in db_cursor}
     freqs = {}
-    with open(freqs_path, 'r') as ifh:
+    with open(freqs_path, 'r', encoding='utf-8') as ifh:
         for line in ifh:
             if line.startswith('# count:'):
                 denom = int(line.split()[-1])
