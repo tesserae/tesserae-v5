@@ -32,14 +32,15 @@ try:
 except ImportError:
     # Python 2.x
     from urllib import quote_plus
+import os
 import sys
 import time
 
 from bson.objectid import ObjectId
-import h5py
 import numpy as np
 import pymongo
 import six
+import sqlite3
 from tqdm import tqdm
 
 import tesserae.db.entities
@@ -563,12 +564,24 @@ class TessMongoConnection():
         for unit_type, features in data.items():
             for feature, bigrams in features.items():
                 dbname = _create_bigram_dbname(text_id, unit_type, feature)
-                with h5py.File(dbname + '.h5', 'w') as ofh:
-                    for (word1, word2), unit_ids in bigrams.items():
-                        data = np.array([[b for b in uid.binary]
-                                         for uid in unit_ids],
-                                        dtype=np.uint8)
-                        dset = ofh.create_dataset(f'{word1}/{word2}', data=data)
+                if not os.path.exists(dbname):
+                    conn = sqlite3.connect(dbname)
+                    conn.execute('create table bigrams( '
+                                     'id integer primary key, '
+                                     'word1 integer, word2 integer, '
+                                     'unitid blob(12))')
+                else:
+                    conn = sqlite3.connect(dbname)
+                with conn:
+                    data = [
+                        (word1, word2, uid.binary)
+                        for (word1, word2), unit_ids in bigrams.items()
+                        for uid in unit_ids
+                    ]
+                    conn.executemany(
+                        'insert into bigrams(word1, word2, unitid) '
+                        'values (?, ?, ?)', data)
+                conn.close()
         print('Bigram writing time:', time.time()-start)
 
     def lookup_bigrams(self, text_id, unit_type, feature, bigrams):
@@ -597,16 +610,22 @@ class TessMongoConnection():
         results = {}
         bigram_dbname = _create_bigram_dbname(
             text_id, unit_type, feature)
-        with h5py.File(bigram_dbname + '.h5', 'r') as ifh:
+        conn = sqlite3.connect(bigram_dbname)
+        with conn:
             for word1, word2 in bigrams:
-                str1 = str(word1)
-                str2 = str(word2)
-                if str1 in ifh and str2 in ifh[str1] and ifh[str1][str2]:
-                    print(word1, word2)
-                    results[tuple(sorted((int(word1), int(word2))))] = [
-                        ObjectId(bytes(uid))
-                        for uid in ifh[str1][str2]
-                    ]
+                int1 = int(word1)
+                int2 = int(word2)
+                if int1 > int2:
+                    int1, int2 = int2, int1
+                bigram = (int1, int2)
+                results[bigram] = [
+                    ObjectId(bytes(row[0]))
+                    for row in conn.execute(
+                        'select unitid from bigrams where '
+                        'word1=? and word2=?',
+                        bigram
+                    )
+                ]
         print(len(results))
         print('Ferrying time:', time.time()-start)
         return results
