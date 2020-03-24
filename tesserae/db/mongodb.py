@@ -87,7 +87,7 @@ def _create_bigram_dbname(text_id, unit_type, feature):
 
     """
     text_id_str = str(text_id)
-    return f'bigrams_{text_id_str}_{unit_type}_{feature}'
+    return f'indexed_bigrams_{text_id_str}_{unit_type}_{feature}'
 
 
 def _extract_embedded_docs(doc):
@@ -581,6 +581,10 @@ class TessMongoConnection():
                     conn.executemany(
                         'insert into bigrams(word1, word2, unitid) '
                         'values (?, ?, ?)', data)
+                with conn:
+                    conn.execute('drop index if exists bigrams_index')
+                    conn.execute('create index bigrams_index on bigrams ('
+                                 'word1, word2, unitid)')
                 conn.close()
         print('Bigram writing time:', time.time()-start)
 
