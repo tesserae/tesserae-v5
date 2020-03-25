@@ -26,6 +26,7 @@ use the `pymongo`_ library.
 
 from collections import defaultdict, Iterable, Mapping
 import datetime
+import itertools
 try:
     # Python 3.x
     from urllib.parse import quote_plus
@@ -67,27 +68,6 @@ def get_size(obj, seen=None):
     elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
         size += sum([get_size(i, seen) for i in obj])
     return size
-
-
-def _create_bigram_dbname(text_id, unit_type, feature):
-    """Create database name for the specified bigram
-
-    Parameters
-    ----------
-    text_id : ObjectId
-        ObjectId of Text
-    unit_type : str
-    feature : str
-        the type of feature of the bigrams
-
-    Returns
-    -------
-    str
-        the name of the database for this particular bigram
-
-    """
-    text_id_str = str(text_id)
-    return f'indexed_bigrams_{text_id_str}_{unit_type}_{feature}'
 
 
 def _extract_embedded_docs(doc):
@@ -517,122 +497,6 @@ class TessMongoConnection():
         """
         for coll_name in self.connection.list_collection_names():
             self.connection[coll_name].drop_indexes()
-
-    def register_bigrams(self, text, units):
-        """Registers bigrams in the database
-
-        Parameters
-        ----------
-        text : tesserae.db.entities.Text
-            text with which to register the bigrams
-        units : list of tesserae.db.entities.Unit
-            units of the text with which to register the bigrams
-
-        Returns
-        -------
-        None
-
-        """
-        start = time.time()
-        data = {}
-        for u in units:
-            unit_type = u.unit_type
-            if unit_type not in data:
-                data[unit_type] = {}
-            unit_type_level = data[unit_type]
-            by_feature = defaultdict(list)
-            for t in u.tokens:
-                for feature, values in t['features'].items():
-                    by_feature[feature].append(values)
-            for feature, values in by_feature.items():
-                if feature not in unit_type_level:
-                    unit_type_level[feature] = {}
-                feature_level = unit_type_level[feature]
-                for pos, indices in enumerate(values):
-                    for word1 in indices:
-                        for inds2 in values[pos+1:]:
-                            for word2 in inds2:
-                                bigram = tuple(sorted([word1, word2]))
-                                if bigram not in feature_level:
-                                    feature_level[bigram] = set()
-                                feature_level[bigram].add(u.id)
-        print('Bigram extracting time:', time.time()-start)
-
-        start = time.time()
-        language = text.language
-        text_id = text.id
-        for unit_type, features in data.items():
-            for feature, bigrams in features.items():
-                dbname = _create_bigram_dbname(text_id, unit_type, feature)
-                if not os.path.exists(dbname):
-                    conn = sqlite3.connect(dbname)
-                    conn.execute('create table bigrams( '
-                                     'id integer primary key, '
-                                     'word1 integer, word2 integer, '
-                                     'unitid blob(12))')
-                else:
-                    conn = sqlite3.connect(dbname)
-                with conn:
-                    data = [
-                        (word1, word2, uid.binary)
-                        for (word1, word2), unit_ids in bigrams.items()
-                        for uid in unit_ids
-                    ]
-                    conn.executemany(
-                        'insert into bigrams(word1, word2, unitid) '
-                        'values (?, ?, ?)', data)
-                with conn:
-                    conn.execute('drop index if exists bigrams_index')
-                    conn.execute('create index bigrams_index on bigrams ('
-                                 'word1, word2, unitid)')
-                conn.close()
-        print('Bigram writing time:', time.time()-start)
-
-    def lookup_bigrams(self, text_id, unit_type, feature, bigrams):
-        """Looks up bigrams
-
-        Parameters
-        ----------
-        text_id : ObjectId
-            ObjectId associated with the Text of the bigrams to retrieve
-        unit_type : {'line', 'phrase'}
-            the type of Unit in which to look for bigrams
-        feature : str
-            the type of feature to which the bigram belongs
-        bigrams : iterable of 2-tuple of int
-            the bigrams of interest
-
-        Returns
-        -------
-        dict[tuple[int, int], list[ObjectId]]
-            mapping between bigram and ObjectId of List of Units to which
-            bigrams belong
-
-        """
-        print('Looking up bigram')
-        start = time.time()
-        results = {}
-        bigram_dbname = _create_bigram_dbname(
-            text_id, unit_type, feature)
-        conn = sqlite3.connect(bigram_dbname)
-        with conn:
-            for word1, word2 in bigrams:
-                int1 = int(word1)
-                int2 = int(word2)
-                if int1 > int2:
-                    int1, int2 = int2, int1
-                bigram = (int1, int2)
-                results[bigram] = [
-                    ObjectId(bytes(row[0]))
-                    for row in conn.execute(
-                        'select unitid from bigrams where '
-                        'word1=? and word2=?',
-                        bigram
-                    )
-                ]
-        print(len(results))
-        print('Ferrying time:', time.time()-start)
-        return results
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):
