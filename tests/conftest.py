@@ -1,16 +1,23 @@
 """Utility operations for unit tests across multiple modules.
 """
 from pathlib import Path
-import pytest
-
 import getpass
 import json
 import os
+import tempfile
 
 import pymongo
+import pytest
 
 from tesserae.db import TessMongoConnection, Text
 from tesserae.utils import ingest_text
+from tesserae.utils.delete import obliterate
+from tesserae.utils.multitext import BigramWriter
+
+
+# Make sure that bigram databases are written out to a temporary location
+BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
+print(BigramWriter.BIGRAM_DB_DIR)
 
 
 def pytest_addoption(parser):
@@ -150,10 +157,6 @@ def tessfiles():
 @pytest.fixture(scope='session')
 def minipop(request, mini_greek_metadata, mini_latin_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
-    print('Dropping collections in minipop')
-    for coll_name in conn.connection.list_collection_names():
-        conn.connection.drop_collection(coll_name)
-    print('Ingesting for minipop')
     for metadata in mini_greek_metadata:
         text = Text.json_decode(metadata)
         ingest_text(conn, text)
@@ -161,6 +164,4 @@ def minipop(request, mini_greek_metadata, mini_latin_metadata):
         text = Text.json_decode(metadata)
         ingest_text(conn, text)
     yield conn
-    print('Dropping collections in minipop')
-    for coll_name in conn.connection.list_collection_names():
-        conn.connection.drop_collection(coll_name)
+    obliterate(conn)

@@ -16,20 +16,6 @@ from tesserae.utils.retrieve import get_results
 
 
 @pytest.fixture(scope='session')
-def minipop(request, mini_greek_metadata, mini_latin_metadata):
-    conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
-    for metadata in mini_greek_metadata:
-        text = Text.json_decode(metadata)
-        ingest_text(conn, text)
-    for metadata in mini_latin_metadata:
-        text = Text.json_decode(metadata)
-        ingest_text(conn, text)
-    yield conn
-    for coll_name in conn.connection.list_collection_names():
-        conn.connection.drop_collection(coll_name)
-
-
-@pytest.fixture(scope='session')
 def punctpop(request, mini_punctuation_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'puncttess')
     for metadata in mini_punctuation_metadata:

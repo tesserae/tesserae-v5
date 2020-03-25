@@ -4,7 +4,7 @@ import uuid
 from tesserae.db.entities import Feature, Search, Text
 from tesserae.matchers.sparse_encoding import SparseMatrixSearch
 from tesserae.matchers.text_options import TextOptions
-from tesserae.utils.search import bigram_search, multitext_search
+from tesserae.utils.multitext import bigram_search, multitext_search
 
 
 def test_bigram_search(minipop, mini_latin_metadata):
