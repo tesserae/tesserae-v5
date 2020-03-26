@@ -4,39 +4,7 @@ import uuid
 from tesserae.db.entities import Feature, Search, Text
 from tesserae.matchers.sparse_encoding import SparseMatrixSearch
 from tesserae.matchers.text_options import TextOptions
-from tesserae.utils.multitext import bigram_search, multitext_search
-
-
-def test_bigram_search(minipop, mini_latin_metadata):
-    feature = 'lemmata'
-    language = 'latin'
-    bellum = minipop.find(
-        Feature.collection, language=language, token='bellum',
-        feature=feature)[0]
-    pando = minipop.find(
-        Feature.collection, language=language, token='pando',
-        feature=feature)[0]
-    texts = minipop.find(
-        Text.collection, language=language
-    )
-    units = []
-    for t in texts:
-        units.extend(bigram_search(
-            minipop, bellum.index, pando.index, feature, 'line', t.id))
-    assert len(units) > 0
-    for u in units:
-        bellum_found = False
-        pando_found = False
-        for t in u.tokens:
-            cur_features = t['features'][feature]
-            if bellum.index in cur_features and \
-                    pando.index not in cur_features:
-                bellum_found = True
-            if pando.index in cur_features and \
-                    bellum.index not in cur_features:
-                pando_found = True
-        assert bellum_found
-        assert pando_found
+from tesserae.utils.multitext import multitext_search
 
 
 def test_multitext_search(minipop, mini_latin_metadata):
