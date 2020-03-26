@@ -6,8 +6,26 @@ import sqlite3
 import time
 
 from bson.objectid import ObjectId
+import numpy as np
 
 from tesserae.db.entities import Feature, Unit
+from tesserae.utils.calculations import get_corpus_frequencies
+
+
+def compute_tesserae_score(inverse_frequencies, distances):
+    """Compute Tesserae score
+
+    Parameters
+    ----------
+    inverse_frequencies : list of float
+    distances : list of int
+
+    Returns
+    -------
+    float
+
+    """
+    return np.log(sum(inverse_frequencies) / sum(distances))
 
 
 class BigramWriter:
@@ -201,7 +219,7 @@ def unregister_bigrams(connection, text_id):
         os.remove(filename)
 
 
-def lookup_bigrams(text_id, unit_type, feature, bigrams):
+def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
     """Looks up bigrams
 
     Parameters
@@ -214,16 +232,17 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
         the type of feature to which the bigram belongs
     bigrams : iterable of 2-tuple of int
         the bigrams of interest
+    inverse_frequencies : 1D np.array
+        a mapping between a feature and its inverse frequency
 
     Returns
     -------
-    dict[tuple[int, int], list[ObjectId]]
-        mapping between bigram and ObjectId of List of Units to which
-        bigrams belong
+    dict[tuple[int, int], list[tuple(ObjectId, float)]]
+        mapping between bigram and a list of tuples, where each tuple contains
+        an ObjectId of a Unit to which the bigram belongs and a score for the
+        Unit as calculated by the Tesserae formula
 
     """
-    print('Looking up bigram')
-    start = time.time()
     results = {}
     bigram_db_path = _create_bigram_db_path(
         text_id, unit_type, feature)
@@ -236,47 +255,17 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
                 int1, int2 = int2, int1
             bigram = (int1, int2)
             results[bigram] = [
-                ObjectId(bytes(row[0]))
+                (ObjectId(bytes(row[0])), compute_tesserae_score(
+                    (inverse_frequencies[b] for b in bigram),
+                    (np.abs(row[1] - row[2]),)
+                ))
                 for row in conn.execute(
-                    'select unitid from bigrams where '
+                    'select unitid, pos1, pos2 from bigrams where '
                     'word1=? and word2=?',
                     bigram
                 )
             ]
-    print(len(results))
-    print('Ferrying time:', time.time()-start)
     return results
-
-
-def bigram_search(
-        connection, word1_index, word2_index, feature, unit_type, text_id):
-    """Retrieves all Units of a specified type containing the specified words
-
-    Parameters
-    ----------
-    connection : TessMongoConnection
-    word1_index, word2_index : int
-        Feature index of words to be contained in a Unit
-    feature : {'lemmata', 'form'}
-        Feature type of words to search for
-    unit_type : {'line', 'phrase'}
-        Type of Units to look for
-    text_id : ObjectId
-        The ID of Text in whose Units the bigram is to be searched
-
-    Returns
-    -------
-    list of Unit
-        All Units of the specified texts and ``unit_type`` containing
-        both ``word1_index`` and ``word2_index``
-    """
-    bigram = tuple(sorted((word1_index, word2_index)))
-    bigram_data = lookup_bigrams(text_id, unit_type, feature,
-                                            [bigram])
-    if bigram not in bigram_data:
-        return []
-    return connection.find(Unit.collection,
-                           _id=[u for u in bigram_data[bigram]])
 
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
@@ -308,6 +297,9 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         f.token: f.index
         for f in connection.find(
             Feature.collection, feature=feature_type, language=language)}
+    inverse_frequencies = np.power(
+        get_corpus_frequencies(connection, feature_type, language), -1
+    )
 
     bigram_indices = set()
     for m in matches:
@@ -317,10 +309,9 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
     bigram2units = defaultdict(list)
     for text in texts:
         bigram_data = lookup_bigrams(
-            text.id, unit_type, feature_type, bigram_indices)
+            text.id, unit_type, feature_type, bigram_indices,
+            inverse_frequencies)
         for bigram, data in bigram_data.items():
-            print(bigram)
-            print(data)
             bigram2units[bigram].extend([
                 u for u in data
             ])
