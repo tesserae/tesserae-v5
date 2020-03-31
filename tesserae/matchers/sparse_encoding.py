@@ -115,8 +115,8 @@ class SparseMatrixSearch(object):
 
     def match(self, search_id, source, target, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
-              frequency_basis='texts', max_distance=10,
-              distance_metric='frequency', min_score=6):
+              freq_basis='texts', max_distance=10,
+              distance_basis='frequency', min_score=6):
         """Find matches between one or more texts.
 
         Texts will contain lines or phrases with matching tokens, with varying
@@ -145,12 +145,12 @@ class SparseMatrixSearch(object):
         score_basis : {'word','stem'}
             Whether to score based on the words (normalized text) or stems
             (lemmata).
-        frequency_basis : {'texts','corpus'}
+        freq_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
         max_distance : float
             The maximum inter-word distance to use in a match.
-        distance_metric : {'frequency', 'span'}
+        distance_basis : {'frequency', 'span'}
             The methods used to compute distance.
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
@@ -191,24 +191,18 @@ class SparseMatrixSearch(object):
 
         tag_helper = TagHelper(self.connection, texts)
 
-        if frequency_basis != 'texts':
-            source_frequencies_getter, target_frequencies_getter = \
-                _get_corpus_frequency_getters(
-                    self.connection, feature, texts, target_units, source_units
-                )
+        if freq_basis != 'texts':
+            match_ents = _score_by_corpus_frequencies(
+                search_id,
+                self.connection, feature,
+                texts, target_units, source_units, features, stoplist,
+                distance_basis, max_distance, tag_helper)
         else:
-            source_frequencies_getter, target_frequencies_getter = \
-                _get_text_frequency_getters(self.connection, feature, texts)
-
-        match_ents = _score(
-            search_id, target_units,
-            source_units, features,
-            set(stoplist),
-            distance_metric,
-            max_distance, source_frequencies_getter,
-            target_frequencies_getter,
-            tag_helper
-        )
+            match_ents = _score_by_text_frequencies(
+                search_id,
+                self.connection, feature,
+                texts, target_units, source_units, features, stoplist,
+                distance_basis, max_distance, tag_helper)
 
         return match_ents
 
@@ -344,7 +338,7 @@ def get_text_frequencies(connection, feature, text_id):
 def _score_by_corpus_frequencies(
         search_id, connection, feature, texts,
         target_units, source_units,
-        features, stoplist, distance_metric, max_distance, tag_helper):
+        features, stoplist, distance_basis, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
         source_frequencies_getter = _averaged_freq_getter(
             get_corpus_frequencies(connection, feature, texts[0].language),
@@ -357,15 +351,26 @@ def _score_by_corpus_frequencies(
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_frequencies_getter = source_frequencies_getter
-    return source_frequencies_getter, target_frequencies_getter
+    return _score(
+        search_id, target_units, source_units, features, stoplist,
+        distance_basis,
+        max_distance, source_frequencies_getter, target_frequencies_getter,
+        tag_helper)
 
 
-def _get_text_frequency_getters(connection, feature, texts):
+def _score_by_text_frequencies(
+        search_id, connection, feature, texts,
+        target_units, source_units,
+        features, stoplist, distance_basis, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
             connection, feature, texts[1].id))
-    return source_frequencies_getter, target_frequencies_getter
+    return _score(
+        search_id, target_units, source_units, features, stoplist,
+        distance_basis,
+        max_distance, source_frequencies_getter, target_frequencies_getter,
+        tag_helper)
 
 
 def _get_trivial_distance(positions):
@@ -784,8 +789,8 @@ def _gen_matches(target_units, source_units, stoplist_set, features_size):
 
 
 def _score(
-        search_id, target_units, source_units, features, stoplist_set,
-        distance_metric,
+        search_id, target_units, source_units, features, stoplist,
+        distance_basis,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
     match_ents = []
@@ -798,7 +803,7 @@ def _score(
         source_forms = np.array(source_unit['forms'])
         t_positions = positions[:, 0]
         s_positions = positions[:, 1]
-        if distance_metric == 'span':
+        if distance_basis == 'span':
             # adjacent matched words have a distance of 2, etc.
             target_distance = _get_distance_by_span(t_positions, target_forms)
             source_distance = _get_distance_by_span(s_positions, source_forms)
