@@ -163,8 +163,8 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
         'lemmata',
         stopwords=['et', 'neque', 'qui'],
         stopword_basis='texts', score_basis='stem',
-        frequency_basis='texts', max_distance=10,
-        distance_metric='frequency', min_score=0)
+        freq_basis='texts', max_distance=10,
+        distance_basis='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -190,8 +190,8 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
         stopwords=[
             'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
         stopword_basis='texts', score_basis='stem',
-        frequency_basis='texts', max_distance=10,
-        distance_metric='span', min_score=0)
+        freq_basis='texts', max_distance=10,
+        distance_basis='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -257,8 +257,8 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
         'lemmata',
         stopwords=4,
         stopword_basis='corpus', score_basis='stem',
-        frequency_basis='corpus', max_distance=10,
-        distance_metric='frequency', min_score=0)
+        freq_basis='corpus', max_distance=10,
+        distance_basis='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -289,8 +289,8 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
         'lemmata',
         stopwords=10,
         stopword_basis='corpus', score_basis='stem',
-        frequency_basis='corpus', max_distance=10,
-        distance_metric='span', min_score=0)
+        freq_basis='corpus', max_distance=10,
+        distance_basis='span', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
@@ -321,6 +321,6 @@ def test_mini_punctuation(punctpop, mini_punctuation_metadata):
         'lemmata',
         stopwords=10,
         stopword_basis='corpus', score_basis='stem',
-        frequency_basis='corpus', max_distance=10,
-        distance_metric='span', min_score=0)
+        freq_basis='corpus', max_distance=10,
+        distance_basis='span', min_score=0)
     # the point of this test is to make sure no Exception is thrown
