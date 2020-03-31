@@ -1,162 +1,91 @@
-"""Helper class and functions for running search
-
-AsynchronousSearcher provides normal Tesserae search capabilities.
-
-bigram_search enables lookup of bigrams for specified units of specified texts
-"""
+"""Helper functions for running Tesserae search"""
 from collections import defaultdict
 import itertools
-import multiprocessing
-import queue
 import time
 import traceback
 
-from tesserae.db import TessMongoConnection
 from tesserae.db.entities import Feature, Property, Search, Unit
 import tesserae.matchers
 
 
-class AsynchronousSearcher:
-    """Asynchronous Tesserae search resource holder
+def submit_search(jobqueue, results_id, search_type, search_params):
+    """Submit a job for Tesserae search
 
-    Attributes
+    Parameters
     ----------
-    workers : list of SearchProcess
-        the workers this object has created
-    queue : multiprocessing.Queue
-        work queue which workers listen on
+    jobqueue : tesserae.utils.coordinate.JobQueue
+    results_id : str
+        UUID to associate with search to be performed
+    search_type : str
+        the search to perform; must be a key in tesserae.matchers.matcher_map
+    search_params : dict
+        parameter names mapped to arguments to be used for the search
 
     """
-
-    def __init__(self, num_workers, db_cred):
-        """Store parameters to be used in intializing resources
-
-        Parameters
-        ----------
-        num_workers : int
-            number of workers to create
-        db_cred : dict
-            credentials to access the database; arguments should be given for
-            TessMongoConnection.__init__ in kwarg unpacking format
-
-        """
-        self.num_workers = num_workers
-        self.db_cred = db_cred
-
-        self.queue = multiprocessing.Queue()
-        self.workers = []
-        for _ in range(self.num_workers):
-            cur_proc = SearchProcess(self.db_cred, self.queue)
-            cur_proc.start()
-            self.workers.append(cur_proc)
-
-    def cleanup(self, *args):
-        """Clean up system resources being used by this object
-
-        This method should be called by exit handlers in the main script
-
-        """
-        try:
-            while True:
-                self.queue.get_nowait()
-        except queue.Empty:
-            pass
-        for _ in range(len(self.workers)):
-            self.queue.put((None, None, None))
-        for worker in self.workers:
-            worker.join()
-
-    def queue_search(self, results_id, search_type, search_params):
-        """Queues search for processing
-
-        Parameters
-        ----------
-        results_id : str
-            UUID for identifying the search request
-        search_type : str
-            identifier for type of search to perform.  Available options are
-            defined in tesserae.matchers.search_types (located in the
-            __init__.py file).
-        search_params : dict
-            search parameters
-
-        """
-        self.queue.put_nowait((results_id, search_type, search_params))
+    kwargs = {
+        'results_id': results_id,
+        'search_type': search_type,
+        'search_params': search_params
+    }
+    jobqueue.queue_job(_run_search, kwargs)
 
 
-class SearchProcess(multiprocessing.Process):
-    """Worker process waiting for search to execute
+def _run_search(connection, results_id, search_type, search_params):
+    """Instructions for running Tesserae search
 
-    Listens on queue for work to do
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    results_id : str
+        UUID to associate with search to be performed
+    search_type : str
+        the search to perform; must be a key in tesserae.matchers.matcher_map
+    search_params : dict
+        parameter names mapped to arguments to be used for the search
+
     """
-
-    def __init__(self, db_cred, queue):
-        """Constructs a search worker
-
-        Parameters
-        ----------
-        db_cred : dict
-            credentials to access the database; arguments should be given for
-            TessMongoConnection.__init__ in keyword format
-        queue : multiprocessing.Queue
-            mechanism for receiving search requests
-
-        """
-        super().__init__(target=self.await_job, args=(db_cred, queue))
-
-    def await_job(self, db_cred, queue):
-        """Waits for search job"""
-        connection = TessMongoConnection(**db_cred)
-        while True:
-            results_id, search_type, search_params = queue.get(block=True)
-            if results_id is None:
-                break
-            self.run_search(connection, results_id, search_type, search_params)
-
-    def run_search(self, connection, results_id, search_type, search_params):
-        """Executes search"""
-        start_time = time.time()
-        parameters = {
-            'source': {
-                'object_id': str(search_params['source'].text.id),
-                'units': search_params['source'].unit_type
-            },
-            'target': {
-                'object_id': str(search_params['target'].text.id),
-                'units': search_params['target'].unit_type
-            },
-            'method': {
-                'name': search_type,
-                'feature': search_params['feature'],
-                'stopwords': search_params['stopwords'],
-                'freq_basis': search_params['frequency_basis'],
-                'max_distance': search_params['max_distance'],
-                'distance_basis': search_params['distance_metric']
-            }
+    start_time = time.time()
+    parameters = {
+        'source': {
+            'object_id': str(search_params['source'].text.id),
+            'units': search_params['source'].unit_type
+        },
+        'target': {
+            'object_id': str(search_params['target'].text.id),
+            'units': search_params['target'].unit_type
+        },
+        'method': {
+            'name': search_type,
+            'feature': search_params['feature'],
+            'stopwords': search_params['stopwords'],
+            'freq_basis': search_params['freq_basis'],
+            'max_distance': search_params['max_distance'],
+            'distance_basis': search_params['distance_basis']
         }
-        results_status = Search(
-            results_id=results_id,
-            status=Search.INIT, msg='',
-            parameters=parameters
-        )
-        connection.insert(results_status)
-        try:
-            search_id = results_status.id
-            matcher = tesserae.matchers.matcher_map[search_type](connection)
-            results_status.status = Search.RUN
-            connection.update(results_status)
-            matches = matcher.match(search_id, **search_params)
-            connection.insert_nocheck(matches)
+    }
+    results_status = Search(
+        results_id=results_id,
+        status=Search.INIT, msg='',
+        parameters=parameters
+    )
+    connection.insert(results_status)
+    try:
+        search_id = results_status.id
+        matcher = tesserae.matchers.matcher_map[search_type](connection)
+        results_status.status = Search.RUN
+        connection.update(results_status)
+        matches = matcher.match(search_id, **search_params)
+        connection.insert_nocheck(matches)
 
-            results_status.status = Search.DONE
-            results_status.msg = 'Done in {} seconds'.format(
-                time.time() - start_time)
-            connection.update(results_status)
-        # we want to catch all errors and log them into the Search entity
-        except:  # noqa: E722
-            results_status.status = Search.FAILED
-            results_status.msg = traceback.format_exc()
-            connection.update(results_status)
+        results_status.status = Search.DONE
+        results_status.msg = 'Done in {} seconds'.format(
+            time.time() - start_time)
+        connection.update(results_status)
+    # we want to catch all errors and log them into the Search entity
+    except:  # noqa: E722
+        results_status.status = Search.FAILED
+        results_status.msg = traceback.format_exc()
+        connection.update(results_status)
 
 
 def check_cache(connection, source, target, method):
