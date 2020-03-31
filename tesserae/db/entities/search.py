@@ -19,10 +19,12 @@ class Search(Entity):
         Database id of the search. Should not be set locally.
     results_id : str, optional
         UUID for identifying search results
+    search_type : str, optional
+        Identification for the type of search performed
     parameters : dict, optional
-        The parameters of the match. The exact contents are fluid to allow for
-        extensions to Tesserae, but this should contain all of the information
-        necessary to recreate the matches.
+        The parameters used for this search. The exact contents are fluid to
+        allow for extensions to Tesserae, but this should contain all of the
+        information necessary to recreate the matches.
     status : str, optional
         Status message for determining what phase the search is in
     msg : str, optional
@@ -37,11 +39,13 @@ class Search(Entity):
     FAILED = 'Failed'
 
     def __init__(
-        self, id=None, results_id=None, parameters=None,
+        self, id=None, results_id=None, search_type=None, parameters=None,
             status=None, msg=None, matches=None):
         super().__init__(id=id)
         self.results_id: typing.Optional[str] = results_id \
             if results_id is not None else ''
+        self.search_type: typing.Optional[str] = search_type \
+            if search_type is not None else ''
         self.parameters: typing.Mapping[typing.Any, typing.Any] = parameters \
             if parameters is not None else {}
         self.status: typing.Optional[str] = status \
@@ -58,6 +62,7 @@ class Search(Entity):
     def __repr__(self):
         return (
             f'Search(results_id={self.results_id}, '
+            f'search_type={self.search_type}, '
             f'parameters={self.parameters}, '
             f'status={self.status}, msg={self.msg})'
         )
