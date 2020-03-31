@@ -8,6 +8,9 @@ from tesserae.db.entities import Feature, Property, Search, Unit
 import tesserae.matchers
 
 
+NORMAL_SEARCH = 'vanilla'
+
+
 def submit_search(jobqueue, results_id, search_type, search_params):
     """Submit a job for Tesserae search
 
@@ -65,6 +68,7 @@ def _run_search(connection, results_id, search_type, search_params):
     }
     results_status = Search(
         results_id=results_id,
+        search_type=NORMAL_SEARCH,
         status=Search.INIT, msg='',
         parameters=parameters
     )
@@ -117,6 +121,7 @@ def check_cache(connection, source, target, method):
     found = [
         Search.json_decode(f)
         for f in connection.connection[Search.collection].find({
+            'search_type': NORMAL_SEARCH,
             'parameters.source.object_id': str(source['object_id']),
             'parameters.source.units': source['units'],
             'parameters.target.object_id': str(target['object_id']),
