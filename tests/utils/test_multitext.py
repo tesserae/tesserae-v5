@@ -30,8 +30,8 @@ def test_multitext_search(minipop, mini_latin_metadata):
         'lemmata',
         stopwords=['et', 'neque', 'qui'],
         stopword_basis='corpus', score_basis='stem',
-        frequency_basis='corpus', max_distance=10,
-        distance_metric='span', min_score=0)
+        freq_basis='corpus', max_distance=10,
+        distance_basis='span', min_score=0)
 
     results = multitext_search(minipop, matches, feature, 'line', texts)
     assert len(results) == len(matches)

@@ -17,7 +17,6 @@ from tesserae.utils.multitext import BigramWriter
 
 # Make sure that bigram databases are written out to a temporary location
 BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
-print(BigramWriter.BIGRAM_DB_DIR)
 
 
 def pytest_addoption(parser):
