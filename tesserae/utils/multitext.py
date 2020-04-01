@@ -8,8 +8,102 @@ import time
 from bson.objectid import ObjectId
 import numpy as np
 
-from tesserae.db.entities import Feature, Unit
-from tesserae.utils.calculations import get_corpus_frequencies
+from tesserae.db.entities import \
+    Feature, Match, MultiResult, Search, Text, Unit
+from tesserae.utils.calculations import get_text_frequencies
+
+
+MULTITEXT_SEARCH = 'multitext'
+
+
+def submit_multitext(jobqueue, results_id, search_id_str, texts_ids_strs):
+    """Submit a job for multitext search
+
+    Multitext search submitted by this function will always return results
+    based on phrases
+
+    Parameters
+    ----------
+    jobqueue : tesserae.utils.coordinate.JobQueue
+    results_id : str
+        UUID to associate with the multitext search to be performed
+    search_id_str : str
+        stringified ObjectId of the Search results on which to run multitext
+        search
+    texts_ids_str : list of str
+        stringified ObjectIds of Texts in which bigrams of the Search results
+        are to be searched
+
+    """
+    kwargs = {
+        'results_id': results_id,
+        'search_id_str': search_id_str,
+        'texts_ids_strs': texts_ids_strs
+    }
+    jobqueue.queue_job(_run_multitext, kwargs)
+
+
+def _run_multitext(connection, results_id, search_id_str, texts_ids_strs):
+    """Runs multitext search
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    results_id : str
+        UUID to associate with the multitext search to be performed
+    search_id_str : str
+        stringified ObjectId of the Search results on which to run multitext
+        search
+    texts_ids_str : list of str
+        stringified ObjectIds of Texts in which bigrams of the Search results
+        are to be searched
+
+    """
+    start_time = time.time()
+    parameters = {
+        'search_id': search_id_str,
+        'text_ids': texts_ids_str
+    }
+    results_status = Search(
+        results_id=results_id,
+        search_type=MULTITEXT_SEARCH,
+        status=Search.INIT, msg='',
+        parameters=parameters
+    )
+    connection.insert(results_status)
+    search_id = ObjectId(search_id_str)
+    search = connection.find(Search.collection, _id=search_id)
+    matches = connection.find(
+        Match.collection, search_id=search_id)
+    texts = connection.find(
+        Text.collection, _id=[ObjectId(tid) for tid in texts_ids]
+    )
+    try:
+        search_id = results_status.id
+        results_status.status = Search.RUN
+        connection.update(results_status)
+        raw_results = multitext_search(
+            connection, matches, search.parameters['method']['feature'],
+            'phrase', texts)
+        multiresults = [MultiResult(
+            search_id=search_id,
+            match_id=m.id,
+            bigram=list(bigram),
+            units=[v[0] for v in values],
+            scores=[v[1] for v in values]
+        ) for m, result in zip(matches, raw_results)
+                        for bigram, values in result.items()]
+        connection.insert_nocheck(multiresults)
+
+        results_status.status = Search.DONE
+        results_status.msg = 'Done in {} seconds'.format(
+            time.time() - start_time)
+        connection.update(results_status)
+    # we want to catch all errors and log them into the Search entity
+    except:  # noqa: E722
+        results_status.status = Search.FAILED
+        results_status.msg = traceback.format_exc()
+        connection.update(results_status)
 
 
 def compute_tesserae_score(inverse_frequencies, distances):
@@ -26,6 +120,31 @@ def compute_tesserae_score(inverse_frequencies, distances):
 
     """
     return np.log(sum(inverse_frequencies) / sum(distances))
+
+
+def compute_inverse_frequencies(connection, feature_type, text_id):
+    """Compute inverse text frequencies by specified feature type
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    feature_type : str
+        Feature category to be used in calculating frequencies
+    text_id : bson.objectid.ObjectId
+        ObjectId of the text whose feature frequencies are to be computed
+
+    Returns
+    -------
+    1d np.array
+        index by form index to obtain corresponding inverse text frequency
+    """
+    text_freqs_dict = get_text_frequencies(
+        connection, feature_type, text_id)
+    inverse_frequencies = np.zeros(max(text_freqs_dict) + 1)
+    inverse_frequencies[[k for k in text_freqs_dict.keys()]] = np.power([
+        v for v in text_freqs_dict.values()
+    ], -1)
+    return inverse_frequencies
 
 
 class BigramWriter:
@@ -62,7 +181,8 @@ class BigramWriter:
         # dict[feature, list[db_row]]
         self.data = defaultdict(list)
 
-    def record_bigrams(self, feature, positioned_unigrams, unit_id):
+    def record_bigrams(self, feature, positioned_unigrams, forms,
+                       inverse_frequencies, unit_id):
         """Compute and store bigram information
 
         It is assumed that all of the Unit's unigram information for the
@@ -78,25 +198,40 @@ class BigramWriter:
         positioned_unigrams : list of list of int
             the outer list corresponds to a position within the Unit; the inner
             list contains the individual instances of the feature type
+        forms : list of list of int
+            the outer list corresponds to a position within the Unit; the inner
+            list contains the individual instances of the form feature type
+        inverse_frequencies : 1d np.array
+            mapping from form index number to text frequency for text to which
+            the unit associated with ``unit_id`` belongs
         unit_id : ObjectId
             ObjectId of the Unit whose bigrams are being recorded
         """
         collected = {}
-        for pos1, unigrams1 in enumerate(positioned_unigrams):
+        for pos1, (unigrams1, outerform1) in enumerate(
+                zip(positioned_unigrams, forms)):
+            form1 = outerform1[0]
             for word1 in unigrams1:
                 pos2_start = pos1 + 1
-                for pos2_increment, unigrams2 in enumerate(
-                        positioned_unigrams[pos2_start:]):
+                for pos2_increment, (unigrams2, outerform2) in enumerate(
+                        zip(positioned_unigrams[pos2_start:],
+                            forms[pos2_start:])):
+                    form2 = outerform2[0]
                     for word2 in unigrams2:
                         bigram = tuple(sorted([word1, word2]))
                         if bigram not in collected:
-                            collected[bigram] = (
-                                pos1, pos2_start + pos2_increment)
+                            collected[bigram] = compute_tesserae_score(
+                                inverse_frequencies[[form1, form2]],
+                                # distances are computed as expected in
+                                # multitext (i.e., two adjacent words have a
+                                # distance of 1, words that have one word
+                                # between them have a distance of two, etc.)
+                                (pos2_increment + 1,))
         unit_id_binary = unit_id.binary
         to_write = self.data[feature]
         to_write.extend([
-            (word1, word2, unit_id_binary, pos1, pos2)
-            for (word1, word2), (pos1, pos2) in collected.items()
+            (word1, word2, unit_id_binary, score)
+            for (word1, word2), score in collected.items()
         ])
 
         if len(to_write) > BigramWriter.transaction_threshold:
@@ -121,15 +256,14 @@ class BigramWriter:
                             'word1 integer, '
                             'word2 integer, '
                             'unitid blob(12), '
-                            'pos1 integer, '
-                            'pos2 integer '
+                            'score real '
                          ')')
         else:
             conn = sqlite3.connect(dbpath)
         with conn:
             conn.executemany(
-                'insert into bigrams(word1, word2, unitid, pos1, pos2) '
-                'values (?, ?, ?, ?, ?)',
+                'insert into bigrams(word1, word2, unitid, score) '
+                'values (?, ?, ?, ?)',
                 to_write
             )
         conn.close()
@@ -184,6 +318,11 @@ def register_bigrams(connection, text_id):
         ObjectId of Text
 
     """
+    accepted_features = ('form', 'lemmata')
+    feat2inv_freqs = {
+        f_type: compute_inverse_frequencies(connection, f_type, text_id)
+        for f_type in accepted_features
+    }
     for unit_type in ['line', 'phrase']:
         with connection.connection[Unit.collection].find(
             {'text': text_id, 'unit_type': unit_type},
@@ -197,9 +336,12 @@ def register_bigrams(connection, text_id):
                     tokens = unit_dict['tokens']
                     for t in tokens:
                         for feature, values in t['features'].items():
-                            by_feature[feature].append(values)
+                            if feature in accepted_features:
+                                by_feature[feature].append(values)
                     for feature, values in by_feature.items():
-                        writer.record_bigrams(feature, values, unit_id)
+                        writer.record_bigrams(
+                            feature, values, by_feature['form'],
+                            feat2inv_freqs[feature], unit_id)
 
 
 def unregister_bigrams(connection, text_id):
@@ -219,7 +361,7 @@ def unregister_bigrams(connection, text_id):
         os.remove(filename)
 
 
-def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
+def lookup_bigrams(text_id, unit_type, feature, bigrams):
     """Looks up bigrams
 
     Parameters
@@ -232,8 +374,6 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
         the type of feature to which the bigram belongs
     bigrams : iterable of 2-tuple of int
         the bigrams of interest
-    inverse_frequencies : 1D np.array
-        a mapping between a feature and its inverse frequency
 
     Returns
     -------
@@ -246,6 +386,7 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
     results = {}
     bigram_db_path = _create_bigram_db_path(
         text_id, unit_type, feature)
+    print('#', bigram_db_path)
     conn = sqlite3.connect(bigram_db_path)
     with conn:
         for word1, word2 in bigrams:
@@ -255,12 +396,9 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
                 int1, int2 = int2, int1
             bigram = (int1, int2)
             results[bigram] = [
-                (ObjectId(bytes(row[0])), compute_tesserae_score(
-                    (inverse_frequencies[b] for b in bigram),
-                    (np.abs(row[1] - row[2]),)
-                ))
+                (ObjectId(bytes(row[0])), row[1])
                 for row in conn.execute(
-                    'select unitid, pos1, pos2 from bigrams where '
+                    'select unitid, score from bigrams where '
                     'word1=? and word2=?',
                     bigram
                 )
@@ -270,6 +408,15 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams, inverse_frequencies):
 
 def multitext_search(connection, matches, feature_type, unit_type, texts):
     """Retrieves Units containing matched bigrams
+
+    Multitext search addresses the question, "Given these matches I've found
+    through a Tesserae search, how frequently do these matching words occur
+    together in other texts?"
+
+    Multitext search takes the results from a previously completed Search as
+    the starting point.  Looking at the Matches found in that Search, it looks
+    in the unit of specified Texts for matching bigrams within each Match of
+    the Search.
 
     Parameters
     ----------
@@ -285,7 +432,7 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
 
     Returns
     -------
-    list of dict[(str, str), list of ObjectId]
+    list of dict[(str, str), list of tuple(ObjectId, float)]
         each dictionary within the list corresponds in index to a match from
         ``matches``; the dictionary contains key-value pairs, where the key is
         a bigram and the value is a list of ObjectIds of Units of type
@@ -297,9 +444,6 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         f.token: f.index
         for f in connection.find(
             Feature.collection, feature=feature_type, language=language)}
-    inverse_frequencies = np.power(
-        get_corpus_frequencies(connection, feature_type, language), -1
-    )
 
     bigram_indices = set()
     for m in matches:
@@ -309,8 +453,7 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
     bigram2units = defaultdict(list)
     for text in texts:
         bigram_data = lookup_bigrams(
-            text.id, unit_type, feature_type, bigram_indices,
-            inverse_frequencies)
+            text.id, unit_type, feature_type, bigram_indices)
         for bigram, data in bigram_data.items():
             bigram2units[bigram].extend([
                 u for u in data
