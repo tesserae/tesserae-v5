@@ -1,5 +1,6 @@
 """Functionality related to multitext search"""
 from collections import defaultdict
+import glob
 import itertools
 import os
 import sqlite3
@@ -165,7 +166,8 @@ class BigramWriter:
         """
 
         As a side-effect, the bigram database directory is created if it does
-        not already exist
+        not already exist; also, if a bigram database had previously been
+        written for this text and unit type, it will be over-written
 
         Parameters
         ----------
@@ -176,6 +178,9 @@ class BigramWriter:
         """
         if not os.path.isdir(BigramWriter.BIGRAM_DB_DIR):
             os.makedirs(BigramWriter.BIGRAM_DB_DIR, exist_ok=True)
+        for db_path in glob.glob(
+                _create_bigram_db_path(text_id, unit_type, '*')):
+            os.remove(db_path)
         self.text_id = text_id
         self.unit_type = unit_type
         # dict[feature, list[db_row]]
@@ -386,7 +391,6 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
     results = {}
     bigram_db_path = _create_bigram_db_path(
         text_id, unit_type, feature)
-    print('#', bigram_db_path)
     conn = sqlite3.connect(bigram_db_path)
     with conn:
         for word1, word2 in bigrams:
