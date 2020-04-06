@@ -461,7 +461,8 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
     bigram2units = defaultdict(list)
     for text in texts:
         bigram_data = lookup_bigrams(
-            text.id, unit_type, feature_type, bigram_indices)
+            text.id, 'phrase' if text.is_prose else unit_type, feature_type,
+            bigram_indices)
         for bigram, data in bigram_data.items():
             bigram2units[bigram].extend([
                 u for u in data
