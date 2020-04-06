@@ -328,7 +328,11 @@ def register_bigrams(connection, text_id):
         f_type: compute_inverse_frequencies(connection, f_type, text_id)
         for f_type in accepted_features
     }
-    for unit_type in ['line', 'phrase']:
+    text = connection.find(Text.collection, _id=text_id)[0]
+    unit_types = ['phrase']
+    if not text.is_prose:
+        unit_types.append('line')
+    for unit_type in unit_types:
         with connection.connection[Unit.collection].find(
             {'text': text_id, 'unit_type': unit_type},
             {'_id': True, 'tokens': True},

@@ -32,6 +32,8 @@ class Text(Entity):
         Year that the text was written/published.
     path : str
         Path to .tess file
+    is_prose : bool
+        Whether text is prose work
 
     Attributes
     ----------
@@ -47,18 +49,20 @@ class Text(Entity):
         Year that the text was written/published.
     path : str
         Path to .tess file
+    is_prose : bool
+        Whether text is prose work
 
     """
 
     collection = 'texts'
 
     def __init__(self, id=None, cts_urn=None, language=None, title=None,
-                 author=None, year=None, unit_types=None, path=None,
-                 is_prose=True, hash=None, extras=None):
+                 author=None, year=None, path=None, is_prose=False):
         super(Text, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.title: typing.Optional[str] = title
         self.author: typing.Optional[str] = author
+        self.is_prose: typing.Optional[bool] = is_prose
         self.year: typing.Optional[int] = year
         self.path: typing.Optional[str] = path
 
@@ -73,5 +77,5 @@ class Text(Entity):
         return (
             f'Text(language={self.language}, title={self.title}, '
             f'author={self.author}, year={self.year}, '
-            f'path={self.path})'
+            f'path={self.path}, is_prose={self.is_prose})'
         )
