@@ -4,7 +4,7 @@ import itertools
 import time
 import traceback
 
-from tesserae.db.entities import Feature, Property, Search, Unit
+from tesserae.db.entities import Feature, Match, Property, Search, Unit
 import tesserae.matchers
 
 
@@ -145,3 +145,39 @@ def check_cache(connection, source, target, method):
         if status_found and status_found[0].status != Search.FAILED:
             return status_found[0].results_id
     return None
+
+
+def get_results(connection, results_id):
+    """Retrive search results with associated id
+
+    Parameters
+    ----------
+    results_id : str
+        UUID for Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    found = connection.find(
+            Search.collection, results_id=results_id, status=Search.DONE)[0]
+    db_matches = connection.aggregate(
+        Match.collection,
+        [
+            {'$match': {'search_id': found.id}},
+            {
+                '$project': {
+                    '_id': False,
+                    'source_tag': True,
+                    'target_tag': True,
+                    'matched_features': True,
+                    'score': True,
+                    'source_snippet': True,
+                    'target_snippet': True,
+                    'highlight': True
+                }
+            }
+        ],
+        encode=False
+    )
+    return [match for match in db_matches]
