@@ -17,7 +17,8 @@ from tesserae.utils.calculations import get_text_frequencies
 MULTITEXT_SEARCH = 'multitext'
 
 
-def submit_multitext(jobqueue, results_id, search_id_str, texts_ids_strs):
+def submit_multitext(jobqueue, results_id, search_uuid, texts_ids_strs,
+                     unit_type):
     """Submit a job for multitext search
 
     Multitext search submitted by this function will always return results
@@ -28,23 +29,28 @@ def submit_multitext(jobqueue, results_id, search_id_str, texts_ids_strs):
     jobqueue : tesserae.utils.coordinate.JobQueue
     results_id : str
         UUID to associate with the multitext search to be performed
-    search_id_str : str
-        stringified ObjectId of the Search results on which to run multitext
+    search_uuid : str
+        UUID associated with the Search results on which to run multitext
         search
     texts_ids_str : list of str
         stringified ObjectIds of Texts in which bigrams of the Search results
         are to be searched
+    unit_type : str
+        unit by which to examine specified texts; if the text is a prose work,
+        this option is ignored and the text will be examined by phrase
 
     """
     kwargs = {
         'results_id': results_id,
-        'search_id_str': search_id_str,
-        'texts_ids_strs': texts_ids_strs
+        'search_uuid': search_uuid,
+        'texts_ids_strs': texts_ids_strs,
+        'unit_type': unit_type,
     }
     jobqueue.queue_job(_run_multitext, kwargs)
 
 
-def _run_multitext(connection, results_id, search_id_str, texts_ids_strs):
+def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
+                   unit_type):
     """Runs multitext search
 
     Parameters
@@ -52,18 +58,22 @@ def _run_multitext(connection, results_id, search_id_str, texts_ids_strs):
     connection : tesserae.db.TessMongoConnection
     results_id : str
         UUID to associate with the multitext search to be performed
-    search_id_str : str
-        stringified ObjectId of the Search results on which to run multitext
+    search_uuid : str
+        UUID associated with the Search results on which to run multitext
         search
     texts_ids_str : list of str
         stringified ObjectIds of Texts in which bigrams of the Search results
         are to be searched
+    unit_type : str
+        unit by which to examine specified texts; if the text is a prose work,
+        this option is ignored and the text will be examined by phrase
 
     """
     start_time = time.time()
     parameters = {
-        'search_id': search_id_str,
-        'text_ids': texts_ids_str
+        'search_uuid': search_uuid,
+        'text_ids': texts_ids_str,
+        'unit_type': unit_type,
     }
     results_status = Search(
         results_id=results_id,
@@ -85,7 +95,7 @@ def _run_multitext(connection, results_id, search_id_str, texts_ids_strs):
         connection.update(results_status)
         raw_results = multitext_search(
             connection, matches, search.parameters['method']['feature'],
-            'phrase', texts)
+            unit_type, texts)
         multiresults = [MultiResult(
             search_id=search_id,
             match_id=m.id,
@@ -434,7 +444,9 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
     feature_type : {'lemmata', 'form'}
         Feature type of words to search for
     unit_type : {'line', 'phrase'}
-        Type of Units to look for
+        Type of Units to look for; if prose texts are specified in `texts`,
+        this option will be ignored and only phrase units will be considered
+        for those works
     texts : list of Text
         The Texts whose Units are to be searched
 
@@ -476,3 +488,92 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         }
         for m in matches
     ]
+
+
+def check_cache(connection, search_uuid, text_ids_str, unit_type):
+    """Check whether multitext results are already in the database
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    search_uuid : str
+        UUID associated with the Search results on which to run multitext
+        search
+    texts_ids_str : list of str
+        stringified ObjectIds of Texts in which bigrams of the Search results
+        are to be searched
+    unit_type : str
+        unit by which to examine specified texts; if the text is a prose work,
+        this option is ignored and the text will be examined by phrase
+
+    Returns
+    -------
+    UUID or None
+        If the search results are already in the database, return the
+        results_id associated with them; otherwise return None
+
+    Notes
+    -----
+    Helpful links
+        https://docs.mongodb.com/manual/tutorial/query-embedded-documents/
+        https://docs.mongodb.com/manual/tutorial/query-arrays/
+        https://docs.mongodb.com/manual/reference/operator/query/and/
+    """
+    found = [
+        Search.json_decode(f)
+        for f in connection.connection[Search.collection].find({
+            'search_type': MULTITEXT_SEARCH,
+            'parameters.search_uuid': search_uuid,
+            '$and': [
+                {'parameters.text_ids': {'$all': text_ids_str}},
+                {'parameters.text_ids': {
+                    '$size': len(text_ids_str)}}
+            ],
+            'parameters.unit_type': unit_type,
+        })
+    ]
+    if found:
+        status_found = connection.find(
+            Search.collection,
+            _id=found[0].id)
+        if status_found and status_found[0].status != Search.FAILED:
+            return status_found[0].results_id
+    return None
+
+
+def get_results(connection, results_id):
+    """Retrive search results with associated id
+
+    Parameters
+    ----------
+    results_id : str
+        UUID for Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    found = connection.find(
+            Search.collection, results_id=results_id, status=Search.DONE)[0]
+    db_multiresults = connection.aggregate(
+        MultiResult.collection,
+        [
+            {'$match': {'search_id': found.id}},
+            {
+                '$project': {
+                    '_id': False,
+                    'match_id': True,
+                    'bigram': True,
+                    'units': True,
+                    'scores': True,
+                }
+            }
+        ],
+        encode=False
+    )
+    return [{
+        'match_id': str(mr['match_id']),
+        'bigram': mr['bigram'],
+        'units': [str(uid) for uid in mr['units']],
+        'scores': mr['scores']
+    } for mr in db_multiresults]

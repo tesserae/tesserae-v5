@@ -46,14 +46,16 @@ def mini_latin_metadata(tessfiles_latin_path):
             'author': 'minivergil',
             'language': 'latin',
             'year': -19,
-            'path': str(tessfiles_latin_path.joinpath('mini.aen.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.aen.tess')),
+            'is_prose': False
         },
         {
             'title': 'miniphar',
             'author': 'minilucan',
             'language': 'latin',
             'year': 65,
-            'path': str(tessfiles_latin_path.joinpath('mini.phar.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.phar.tess')),
+            'is_prose': False
         },
     ]
 
@@ -66,14 +68,16 @@ def mini_greek_metadata(tessfiles_greek_path):
             'author': 'minihomer',
             'language': 'greek',
             'year': -1260,
-            'path': str(tessfiles_greek_path.joinpath('mini.il.tess'))
+            'path': str(tessfiles_greek_path.joinpath('mini.il.tess')),
+            'is_prose': False
         },
         {
             'title': 'minigorgis',
             'author': 'miniplato',
             'language': 'greek',
             'year': -283,
-            'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess'))
+            'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess')),
+            'is_prose': True
         },
     ]
 
@@ -86,14 +90,16 @@ def mini_punctuation_metadata(tessfiles_latin_path):
             'author': 'miniaug',
             'language': 'latin',
             'year': 426,
-            'path': str(tessfiles_latin_path.joinpath('mini.aug.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.aug.tess')),
+            'is_prose': True
         },
         {
             'title': 'minidiv',
             'author': 'minicicero',
             'language': 'latin',
             'year': -44,
-            'path': str(tessfiles_latin_path.joinpath('mini.cic.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.cic.tess')),
+            'is_prose': True
         },
     ]
 
