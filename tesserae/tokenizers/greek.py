@@ -35,7 +35,7 @@ class GreekTokenizer(BaseTokenizer):
             self.sigma_alt,
             r"])"])
 
-        self.lemmatizer = Lemmata('lemmata', 'greek')
+        self.lemmatizer = Lemmata('lemmata', 'grc')
 
     def normalize(self, raw, split=True):
         """Normalize a single Greek word.

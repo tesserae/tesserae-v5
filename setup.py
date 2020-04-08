@@ -20,18 +20,19 @@ class InstallLemmataModels(install):
         installs them to `$HOME/cltk_data` where they may be found by the
         lemmatizer.
         """
-        latin = 'https://github.com/cltk/latin_models_cltk/archive/master.zip'
-        greek = 'https://github.com/cltk/greek_models_cltk/archive/master.zip'
+        latin = 'https://github.com/cltk/lat_models_cltk/archive/master.zip'
+        greek = 'https://github.com/cltk/grc_models_cltk/archive/master.zip'
         home = str(Path.home())
+
 
         try:
             # Set up the file paths and directories for the Latin models
-            base = os.path.join(home, 'cltk_data', 'latin', 'model')
+            base = os.path.join(home, 'cltk_data', 'lat', 'model')
             if not os.path.isdir(base):
                 os.makedirs(base, exist_ok=True)
 
             # Download the Latin models and move the ZIP archive
-            fname = os.path.join(base, 'latin_models_cltk.zip')
+            fname = os.path.join(base, 'lat_models_cltk.zip')
             with urllib.request.urlopen(latin) as response, open(fname, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
 
@@ -47,11 +48,11 @@ class InstallLemmataModels(install):
 
         try:
             # Repeat the process with Greek models
-            base = os.path.join(home, 'cltk_data', 'greek', 'model')
+            base = os.path.join(home, 'cltk_data', 'grc', 'model')
             if not os.path.isdir(base):
                 os.makedirs(base, exist_ok=True)
 
-            fname = os.path.join(base, 'greek_models_cltk.zip')
+            fname = os.path.join(base, 'grc_models_cltk.zip')
             with urllib.request.urlopen(greek) as response, open(fname, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
 
