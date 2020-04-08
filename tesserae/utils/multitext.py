@@ -5,6 +5,7 @@ import itertools
 import os
 import sqlite3
 import time
+import traceback
 
 from bson.objectid import ObjectId
 import numpy as np
@@ -61,7 +62,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
     search_uuid : str
         UUID associated with the Search results on which to run multitext
         search
-    texts_ids_str : list of str
+    texts_ids_strs : list of str
         stringified ObjectIds of Texts in which bigrams of the Search results
         are to be searched
     unit_type : str
@@ -72,7 +73,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
     start_time = time.time()
     parameters = {
         'search_uuid': search_uuid,
-        'text_ids': texts_ids_str,
+        'text_ids': texts_ids_strs,
         'unit_type': unit_type,
     }
     results_status = Search(
@@ -82,12 +83,11 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         parameters=parameters
     )
     connection.insert(results_status)
-    search_id = ObjectId(search_id_str)
-    search = connection.find(Search.collection, _id=search_id)
+    search = connection.find(Search.collection, results_id=search_uuid)[0]
     matches = connection.find(
-        Match.collection, search_id=search_id)
+        Match.collection, search_id=search.id)
     texts = connection.find(
-        Text.collection, _id=[ObjectId(tid) for tid in texts_ids]
+        Text.collection, _id=[ObjectId(tid) for tid in texts_ids_strs]
     )
     try:
         search_id = results_status.id

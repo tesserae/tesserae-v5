@@ -12,7 +12,7 @@ from tesserae.matchers.sparse_encoding import \
         SparseMatrixSearch, get_text_frequencies, get_corpus_frequencies
 from tesserae.matchers.text_options import TextOptions
 from tesserae.utils import ingest_text
-from tesserae.utils.retrieve import get_results
+from tesserae.utils.search import get_results
 
 
 @pytest.fixture(scope='session')
