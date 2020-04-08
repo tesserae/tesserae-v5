@@ -699,6 +699,7 @@ def _score(
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper):
     match_ents = []
+    stoplist_set = set(stoplist)
     features_size = len(features)
     for target_ind, source_ind, positions in _gen_matches(
             target_units, source_units, stoplist_set, features_size):
