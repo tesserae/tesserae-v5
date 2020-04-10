@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os
+import pprint
 import re
 
 import pytest
@@ -314,6 +315,45 @@ def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
             tessfile.read(), text=t)
     lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
+
+
+def test_unitize_linebreak_end(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(
+        path=str(tessfiles_latin_path.joinpath('test.linebreak_end.tess')),
+        language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    print('# lines')
+    for line in lines:
+        print(line.snippet)
+    print('# phrases')
+    for phrase in phrases:
+        print(phrase.snippet)
+    assert len(lines) == 2
+
+
+def test_unitize_greek_in_latin(unit_connection, tessfiles_latin_path):
+    tokenizer = LatinTokenizer(unit_connection)
+    t = Text(
+        path=str(tessfiles_latin_path.joinpath('test.greek_in_latin.tess')),
+        language='latin')
+    tessfile = TessFile(t.path, metadata=t)
+    unitizer = Unitizer()
+    tokens, tags, features = tokenizer.tokenize(
+            tessfile.read(), text=t)
+    forms = {f.index: f.token
+             for f in features if f.feature == 'form'}
+    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    for phrase in phrases:
+        for t in phrase.tokens:
+            cur_form = t['features']['form'][0]
+            if cur_form != -1:
+                normalized = tokenizer.normalize(t['display'])[0][0]
+                assert normalized == forms[cur_form], phrase.snippet
 
 
 def test_unitize_lone_diacrit_file(unit_connection, tessfiles_greek_path):

@@ -94,6 +94,9 @@ class BaseTokenizer(object):
         # Remove what appear to be Tesserae line delimiters
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
 
+        # Clean up end of line whitespace
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
+
         # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
@@ -146,6 +149,7 @@ class BaseTokenizer(object):
         # tags and converting newlines to their symbolic form.
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,

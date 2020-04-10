@@ -229,18 +229,21 @@ class Unitizer(object):
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
             if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE):
-                if len(self.phrases[-1].tokens) == 0:
+                if len(self.phrases[-1].tokens) == 0 and \
+                        len(self.phrases[-1].tags) > 0:
                     self.phrases[-1].tags.pop()
                 elif len(phrase_stash) >= 2 and \
                         re.search(
                                 r'([\n])|( / )',
                                 phrase_stash[-2], flags=re.UNICODE):
                     # This happens when there was a blank line in the file;
-                    # count as the end of a phrase
+                    # count as the end of a phrase only if word tokens are in
+                    # the phrase stash
                     first_pos = 0
-                    while re.search(
-                            r'[\w]', phrase_stash[first_pos],
-                            flags=re.UNICODE) is None:
+                    while first_pos < len(phrase_stash) and \
+                            re.search(
+                                r'[\w]', phrase_stash[first_pos],
+                                flags=re.UNICODE) is None:
                         first_pos += 1
                     # keep one line delimiter to indicate that this phrase was
                     # broken by a blank line
