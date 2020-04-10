@@ -24,7 +24,7 @@ def get_data():
     home = str(Path.home())
     for lang, url in zip(langs, urls):
         try:
-            # Set up the file paths and directories for the Latin models
+            # Set up the file paths and directories for the language models
             base = os.path.join(home, 'cltk_data', lang, 'model')
             if not os.path.isdir(base):
                 os.makedirs(base, exist_ok=True)
