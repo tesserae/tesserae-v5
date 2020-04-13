@@ -15,7 +15,7 @@ class LatinTokenizer(BaseTokenizer):
 
         # Set up patterns that will be reused
         self.jv_replacer = JVReplacer()
-        self.lemmatizer = Lemmata('lemmata', 'latin')
+        self.lemmatizer = Lemmata('lemmata', 'lat')
 
         self.split_pattern = \
             '( / )|([\\s]+)|([^\\w' + self.diacriticals + ']+)'

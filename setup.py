@@ -2,37 +2,36 @@ from pathlib import Path
 import os
 from setuptools import setup
 from setuptools.command.install import install
+from setuptools.command.develop import develop
 import shutil
 import sys
 import urllib.request
 import zipfile
 
 
-class InstallLemmataModels(install):
-    """Helper to install CLTK lemmatization models."""
-    description = "Install CLTK lemmatization models to $HOME/cltk_tools"
-
-    def run(self):
-        """Install CLTK lemmatization models.
+def get_data():
+    """Install CLTK lemmatization models.
 
         Tesserae uses the CLTK lemmatizers for each language, and these have
         accompanying data that must be installed separately. This function
         installs them to `$HOME/cltk_data` where they may be found by the
         lemmatizer.
         """
-        latin = 'https://github.com/cltk/latin_models_cltk/archive/master.zip'
-        greek = 'https://github.com/cltk/greek_models_cltk/archive/master.zip'
-        home = str(Path.home())
-
+    langs = ['lat', 'grc']
+    urls = ['https://github.com/cltk/lat_models_cltk/archive/master.zip',
+            'https://github.com/cltk/grc_models_cltk/archive/master.zip',
+    ]
+    home = str(Path.home())
+    for lang, url in zip(langs, urls):
         try:
-            # Set up the file paths and directories for the Latin models
-            base = os.path.join(home, 'cltk_data', 'latin', 'model')
+            # Set up the file paths and directories for the language models
+            base = os.path.join(home, 'cltk_data', lang, 'model')
             if not os.path.isdir(base):
                 os.makedirs(base, exist_ok=True)
 
             # Download the Latin models and move the ZIP archive
-            fname = os.path.join(base, 'latin_models_cltk.zip')
-            with urllib.request.urlopen(latin) as response, open(fname, 'wb') as out_file:
+            fname = os.path.join(base, lang + '_models_cltk.zip')
+            with urllib.request.urlopen(url) as response, open(fname, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
 
             # Extract all files from the ZIP archive
@@ -45,26 +44,24 @@ class InstallLemmataModels(install):
         except OSError:
             pass
 
-        try:
-            # Repeat the process with Greek models
-            base = os.path.join(home, 'cltk_data', 'greek', 'model')
-            if not os.path.isdir(base):
-                os.makedirs(base, exist_ok=True)
 
-            fname = os.path.join(base, 'greek_models_cltk.zip')
-            with urllib.request.urlopen(greek) as response, open(fname, 'wb') as out_file:
-                shutil.copyfileobj(response, out_file)
+class InstallLemmataModels(install):
+    """Helper to install CLTK lemmatization models."""
+    description = "Install CLTK lemmatization models to $HOME/cltk_data"
 
-            with zipfile.ZipFile(fname, mode='r') as zf:
-                zf.extractall(base)
-
-            fname, _ = os.path.splitext(fname)
-            os.rename(fname + '-master', fname)
-        except OSError:
-            pass
-
+    def run(self):
+        get_data()
         # Run the standard installer
         install.run(self)
+
+class DevelopLemmataModels(develop):
+    """Helper to install CLTK lemmatization models."""
+    description = "Install CLTK lemmatization models to $HOME/cltk_data"
+
+    def run(self):
+        get_data()
+        # Run the developer installer
+        develop.run(self)
 
 
 setup(
@@ -80,7 +77,8 @@ setup(
               'tesserae.db.entities',
               'tesserae.matchers',
               'tesserae.tokenizers',
-              'tesserae.utils'],
+              'tesserae.utils',
+    ],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Research',
@@ -104,5 +102,8 @@ setup(
         'scipy',
         'tqdm',
     ],
-    cmdclass={'install': InstallLemmataModels}
+    cmdclass={
+        'install': InstallLemmataModels,
+        'develop': DevelopLemmataModels,
+    }
 )
