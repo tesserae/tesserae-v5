@@ -139,11 +139,6 @@ def test_unitize(unitizer_inputs, correct_units):
             tokens, tags, tokens[0].text)
 
         text_correct_lines = correct_lines[i]
-        if len(lines) != len(text_correct_lines):
-            with open('inspect.results', 'w') as ofh:
-                pprint.pprint(lines, ofh)
-                pprint.pprint('#####', ofh)
-                pprint.pprint(text_correct_lines, ofh)
         assert len(lines) == len(text_correct_lines)
         for j, line in enumerate(lines):
             line_snippet = line.snippet
