@@ -56,8 +56,8 @@ class BaseTokenizer(object):
 
         # This pattern is used over and over again
         self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
-        self.diacriticals = \
-            '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
+        # must use within square brackets
+        self.diacriticals = '\u0300-\u036F'
 
         self.split_pattern = \
             '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
@@ -93,6 +93,9 @@ class BaseTokenizer(object):
 
         # Remove what appear to be Tesserae line delimiters
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+
+        # Remove digits
+        raw = re.sub(r'\d+', '', raw, flags=re.UNICODE)
 
         # Clean up end of line whitespace
         raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
