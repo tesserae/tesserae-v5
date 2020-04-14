@@ -100,9 +100,6 @@ class BaseTokenizer(object):
         # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
-        # Remove digits
-        normalized = re.sub(r'\d+', r'', normalized, flags=re.UNICODE)
-
         # If requested, split based on the language's split pattern.
         if split:
             normalized = re.split(self.split_pattern, normalized,
@@ -189,18 +186,29 @@ class BaseTokenizer(object):
         norm_i = 0
 
         try:
-            punctuation = self.connection.find('features', feature='punctuation')[0]
+            punctuation = \
+                self.connection.find('features', feature='punctuation')[0]
         except IndexError:
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if self.word_regex.search(d):
-                features = {key: val[norm_i]
-                            for key, val in featurized.items()}
+            # print(d, featurized['form'][norm_i].token)
+            if re.search(r'^[\d]+$', d, flags=re.UNICODE) or \
+                    re.search('^[' + self.diacriticals + ']+$', d,
+                              flags=re.UNICODE):
+                # since Greek word_regex picks up digits, we need to first make
+                # sure we're not dealing with digits
+                # also ignore free floating diacritical marks
+                features = {
+                    key: punctuation if key == 'form' else [punctuation]
+                    for key in featurized.keys()}
+            elif not re.search(self.split_pattern, d, flags=re.UNICODE):
+                if self.word_regex.search(d):
+                    features = {key: val[norm_i]
+                                for key, val in featurized.items()}
+                    # print(d, features['form'].token)
+                # increment normalized position in every non-non-word-token
                 norm_i += 1
-            elif re.search(r'^[\d]+$', d, flags=re.UNICODE):
-                features = {key: punctuation if key == 'form' else [punctuation]
-                            for key in featurized.keys()}
             else:
                 features = None
 
