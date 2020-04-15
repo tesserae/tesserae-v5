@@ -167,7 +167,7 @@ def get_results(connection, results_id):
             {'$match': {'search_id': found.id}},
             {
                 '$project': {
-                    '_id': False,
+                    '_id': True,
                     'source_tag': True,
                     'target_tag': True,
                     'matched_features': True,
@@ -180,4 +180,13 @@ def get_results(connection, results_id):
         ],
         encode=False
     )
-    return [match for match in db_matches]
+    return [{
+        'object_id': str(match['_id']),
+        'source_tag': match['source_tag'],
+        'target_tag': match['target_tag'],
+        'matched_features': match['matched_features'],
+        'score': match['score'],
+        'source_snippet': match['source_snippet'],
+        'target_snippet': match['target_snippet'],
+        'highlight': match['highlight']
+    } for match in db_matches]
