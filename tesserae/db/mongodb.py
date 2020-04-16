@@ -24,28 +24,20 @@ use the `pymongo`_ library.
 
 """
 
-from collections import defaultdict, Iterable, Mapping
+from collections import Iterable, Mapping
 import datetime
-import itertools
 try:
     # Python 3.x
     from urllib.parse import quote_plus
 except ImportError:
     # Python 2.x
     from urllib import quote_plus
-import os
 import sys
-import time
 
-from bson.objectid import ObjectId
-import numpy as np
 import pymongo
 import six
-import sqlite3
-from tqdm import tqdm
 
 import tesserae.db.entities
-from tesserae.db.entities import Entity, Unit
 
 
 # https://goshippo.com/blog/measure-real-size-any-python-object/
@@ -483,12 +475,20 @@ class TessMongoConnection():
 
     def create_indices(self):
         """Creates indices for entities for faster lookup later"""
+        # index Unit entities by Text.id
+        self.connection[tesserae.db.entities.Unit.collection].create_index(
+            'text')
         # index Match entities by Search.id for faster search results retrieval
         self.connection[tesserae.db.entities.Match.collection].create_index(
             'search_id')
-        # index Unit entities by Text.id for faster bigram by texts retrieval
-        self.connection[tesserae.db.entities.Unit.collection].create_index(
-            'text')
+        # index Search entities by uuid
+        self.connection[tesserae.db.entities.Search.collection].create_index(
+            'results_id')
+        # index Feature entities by language and feature type
+        self.connection[tesserae.db.entities.Search.collection].create_index([
+            ('language', pymongo.ASCENDING),
+            ('feature', pymongo.ASCENDING),
+        ])
 
     def drop_indices(self):
         """Drops all indices
