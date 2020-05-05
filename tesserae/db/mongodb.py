@@ -32,12 +32,34 @@ try:
 except ImportError:
     # Python 2.x
     from urllib import quote_plus
+import sys
 
 import pymongo
 import six
 
 import tesserae.db.entities
-from tesserae.db.entities import Entity
+
+
+# https://goshippo.com/blog/measure-real-size-any-python-object/
+def get_size(obj, seen=None):
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # Important mark as seen *before* entering recursion to gracefully handle
+    # self-referential objects
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
 
 
 def _extract_embedded_docs(doc):
@@ -453,12 +475,20 @@ class TessMongoConnection():
 
     def create_indices(self):
         """Creates indices for entities for faster lookup later"""
+        # index Unit entities by Text.id
+        self.connection[tesserae.db.entities.Unit.collection].create_index(
+            'text')
         # index Match entities by Search.id for faster search results retrieval
         self.connection[tesserae.db.entities.Match.collection].create_index(
             'search_id')
-        # index Unit entities by Text.id for faster bigram by texts retrieval
-        self.connection[tesserae.db.entities.Unit.collection].create_index(
-            'text')
+        # index Search entities by uuid
+        self.connection[tesserae.db.entities.Search.collection].create_index(
+            'results_id')
+        # index Feature entities by language and feature type
+        self.connection[tesserae.db.entities.Search.collection].create_index([
+            ('language', pymongo.ASCENDING),
+            ('feature', pymongo.ASCENDING),
+        ])
 
     def drop_indices(self):
         """Drops all indices
@@ -466,7 +496,7 @@ class TessMongoConnection():
         Might be useful if you need to rebuild indices
         """
         for coll_name in self.connection.list_collection_names():
-            self.connection[coll_name].drop_indices()
+            self.connection[coll_name].drop_indexes()
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):

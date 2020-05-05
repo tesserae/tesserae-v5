@@ -1,8 +1,9 @@
 from tesserae.db.entities import Feature
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
-from tesserae.utils.tessfile import TessFile
 from tesserae.utils.delete import remove_text
+from tesserae.utils.multitext import register_bigrams
+from tesserae.utils.tessfile import TessFile
 
 
 _tokenizers = {
@@ -56,14 +57,17 @@ def ingest_text(connection, text):
         else:
             f.id = feature_cache[(f.feature, f.token)].id
             features_for_update.append(f)
-    insert_features_result = connection.insert(features_for_insert)
-    update_features_result = connection.update(features_for_update)
+    connection.insert(features_for_insert)
+    connection.update(features_for_update)
 
     unitizer = Unitizer()
-    lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
+    lines, phrases, properties = unitizer.unitize(
+        tokens, tags, tessfile.metadata)
 
-    result = connection.insert_nocheck(tokens)
-    result = connection.insert_nocheck(lines + phrases)
+    connection.insert_nocheck(tokens)
+    connection.insert_nocheck(lines + phrases)
+    connection.insert_nocheck(properties)
+    register_bigrams(connection, text.id)
 
     return text_id
 
