@@ -105,6 +105,29 @@ def mini_punctuation_metadata(tessfiles_latin_path):
 
 
 @pytest.fixture(scope='session')
+def lucverg_metadata(tessfiles_latin_path):
+    return [
+        {
+            'title': 'aeneid',
+            'author': 'vergil',
+            'language': 'latin',
+            'year': -19,
+            'path': str(tessfiles_latin_path.joinpath('vergil.aeneid.tess')),
+            'is_prose': False
+        },
+        {
+            'title': 'bellum civile',
+            'author': 'lucan',
+            'language': 'latin',
+            'year': 65,
+            'path': str(tessfiles_latin_path.joinpath(
+                'lucan.bellum_civile.tess')),
+            'is_prose': False
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
 def tessfiles_path():
     return Path(__file__).resolve().parent.joinpath('tessfiles')
 
