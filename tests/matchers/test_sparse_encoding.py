@@ -12,10 +12,13 @@ from tesserae.matchers.sparse_encoding import \
         SparseMatrixSearch, get_inverse_text_frequencies, \
         get_corpus_frequencies
 from tesserae.matchers.text_options import TextOptions
+from tesserae.tokenizers import LatinTokenizer
+from tesserae.unitizer import Unitizer
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.search import get_results
 from tesserae.utils.delete import obliterate
+from tesserae.utils.tessfile import TessFile
 
 
 @pytest.fixture(scope='session')
@@ -498,7 +501,35 @@ def lucvergpop(request, lucverg_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'lucvergtest')
     for metadata in lucverg_metadata:
         text = Text.json_decode(metadata)
-        ingest_text(conn, text)
+        tessfile = TessFile(text.path, metadata=text)
+
+        result = conn.insert(text)
+        text_id = result.inserted_ids[0]
+
+        tokens, tags, features = \
+            LatinTokenizer(conn).tokenize(
+                tessfile.read(), text=tessfile.metadata)
+
+        feature_cache = {(f.feature, f.token): f for f in conn.find(
+            Feature.collection, language=text.language)}
+        features_for_insert = []
+        features_for_update = []
+
+        for f in features:
+            if (f.feature, f.token) not in feature_cache:
+                features_for_insert.append(f)
+                feature_cache[(f.feature, f.token)] = f
+            else:
+                f.id = feature_cache[(f.feature, f.token)].id
+                features_for_update.append(f)
+        conn.insert(features_for_insert)
+        conn.update(features_for_update)
+
+        unitizer = Unitizer()
+        lines, phrases, properties = unitizer.unitize(
+            tokens, tags, tessfile.metadata)
+
+        conn.insert_nocheck(lines)
     yield conn
     obliterate(conn)
 
