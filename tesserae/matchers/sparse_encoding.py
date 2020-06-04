@@ -496,8 +496,8 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     )
 
 
-def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
-                              su_start):
+def _bin_hits_to_unit_indices(rows, cols, row2t_unit_ind, target_breaks,
+                              source_breaks, su_start):
     """Extract which units matched from the ``match_matrix``
 
     Parameters
@@ -510,6 +510,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
         cols is all j for which ``match_matrix[i, j] == True``; also, for all
         z, ``match_matrix[rows[z], cols[z]] == True``; all other indices should
         yield False
+    row2t_unit_ind : 1d np.array of ints
+        mapping between row index of matrix and unit index of target
     target_breaks : 1d np.array of ints
         ``target_breaks[t]`` tells which row target unit t starts on; thus, the
         range ``target_breaks[t]:target_breaks[t+1]`` includes all the rows
@@ -546,12 +548,6 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
     >>> hits2positions[(0, 0)] == np.array([[0, 0], [1, 2]])
 
     """
-    # keep track of mapping between matrix row index and target unit index
-    # in ``target_units``
-    row2t_unit_ind = np.array([
-        u_ind
-        for u_ind in range(len(target_breaks) - 1)
-        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     # keep track of mapping between matrix column index and source unit index
     # in ``source_units``
     col2s_unit_ind = np.array([
@@ -623,6 +619,12 @@ def gen_hits2positions(
     """
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
             target_units, stoplist_set, features_size)
+    # keep track of mapping between matrix row index and target unit index
+    # in ``target_units``
+    row2t_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(target_breaks) - 1)
+        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     stepsize = 500
     for su_start in range(0, len(source_units), stepsize):
         feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
@@ -637,7 +639,8 @@ def gen_hits2positions(
         # with which source unit position
         coo = match_matrix.tocoo()
         yield _bin_hits_to_unit_indices(
-                coo.row, coo.col, target_breaks, source_breaks, su_start)
+            coo.row, coo.col, row2t_unit_ind, target_breaks, source_breaks,
+            su_start)
 
 
 def _gen_matches(target_units, source_units, stoplist_set, features_size):
