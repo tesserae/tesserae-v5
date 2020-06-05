@@ -69,9 +69,9 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def get_text_frequencies(connection, feature, text_id):
-    """Get frequency data (calculated by the given feature) for words in a
-    particular text.
+def get_inverse_text_frequencies(connection, feature, text_id):
+    """Get inverse frequency data (calculated by the given feature) for words
+    in a particular text.
 
     This method assumes that for a given word type, the feature types
     extracted from any one instance of the word type will be the same as
@@ -91,8 +91,8 @@ def get_text_frequencies(connection, feature, text_id):
     -------
     dict [int, float]
         the key should be a feature index of type form; the associated
-        value is the average proportion of words in the text sharing at
-        least one same feature type with the key word
+        value is the inverse of the average proportion of words in the text
+        sharing at least one same feature type with the key word
     """
     tindex2mtindex = {}
     findex2mfindex = {}
@@ -168,8 +168,9 @@ def get_text_frequencies(connection, feature, text_id):
     # now, we can sum up each row to find the total number of times all
     # associated tokens appeared with the token represented by the row
     summed_rows = count_matrix.sum(axis=-1)
-    # we can also compute frequencies by dividing by the total number of tokens
-    sparse_freqs = summed_rows / text_token_count
+    # dividing total number of tokens by the sums gives us the inverse
+    # frequencies
+    sparse_freqs = text_token_count / summed_rows
     # finally, we re-map matrix indices to feature indices
     mtindex2tindex = {
         mtindex: tindex for tindex, mtindex in tindex2mtindex.items()
