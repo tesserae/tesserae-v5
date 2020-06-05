@@ -12,7 +12,7 @@ import numpy as np
 
 from tesserae.db.entities import \
     Feature, Match, MultiResult, Search, Text, Unit
-from tesserae.utils.calculations import get_text_frequencies
+from tesserae.utils.calculations import get_inverse_text_frequencies
 
 
 MULTITEXT_SEARCH = 'multitext'
@@ -149,12 +149,11 @@ def compute_inverse_frequencies(connection, feature_type, text_id):
     1d np.array
         index by form index to obtain corresponding inverse text frequency
     """
-    text_freqs_dict = get_text_frequencies(
+    inv_freqs_dict = get_inverse_text_frequencies(
         connection, feature_type, text_id)
-    inverse_frequencies = np.zeros(max(text_freqs_dict) + 1)
-    inverse_frequencies[[k for k in text_freqs_dict.keys()]] = np.power([
-        v for v in text_freqs_dict.values()
-    ], -1)
+    inverse_frequencies = np.zeros(max(inv_freqs_dict) + 1)
+    inverse_frequencies[[k for k in inv_freqs_dict.keys()]] = \
+        [v for v in inv_freqs_dict.values()]
     return inverse_frequencies
 
 

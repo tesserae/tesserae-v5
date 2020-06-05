@@ -9,7 +9,8 @@ import pytest
 from tesserae.db import Feature, Search, Text, \
                         TessMongoConnection
 from tesserae.matchers.sparse_encoding import \
-        SparseMatrixSearch, get_text_frequencies, get_corpus_frequencies
+        SparseMatrixSearch, get_inverse_text_frequencies, \
+        get_corpus_frequencies
 from tesserae.matchers.text_options import TextOptions
 from tesserae.utils import ingest_text
 from tesserae.utils.search import get_results
@@ -58,10 +59,10 @@ def test_mini_text_frequencies(
     for metadata in all_text_metadata:
         v3freqs = _load_v3_mini_text_stem_freqs(minipop, metadata)
         text_id = title2id[metadata['title']]
-        v5freqs = get_text_frequencies(minipop, 'lemmata', text_id)
+        v5freqs = get_inverse_text_frequencies(minipop, 'lemmata', text_id)
         for form_index, freq in v5freqs.items():
             assert form_index in v3freqs
-            assert math.isclose(v3freqs[form_index], freq)
+            assert math.isclose(v3freqs[form_index], 1.0 / freq)
 
 
 def _load_v3_results(minitext_path, tab_filename):
