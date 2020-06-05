@@ -342,7 +342,8 @@ def _get_distance_by_span(matched_positions, forms):
     if len(set(forms[matched_positions])) < 2:
         return 0
     if len(matched_positions) == 2:
-        return _get_trivial_distance(matched_positions)
+        return _get_trivial_distance(
+            matched_positions[0], matched_positions[1])
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
     if start_pos != end_pos:
@@ -772,13 +773,14 @@ def _score(
                         (int(s_pos), int(t_pos))
                         for s_pos, t_pos in zip(s_positions, t_positions)]
                 ))
-    numerators = csr_matrix(
-        (
-            numerator_sparse_data,
-            (numerator_sparse_rows, numerator_sparse_cols)
-        )
-    ).sum(axis=-1).A1
-    scores = np.log(numerators) - np.log(denominators)
-    for match, score in zip(match_ents, scores):
-        match.score = score
+    if match_ents:
+        numerators = csr_matrix(
+            (
+                numerator_sparse_data,
+                (numerator_sparse_rows, numerator_sparse_cols)
+            )
+        ).sum(axis=-1).A1
+        scores = np.log(numerators) - np.log(denominators)
+        for match, score in zip(match_ents, scores):
+            match.score = score
     return match_ents
