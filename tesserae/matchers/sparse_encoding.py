@@ -280,19 +280,17 @@ def _score_by_text_frequencies(
         tag_helper)
 
 
-def _get_trivial_distance(positions):
+def _get_trivial_distance(p0, p1):
     """Calculates the distance between two positions
 
     Parameters
     ----------
-    positions : 1d np.array of ints
+    p0, p1 : ints
         token positions in the unit where matches were found
     """
-    diff = np.abs(positions[0] - positions[1])
-    if diff:
-        return diff + 1
-    else:
+    if p0 == p1:
         return 0
+    return abs(p0 - p1) + 1
 
 
 def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
@@ -317,7 +315,7 @@ def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
     if len(set(forms[positions])) < 2:
         return 0
     if len(positions) == 2:
-        return _get_trivial_distance(positions)
+        return _get_trivial_distance(positions[0], positions[1])
     sorted_positions = np.array(sorted(positions))
     inv_freqs = np.array([get_inv_freq(f) for f in forms[sorted_positions]])
     # lowest inverse frequencies are the highest frequencies, so need to flip
