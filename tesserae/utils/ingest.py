@@ -61,12 +61,11 @@ def ingest_text(connection, text):
     connection.update(features_for_update)
 
     unitizer = Unitizer()
-    lines, phrases, properties = unitizer.unitize(
+    lines, phrases = unitizer.unitize(
         tokens, tags, tessfile.metadata)
 
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
-    connection.insert_nocheck(properties)
     register_bigrams(connection, text.id)
 
     return text_id

@@ -1,7 +1,6 @@
 from collections import defaultdict
 import json
 import os
-import pprint
 import re
 
 import pytest
@@ -135,7 +134,7 @@ def test_unitize(unitizer_inputs, correct_units):
         features = feature_dict
 
         unitizer = Unitizer()
-        lines, phrases, properties = unitizer.unitize(
+        lines, phrases = unitizer.unitize(
             tokens, tags, tokens[0].text)
 
         text_correct_lines = correct_lines[i]
@@ -226,7 +225,7 @@ def test_unitize_linebreak_file(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
     first_tag = phrases[0].tags[0]
     for phrase in phrases[1:]:
@@ -242,7 +241,7 @@ def test_unitize_doublelinebreak_file(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
     first_tag = phrases[0].tags[0]
     for phrase in phrases[1:]:
@@ -258,7 +257,7 @@ def test_unitize_nonumber_file(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
 
 
@@ -273,7 +272,7 @@ def test_unitize_nopunctuation_file(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 68
     for prev_phrase, cur_phrase in zip(phrases[:-1], phrases[1:]):
         if '2.13' in prev_phrase.tags[0] and '2.14' in cur_phrase.tags[0]:
@@ -313,7 +312,7 @@ def test_unitize_notag_file(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
 
 
@@ -326,7 +325,7 @@ def test_unitize_linebreak_end(unit_connection, tessfiles_latin_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     print('# lines')
     for line in lines:
         print(line.snippet)
@@ -347,7 +346,7 @@ def test_unitize_greek_in_latin(unit_connection, tessfiles_latin_path):
             tessfile.read(), text=t)
     forms = {f.index: f.token
              for f in features if f.feature == 'form'}
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     for phrase in phrases:
         for t in phrase.tokens:
             cur_form = t['features']['form'][0]
@@ -367,7 +366,7 @@ def test_unitize_numbers_in_latin(unit_connection, tessfiles_latin_path):
             tessfile.read(), text=t)
     forms = {f.index: f.token
              for f in features if f.feature == 'form'}
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     for phrase in phrases:
         for t in phrase.tokens:
             cur_form = t['features']['form'][0]
@@ -387,7 +386,7 @@ def test_unitize_diacrit_in_latin(unit_connection, tessfiles_latin_path):
             tessfile.read(), text=t)
     forms = {f.index: f.token
              for f in features if f.feature == 'form'}
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     for phrase in phrases:
         for t in phrase.tokens:
             cur_form = t['features']['form'][0]
@@ -405,7 +404,7 @@ def test_unitize_lone_diacrit_file(unit_connection, tessfiles_greek_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
 
 
@@ -418,7 +417,7 @@ def test_unitize_elision_file(unit_connection, tessfiles_greek_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
 
 
@@ -431,6 +430,6 @@ def test_unitize_middot_file(unit_connection, tessfiles_greek_path):
     unitizer = Unitizer()
     tokens, tags, features = tokenizer.tokenize(
             tessfile.read(), text=t)
-    lines, phrases, properties = unitizer.unitize(tokens, tags, tokens[0].text)
+    lines, phrases = unitizer.unitize(tokens, tags, tokens[0].text)
     assert len(lines) == 1
     assert len(lines[0].tokens) == 7

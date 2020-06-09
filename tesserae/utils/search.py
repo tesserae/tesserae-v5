@@ -1,10 +1,8 @@
 """Helper functions for running Tesserae search"""
-from collections import defaultdict
-import itertools
 import time
 import traceback
 
-from tesserae.db.entities import Feature, Match, Property, Search, Unit
+from tesserae.db.entities import Match, Search
 import tesserae.matchers
 
 

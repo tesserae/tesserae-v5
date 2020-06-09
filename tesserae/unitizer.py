@@ -1,7 +1,7 @@
 import collections
 import re
 
-from tesserae.db import Feature, Property, Text, Token, Unit
+from tesserae.db import Feature, Text, Token, Unit
 from tesserae.tokenizers import BaseTokenizer
 
 
@@ -108,9 +108,6 @@ class Unitizer(object):
         except IndexError:
             pass
 
-        line_properties = []
-        phrase_properties = []
-
         phrase_stash = []
         line_stash = []
         # Add the token to the current line and phrase and determine if it is
@@ -137,8 +134,6 @@ class Unitizer(object):
 
             if isinstance(t.features, dict) and len(t.features) > 0:
                 tok = {'index': t.index, 'display': t.display, 'features': {}}
-                line_position = len(line.tokens)
-                phrase_position = len(phrase.tokens)
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
@@ -147,59 +142,9 @@ class Unitizer(object):
                         tok['features'][key].extend([
                             v.index if isinstance(v, Feature) else ''
                             for v in val])
-                        line_properties.extend([
-                            Property(
-                                feature_type=key,
-                                feature_index=v.index,
-                                language=metadata.language,
-                                unit=line,
-                                unit_index=line.index,
-                                unit_type=line.unit_type,
-                                position=line_position,
-                                text=metadata
-                            )
-                            for v in val
-                        ])
-                        phrase_properties.extend([
-                            Property(
-                                feature_type=key,
-                                feature_index=v.index,
-                                language=metadata.language,
-                                unit=phrase,
-                                unit_index=phrase.index,
-                                unit_type=phrase.unit_type,
-                                position=phrase_position,
-                                text=metadata
-                            )
-                            for v in val
-                        ])
                     else:
                         tok['features'][key].append(
                             val.index if isinstance(val, Feature) else '')
-                        line_properties.append(
-                            Property(
-                                feature_type=key,
-                                feature_index=val.index,
-                                language=metadata.language,
-                                unit=line,
-                                unit_index=line.index,
-                                unit_type=line.unit_type,
-                                position=line_position,
-                                text=metadata
-                            )
-                        )
-                        phrase_properties.append(
-                            Property(
-                                feature_type=key,
-                                feature_index=val.index,
-                                language=metadata.language,
-                                unit=phrase,
-                                unit_index=phrase.index,
-                                unit_type=phrase.unit_type,
-                                position=phrase_position,
-                                text=metadata
-                            )
-                        )
                 line.tokens.append(tok)
                 phrase.tokens.append(tok)
 
@@ -287,4 +232,4 @@ class Unitizer(object):
             else:
                 break
 
-        return self.lines, self.phrases, line_properties + phrase_properties
+        return self.lines, self.phrases
