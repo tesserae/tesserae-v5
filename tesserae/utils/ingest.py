@@ -36,6 +36,11 @@ def ingest_text(connection, text):
     """
     if text.language not in _tokenizers:
         raise ValueError('Unknown language: {}'.format(text.language))
+    if text.ingestion_complete:
+        raise ValueError(
+            f'Cannot ingest an already ingested text '
+            f'({text.author}, {text.title})'
+        )
     tessfile = TessFile(text.path, metadata=text)
 
     result = connection.insert(text)
@@ -69,6 +74,9 @@ def ingest_text(connection, text):
     connection.insert_nocheck(properties)
     register_bigrams(connection, text.id)
 
+    text.ingestion_complete = True
+    connection.update(text)
+
     return text_id
 
 
@@ -92,4 +100,5 @@ def reingest_text(connection, text):
     """
     remove_text(connection, text)
     text.id = None
+    text.ingestion_complete = False
     return ingest_text(connection, text)
