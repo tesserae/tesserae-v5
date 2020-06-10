@@ -532,12 +532,8 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
             'parameters.unit_type': unit_type,
         })
     ]
-    if found:
-        status_found = connection.find(
-            Search.collection,
-            _id=found[0].id)
-        if status_found and status_found[0].status != Search.FAILED:
-            return status_found[0].results_id
+    if found and found[0].status != Search.FAILED:
+        return found[0].results_id
     return None
 
 

@@ -138,12 +138,8 @@ def check_cache(connection, source, target, method):
             'parameters.method.distance_basis': method['distance_basis']
         })
     ]
-    if found:
-        status_found = connection.find(
-            Search.collection,
-            _id=found[0].id)
-        if status_found and status_found[0].status != Search.FAILED:
-            return status_found[0].results_id
+    if found and found[0].status != Search.FAILED:
+        return found[0].results_id
     return None
 
 
