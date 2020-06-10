@@ -1,10 +1,9 @@
 """Helper functions for running Tesserae search"""
-from collections import defaultdict
-import itertools
+import datetime
 import time
 import traceback
 
-from tesserae.db.entities import Feature, Match, Property, Search, Unit
+from tesserae.db.entities import Match, Search
 import tesserae.matchers
 
 
@@ -77,6 +76,7 @@ def _run_search(connection, results_id, search_type, search_params):
         search_id = results_status.id
         matcher = tesserae.matchers.matcher_map[search_type](connection)
         results_status.status = Search.RUN
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
         matches = matcher.match(search_id, **search_params)
         connection.insert_nocheck(matches)
@@ -84,11 +84,13 @@ def _run_search(connection, results_id, search_type, search_params):
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
             time.time() - start_time)
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
     # we want to catch all errors and log them into the Search entity
     except:  # noqa: E722
         results_status.status = Search.FAILED
         results_status.msg = traceback.format_exc()
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
 
 
@@ -157,6 +159,8 @@ def get_results(connection, results_id):
     """
     found = connection.find(
             Search.collection, results_id=results_id, status=Search.DONE)[0]
+    found.last_queried = datetime.datetime.utcnow()
+    connection.update(found)
     db_matches = connection.aggregate(
         Match.collection,
         [
