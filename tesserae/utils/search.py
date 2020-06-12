@@ -72,12 +72,22 @@ def _run_search(connection, results_id, search_type, search_params):
     )
     connection.insert(results_status)
     try:
-        search_id = results_status.id
         matcher = tesserae.matchers.matcher_map[search_type](connection)
+        results_status.update_current_stage_value(1.0)
+
         results_status.status = Search.RUN
+        results_status.add_new_stage('match and score')
         connection.update(results_status)
-        matches = matcher.match(search_id, **search_params)
-        connection.insert_nocheck(matches)
+        matches = matcher.match(results_status, **search_params)
+        results_status.update_current_stage_value(1.0)
+
+        results_status.add_new_stage('save results')
+        connection.update(results_status)
+        stepsize = 5000
+        for start in range(0, len(matches), stepsize):
+            results_status.update_current_stage_value(start / len(matches))
+            connection.update(results_status)
+            connection.insert_nocheck(matches[start:start+stepsize])
 
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(

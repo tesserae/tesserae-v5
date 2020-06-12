@@ -113,7 +113,7 @@ class SparseMatrixSearch(object):
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def match(self, search_id, source, target, feature, stopwords=10,
+    def match(self, search, source, target, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               freq_basis='texts', max_distance=10,
               distance_basis='frequency', min_score=6):
@@ -125,8 +125,8 @@ class SparseMatrixSearch(object):
 
         Parameters
         ----------
-        search_id : bson.objectid.ObjectId
-            The search job associated with this matching work.
+        search : tesserae.db.entities.search
+            The search job associated with this matching job.
         source : tesserae.matchers.text_options.TextOptions
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
@@ -193,13 +193,13 @@ class SparseMatrixSearch(object):
 
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(
-                search_id,
+                search,
                 self.connection, feature,
                 texts, target_units, source_units, features, stoplist,
                 distance_basis, max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(
-                search_id,
+                search,
                 self.connection, feature,
                 texts, target_units, source_units, features, stoplist,
                 distance_basis, max_distance, tag_helper)
@@ -240,7 +240,7 @@ def _get_units(connection, textoptions, feature):
 
 
 def _score_by_corpus_frequencies(
-        search_id, connection, feature, texts,
+        search, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_basis, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
@@ -259,14 +259,14 @@ def _score_by_corpus_frequencies(
             itertools.chain.from_iterable([source_units, target_units]))
         target_inv_frequencies_getter = source_inv_frequencies_getter
     return _score(
-        search_id, target_units, source_units, features, stoplist,
+        search, connection, target_units, source_units, features, stoplist,
         distance_basis, max_distance,
         source_inv_frequencies_getter, target_inv_frequencies_getter,
         tag_helper)
 
 
 def _score_by_text_frequencies(
-        search_id, connection, feature, texts,
+        search, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_basis, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(get_inverse_text_frequencies(
@@ -274,7 +274,7 @@ def _score_by_text_frequencies(
     target_frequencies_getter = _lookup_wrapper(get_inverse_text_frequencies(
             connection, feature, texts[1].id))
     return _score(
-        search_id, target_units, source_units, features, stoplist,
+        search, connection, target_units, source_units, features, stoplist,
         distance_basis,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper)
@@ -580,7 +580,7 @@ def _bin_hits_to_unit_indices(rows, cols, row2t_unit_ind, target_breaks,
 
 
 def gen_hits2positions(
-        target_units, source_units, stoplist_set, features_size):
+        search, conn, target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -630,6 +630,8 @@ def gen_hits2positions(
         for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     stepsize = 500
     for su_start in range(0, len(source_units), stepsize):
+        search.update_current_stage_value(su_start / len(source_units))
+        conn.update(search)
         feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
             source_units[su_start:su_start+stepsize],
             stoplist_set,
@@ -646,7 +648,8 @@ def gen_hits2positions(
             su_start)
 
 
-def _gen_matches(target_units, source_units, stoplist_set, features_size):
+def _gen_matches(search, conn, target_units, source_units,
+                 stoplist_set, features_size):
     """Generate match information where at least 2 positions matched
 
     Parameters
@@ -690,7 +693,8 @@ def _gen_matches(target_units, source_units, stoplist_set, features_size):
         corresponding source positions
     """
     for hits2positions in gen_hits2positions(
-            target_units, source_units, stoplist_set, features_size):
+            search, conn, target_units, source_units,
+            stoplist_set, features_size):
         overhits2positions = {
             k: np.array(v) for k, v in hits2positions.items()
             if len(v) >= 2}
@@ -699,7 +703,7 @@ def _gen_matches(target_units, source_units, stoplist_set, features_size):
 
 
 def _score(
-        search_id, target_units, source_units, features, stoplist,
+        search, conn, target_units, source_units, features, stoplist,
         distance_basis, max_distance,
         source_inv_frequencies_getter, target_inv_frequencies_getter,
         tag_helper):
@@ -710,8 +714,10 @@ def _score(
     denominators = []
     stoplist_set = set(stoplist)
     features_size = len(features)
+    search_id = search.id
     for target_ind, source_ind, positions in _gen_matches(
-            target_units, source_units, stoplist_set, features_size):
+            search, conn, target_units, source_units,
+            stoplist_set, features_size):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
         target_forms = np.array(target_unit['forms'])

@@ -84,27 +84,44 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
     )
     connection.insert(results_status)
     search = connection.find(Search.collection, results_id=search_uuid)[0]
+    results_status.update_current_stage_value(0.33)
+    connection.update(results_status)
     matches = connection.find(
         Match.collection, search_id=search.id)
+    results_status.update_current_stage_value(0.66)
+    connection.update(results_status)
     texts = connection.find(
         Text.collection, _id=[ObjectId(tid) for tid in texts_ids_strs]
     )
     try:
+        results_status.update_current_stage_value(1.0)
+
+        results_status.add_new_stage('get multitext data')
         search_id = results_status.id
         results_status.status = Search.RUN
         connection.update(results_status)
         raw_results = multitext_search(
+            results_status,
             connection, matches, search.parameters['method']['feature'],
             unit_type, texts)
-        multiresults = [MultiResult(
-            search_id=search_id,
-            match_id=m.id,
-            bigram=list(bigram),
-            units=[v[0] for v in values],
-            scores=[v[1] for v in values]
-        ) for m, result in zip(matches, raw_results)
-                        for bigram, values in result.items()]
-        connection.insert_nocheck(multiresults)
+        results_status.update_current_stage_value(1.0)
+
+        results_status.add_new_stage('save multitext results')
+        connection.update(results_status)
+        stepsize = 5000
+        for start in range(0, len(matches), stepsize):
+            results_status.update_current_stage_value(start / len(matches))
+            connection.update(results_status)
+            multiresults = [MultiResult(
+                search_id=search_id,
+                match_id=m.id,
+                bigram=list(bigram),
+                units=[v[0] for v in values],
+                scores=[v[1] for v in values]
+            ) for m, result in zip(matches[start:start+stepsize],
+                                   raw_results[start:start+stepsize])
+                            for bigram, values in result.items()]
+            connection.insert_nocheck(multiresults)
 
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
@@ -423,7 +440,8 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
     return results
 
 
-def multitext_search(connection, matches, feature_type, unit_type, texts):
+def multitext_search(results_status, connection,
+                     matches, feature_type, unit_type, texts):
     """Retrieves Units containing matched bigrams
 
     Multitext search addresses the question, "Given these matches I've found
@@ -437,6 +455,7 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
 
     Parameters
     ----------
+    results_status : tesserae.db.entities.Search
     connection : TessMongoConnection
     matches : list of Match
         Match entities from which matched bigrams are taken
@@ -463,11 +482,15 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
         f.token: f.index
         for f in connection.find(
             Feature.collection, feature=feature_type, language=language)}
+    results_status.update_current_stage_value(0.25)
+    connection.update(results_status)
 
     bigram_indices = set()
     for m in matches:
         for w1, w2 in itertools.combinations(sorted(m.matched_features), 2):
             bigram_indices.add((token2index[w1], token2index[w2]))
+    results_status.update_current_stage_value(0.5)
+    connection.update(results_status)
 
     bigram2units = defaultdict(list)
     for text in texts:
@@ -478,6 +501,8 @@ def multitext_search(connection, matches, feature_type, unit_type, texts):
             bigram2units[bigram].extend([
                 u for u in data
             ])
+    results_status.update_current_stage_value(0.75)
+    connection.update(results_status)
 
     return [
         {
@@ -531,12 +556,8 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
             'parameters.unit_type': unit_type,
         })
     ]
-    if found:
-        status_found = connection.find(
-            Search.collection,
-            _id=found[0].id)
-        if status_found and status_found[0].status != Search.FAILED:
-            return status_found[0].results_id
+    if found and found[0].status != Search.FAILED:
+        return found[0].results_id
     return None
 
 
