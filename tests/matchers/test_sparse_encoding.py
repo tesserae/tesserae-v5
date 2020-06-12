@@ -457,7 +457,7 @@ def test_greek_semantic(minipop, mini_greek_metadata):
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
+    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_syn.tab')
     print(len(v5_results), len(v3_results))
     _check_search_results(v5_results, v3_results)
 
@@ -485,6 +485,7 @@ def test_greek_semlem(minipop, mini_greek_metadata):
     minipop.update(search_result)
     v5_results = get_results(minipop, results_id)
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
+    v3_results = _load_v3_results(
+        texts[0].path, 'mini_greek_results_syn_lem.tab')
     print(len(v5_results), len(v3_results))
     _check_search_results(v5_results, v3_results)
