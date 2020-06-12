@@ -158,7 +158,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'lemmata',
@@ -184,7 +184,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'lemmata',
@@ -252,7 +252,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'lemmata',
@@ -284,7 +284,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'lemmata',
@@ -316,7 +316,7 @@ def test_mini_punctuation(punctpop, mini_punctuation_metadata):
     punctpop.insert(search_result)
     matcher = SparseMatrixSearch(punctpop)
     matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'lemmata',
@@ -336,7 +336,7 @@ def test_latin_sound(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'sound',
@@ -362,7 +362,7 @@ def test_latin_semantic(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic',
@@ -388,7 +388,7 @@ def test_latin_semlem(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic + lemma',
@@ -415,7 +415,7 @@ def test_greek_sound(minipop, mini_greek_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'sound',
@@ -443,7 +443,7 @@ def test_greek_semantic(minipop, mini_greek_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'semantic',
@@ -472,7 +472,7 @@ def test_greek_semlem(minipop, mini_greek_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     v5_matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
         'semantic + lemma',
