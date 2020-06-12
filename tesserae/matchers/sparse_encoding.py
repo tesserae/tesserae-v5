@@ -4,7 +4,6 @@ Classes
 -------
 
 """
-from collections import Counter
 import itertools
 
 import numpy as np
