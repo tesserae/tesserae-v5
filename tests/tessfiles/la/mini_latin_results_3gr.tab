@@ -1,0 +1,61 @@
+# Tesserae V3 results
+#
+# session   = NA
+# source    = ztest.aen
+# target    = ztest.phar
+# unit      = line
+# feature   = 3gr
+# stopsize  = 3
+# stbasis   = both
+# stopwords = que tum ere
+# max_dist  = 999
+# dibasis   = freq
+# cutoff    = 0
+# filter    = off
+
+"RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
+1	"luc. 6.99"	"Nec **medii** **dirimunt** **morbi** vitamque necemque,"	"verg. aen. 12.409"	"densa **cadunt** **mediis**. It tristis ad aethera **clamor**"	"mor; unt; dii-edi-med"	5
+2	"luc. 5.1"	"Sic alterna duces **bellorum** vulnera **passos**"	"verg. aen. 1.5"	"multa quoque et **bello** **passus**, dum conderet urbem,"	"bel-ell-llo; ass-pas"	5
+3	"luc. 2.701"	"**Italiam**. Vix **fata** sinunt: nam murmure vasto"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, Laviniaque venit"	"ali-iam-ita-lia-tal; fat"	5
+4	"luc. 1.2"	"Iusque datum  **sceleri** **canimus**, **populumque** potentem"	"verg. aen. 1.11"	"**impulerit**. Tantaene **animis** **caelestibus** irae?"	"pul; eri-ler-pul; ani-nim; ele-eri-ler; ele"	5
+5	"luc. 4.131"	"**Primum** **cana** salix madefacto vimine parvam"	"verg. aen. 1.1"	"Arma virumque **cano**, Troiae qui **primus** ab oris"	"imu-pri-rim; can"	5
+6	"luc. 6.100"	"Sed languor cum morte **venit**: **turbaque** cadentum"	"verg. aen. 1.2"	"Italiam, fato profugus, **Laviniaque** **venit**"	"aqu; eni-nit-uen"	4
+7	"luc. 6.100"	"Sed **languor** cum **morte** **venit**: turbaque **cadentum**"	"verg. aen. 12.410"	"**bellantum** **iuvenum** et duro sub **Marte** **cadentum**."	"lan-ntu; rte; uen; lan; ade-cad-den-ent-ntu"	4
+8	"luc. 1.2"	"Iusque datum  sceleri **canimus**, **populumque** potentem"	"verg. aen. 1.1"	"Arma **virumque** **cano**, Troiae qui **primus** ab oris"	"imu-mus; mqu-umq; can-imu-mus; can"	4
+9	"luc. 6.101"	"Aucta lues, **dum** mixta iacent **incondita** vivis"	"verg. aen. 1.5"	"multa quoque et bello passus, **dum** **conderet** urbem,"	"con-ond; dum"	4
+10	"luc. 4.578"	"Ob **ferrum**, et **saevis** libertas uritur armis:"	"verg. aen. 1.4"	"vi **superum** **saevae** memorem Iunonis ob iram;"	"aeu-sae; rum"	4
+11	"luc. 1.3"	"In sua **victrici** conversum **viscera** dextra,"	"verg. aen. 12.409"	"densa cadunt mediis. It **tristis** ad **aethera** clamor"	"tri; era"	4
+12	"luc. 1.5"	"**Certatum** **totis** concussi **viribus** orbis"	"verg. aen. 1.10"	"insignem **pietate** **virum**, **tot** adire labores"	"tat; tot; uir"	4
+13	"luc. 1.7"	"**Signa**, **pares** aquilas, et pila minantia pilis."	"verg. aen. 1.10"	"**insignem** pietate virum, tot adire **labores**"	"ign-sig; res"	4
+14	"luc. 6.104"	"A tergo **pelagus**, pulsusque **Aquilonibus** aer,"	"verg. aen. 1.2"	"Italiam, fato **profugus**, **Laviniaque** venit"	"aqu; gus"	4
+15	"luc. 6.98"	"**Iam** magis atque magis praeceps agit **omnia** **fatum**:"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, **Laviniaque** venit"	"iam; fat; nia"	4
+16	"luc. 6.105"	"Litoraque, et **plenae** **peregrina** messe **carinae**."	"verg. aen. 1.9"	"quidve **dolens**, **regina** deum tot volvere casus"	"len; ina; ina-reg"	4
+17	"luc. 4.578"	"Ob ferrum, et saevis libertas **uritur** **armis**:"	"verg. aen. 1.11"	"**impulerit**. Tantaene **animis** caelestibus irae?"	"rit; mis"	4
+18	"luc. 6.103"	"Spargere funus erat. **Tamen** **hos** minuere **labores**"	"verg. aen. 12.682"	"perque **hostis**, per tela ruit **maestamque** **sororem**"	"tam; ore; hos"	4
+19	"luc. 9.412"	"Pars **erit** Europae. Neque **enim** plus litora Nili,"	"verg. aen. 1.11"	"**impulerit**. Tantaene **animis** caelestibus irae?"	"eri-rit; nim"	4
+20	"luc. 10.494"	"**Manantes** cera **tabulas**: et tempore eodem"	"verg. aen. 12.408"	"stare vident: subeunt **equites**, et **spicula** castris"	"tes; ula"	4
+21	"luc. 6.102"	"**Corpora**. Nam miseros **ultra** **tentoria** cives"	"verg. aen. 1.3"	"**litora**, **multum** ille et terris iactatus et alto"	"ult; tor; ora-tor; ora"	4
+22	"luc. 6.101"	"Aucta lues, dum mixta iacent **incondita** **vivis**"	"verg. aen. 12.681"	"Dixit et e curru saltum **dedit** ocius **arvis**"	"dit; uis"	4
+23	"luc. 10.493"	"Nec piger **ignis** erat **per** stuppea vincula **perque**"	"verg. aen. 1.4"	"vi **superum** saevae memorem **Iunonis** ob iram;"	"per; nis"	4
+24	"luc. 4.578"	"Ob **ferrum**, et saevis libertas uritur **armis**:"	"verg. aen. 1.1"	"**Arma** **virumque** cano, Troiae qui primus ab oris"	"arm; rum"	4
+25	"luc. 6.103"	"Spargere **funus** erat. Tamen hos **minuere** labores"	"verg. aen. 1.6"	"inferretque deos Latio, **genus** unde **Latinum**,"	"inu; nus"	4
+26	"luc. 6.99"	"Nec medii dirimunt morbi **vitamque** **necemque**,"	"verg. aen. 12.682"	"perque hostis, per tela **ruit** **maestamque** sororem"	"mqu; amq-mqu-tam-uit; amq-mqu-tam; uit"	3
+27	"luc. 4.578"	"Ob **ferrum**, et **saevis** libertas uritur armis:"	"verg. aen. 12.681"	"Dixit et e **curru** saltum dedit ocius **arvis**"	"rru; uis"	3
+28	"luc. 6.98"	"Iam magis **atque** magis praeceps agit **omnia** fatum:"	"verg. aen. 1.7"	"Albanique patres, **atque** altae **moenia** Romae."	"atq-tqu; nia"	3
+29	"luc. 2.701"	"Italiam. Vix fata **sinunt**: nam murmure **vasto**"	"verg. aen. 12.408"	"stare vident: **subeunt** equites, et spicula **castris**"	"unt; ast"	3
+30	"luc. 1.2"	"**Iusque** datum  sceleri canimus, **populumque** potentem"	"verg. aen. 12.407"	"crebrescit **propiusque** **malum** est. Iam **pulvere** **caelum**"	"lum-pul-ulu; ius-squ-usq; pul-ulu; lum"	3
+31	"luc. 6.99"	"Nec medii **dirimunt** morbi **vitamque** **necemque**,"	"verg. aen. 1.1"	"Arma **virumque** cano, Troiae qui **primus** ab oris"	"mqu; imu-rim"	3
+32	"luc. 6.98"	"**Iam** magis atque magis praeceps **agit** omnia fatum:"	"verg. aen. 12.405"	"Nulla **viam** Fortuna **regit**, nihil auctor Apollo"	"git; iam"	3
+33	"luc. 1.7"	"Signa, **pares** **aquilas**, et pila minantia pilis."	"verg. aen. 12.408"	"**stare** vident: subeunt **equites**, et spicula castris"	"qui; are"	3
+34	"luc. 6.104"	"A tergo pelagus, **pulsusque** **Aquilonibus** aer,"	"verg. aen. 1.11"	"**impulerit**. Tantaene animis **caelestibus** irae?"	"pul; bus-ibu"	3
+35	"luc. 4.131"	"Primum cana **salix** madefacto vimine **parvam**"	"verg. aen. 12.681"	"Dixit et e curru **saltum** dedit ocius **arvis**"	"aru; sal"	3
+36	"luc. 6.105"	"**Litoraque**, et plenae **peregrina** messe carinae."	"verg. aen. 12.405"	"Nulla viam Fortuna **regit**, nihil **auctor** Apollo"	"reg; tor"	3
+37	"luc. 6.100"	"Sed languor cum **morte** venit: turbaque **cadentum**"	"verg. aen. 12.409"	"**densa** **cadunt** mediis. It tristis ad aethera **clamor**"	"cad-den; den; mor; cad"	3
+38	"luc. 10.493"	"Nec piger ignis erat **per** stuppea vincula **perque**"	"verg. aen. 12.682"	"**perque** hostis, **per** tela ruit maestamque sororem"	"erq-per-rqu; per"	3
+39	"luc. 6.99"	"Nec medii **dirimunt** morbi **vitamque** necemque,"	"verg. aen. 12.408"	"stare vident: **subeunt** **equites**, et spicula castris"	"unt; uit"	3
+40	"luc. 6.103"	"Spargere funus erat. Tamen hos **minuere** **labores**"	"verg. aen. 12.407"	"**crebrescit** propiusque malum est. Iam **pulvere** caelum"	"uer; res"	3
+41	"luc. 1.7"	"Signa, pares **aquilas**, et pila **minantia** pilis."	"verg. aen. 1.9"	"**quidve** dolens, **regina** deum tot volvere casus"	"ina; qui"	3
+42	"luc. 4.578"	"Ob **ferrum**, et saevis libertas **uritur** armis:"	"verg. aen. 12.683"	"**deserit** ac rapido cursu media agmina **rumpit**."	"rit; rum"	3
+43	"luc. 10.495"	"**Transtraque** **nautarum** summique arsere ceruchi."	"verg. aen. 12.408"	"**stare** vident: subeunt equites, et spicula **castris**"	"tar; str"	3
+44	"luc. 10.495"	"Transtraque **nautarum** summique **arsere** ceruchi."	"verg. aen. 12.683"	"**deserit** ac rapido cursu media agmina **rumpit**."	"ser; rum"	3
+45	"luc. 6.104"	"A tergo pelagus, **pulsusque** **Aquilonibus** aer,"	"verg. aen. 1.9"	"**quidve** dolens, regina deum tot volvere **casus**"	"sus; qui"	3
