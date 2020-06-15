@@ -12,7 +12,7 @@ from scipy.sparse import csr_matrix
 from tesserae.db.entities import Entity, Feature, Match, Unit
 from tesserae.utils.retrieve import TagHelper
 from tesserae.utils.calculations import \
-    get_corpus_frequencies, get_text_frequencies
+    get_corpus_frequencies, get_inverse_text_frequencies
 
 
 class SparseMatrixSearch(object):
@@ -113,7 +113,7 @@ class SparseMatrixSearch(object):
         print([(s['token'], s['frequency']) for s in stoplist])
         return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
-    def match(self, search_id, source, target, feature, stopwords=10,
+    def match(self, search, source, target, feature, stopwords=10,
               stopword_basis='corpus', score_basis='word',
               freq_basis='texts', max_distance=10,
               distance_basis='frequency', min_score=6):
@@ -125,8 +125,8 @@ class SparseMatrixSearch(object):
 
         Parameters
         ----------
-        search_id : bson.objectid.ObjectId
-            The search job associated with this matching work.
+        search : tesserae.db.entities.search
+            The search job associated with this matching job.
         source : tesserae.matchers.text_options.TextOptions
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
@@ -193,13 +193,13 @@ class SparseMatrixSearch(object):
 
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(
-                search_id,
+                search,
                 self.connection, feature,
                 texts, target_units, source_units, features, stoplist,
                 distance_basis, max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(
-                search_id,
+                search,
                 self.connection, feature,
                 texts, target_units, source_units, features, stoplist,
                 distance_basis, max_distance, tag_helper)
@@ -240,59 +240,60 @@ def _get_units(connection, textoptions, feature):
 
 
 def _score_by_corpus_frequencies(
-        search_id, connection, feature, texts,
+        search, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_basis, max_distance, tag_helper):
     if texts[0].language != texts[1].language:
-        source_frequencies_getter = _averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+        source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+            get_corpus_frequencies(
+                connection, feature, texts[0].language),
             source_units)
-        target_frequencies_getter = _averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[1].language),
+        target_inv_frequencies_getter = _inverse_averaged_freq_getter(
+            get_corpus_frequencies(
+                connection, feature, texts[1].language),
             target_units)
     else:
-        source_frequencies_getter = _averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+        source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+            get_corpus_frequencies(
+                connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
-        target_frequencies_getter = source_frequencies_getter
+        target_inv_frequencies_getter = source_inv_frequencies_getter
     return _score(
-        search_id, target_units, source_units, features, stoplist,
-        distance_basis,
-        max_distance, source_frequencies_getter, target_frequencies_getter,
+        search, connection, target_units, source_units, features, stoplist,
+        distance_basis, max_distance,
+        source_inv_frequencies_getter, target_inv_frequencies_getter,
         tag_helper)
 
 
 def _score_by_text_frequencies(
-        search_id, connection, feature, texts,
+        search, connection, feature, texts,
         target_units, source_units,
         features, stoplist, distance_basis, max_distance, tag_helper):
-    source_frequencies_getter = _lookup_wrapper(get_text_frequencies(
+    source_frequencies_getter = _lookup_wrapper(get_inverse_text_frequencies(
             connection, feature, texts[0].id))
-    target_frequencies_getter = _lookup_wrapper(get_text_frequencies(
+    target_frequencies_getter = _lookup_wrapper(get_inverse_text_frequencies(
             connection, feature, texts[1].id))
     return _score(
-        search_id, target_units, source_units, features, stoplist,
+        search, connection, target_units, source_units, features, stoplist,
         distance_basis,
         max_distance, source_frequencies_getter, target_frequencies_getter,
         tag_helper)
 
 
-def _get_trivial_distance(positions):
+def _get_trivial_distance(p0, p1):
     """Calculates the distance between two positions
 
     Parameters
     ----------
-    positions : 1d np.array of ints
+    p0, p1 : ints
         token positions in the unit where matches were found
     """
-    diff = np.abs(positions[0] - positions[1])
-    if diff:
-        return diff + 1
-    else:
+    if p0 == p1:
         return 0
+    return abs(p0 - p1) + 1
 
 
-def _get_distance_by_least_frequency(get_freq, positions, forms):
+def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
     """Obtains the distance by least frequency for a unit
 
     Contrary to the v3 help documentation on --dist in read_table.pl, v3
@@ -314,10 +315,11 @@ def _get_distance_by_least_frequency(get_freq, positions, forms):
     if len(set(forms[positions])) < 2:
         return 0
     if len(positions) == 2:
-        return _get_trivial_distance(positions)
+        return _get_trivial_distance(positions[0], positions[1])
     sorted_positions = np.array(sorted(positions))
-    freqs = [get_freq(f) for f in forms[sorted_positions]]
-    freq_sort = np.argsort(freqs)
+    inv_freqs = np.array([get_inv_freq(f) for f in forms[sorted_positions]])
+    # lowest inverse frequencies are the highest frequencies, so need to flip
+    freq_sort = np.argsort(-inv_freqs)
     idx = sorted_positions[freq_sort]
     if idx.shape[0] >= 2:
         not_first_pos = idx[idx != idx[0]]
@@ -340,7 +342,8 @@ def _get_distance_by_span(matched_positions, forms):
     if len(set(forms[matched_positions])) < 2:
         return 0
     if len(matched_positions) == 2:
-        return _get_trivial_distance(matched_positions)
+        return _get_trivial_distance(
+            matched_positions[0], matched_positions[1])
     start_pos = np.min(matched_positions)
     end_pos = np.max(matched_positions)
     if start_pos != end_pos:
@@ -355,13 +358,13 @@ def _lookup_wrapper(d):
     return _inner
 
 
-def _averaged_freq_getter(d, units_iter):
+def _inverse_averaged_freq_getter(d, units_iter):
     cache = {}
     for unit in units_iter:
         for form, feats in zip(unit['forms'], unit['features']):
             if form in cache:
                 continue
-            cache[form] = np.mean([d[f] for f in feats])
+            cache[form] = 1.0 / np.mean([d[f] for f in feats])
 
     def _inner(key):
         return cache[key]
@@ -496,8 +499,8 @@ def _construct_unit_feature_matrix(units, stoplist_set, features_size):
     )
 
 
-def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
-                              su_start):
+def _bin_hits_to_unit_indices(rows, cols, row2t_unit_ind, target_breaks,
+                              source_breaks, su_start):
     """Extract which units matched from the ``match_matrix``
 
     Parameters
@@ -510,6 +513,8 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
         cols is all j for which ``match_matrix[i, j] == True``; also, for all
         z, ``match_matrix[rows[z], cols[z]] == True``; all other indices should
         yield False
+    row2t_unit_ind : 1d np.array of ints
+        mapping between row index of matrix and unit index of target
     target_breaks : 1d np.array of ints
         ``target_breaks[t]`` tells which row target unit t starts on; thus, the
         range ``target_breaks[t]:target_breaks[t+1]`` includes all the rows
@@ -546,12 +551,6 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
     >>> hits2positions[(0, 0)] == np.array([[0, 0], [1, 2]])
 
     """
-    # keep track of mapping between matrix row index and target unit index
-    # in ``target_units``
-    row2t_unit_ind = np.array([
-        u_ind
-        for u_ind in range(len(target_breaks) - 1)
-        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     # keep track of mapping between matrix column index and source unit index
     # in ``source_units``
     col2s_unit_ind = np.array([
@@ -581,7 +580,7 @@ def _bin_hits_to_unit_indices(rows, cols, target_breaks, source_breaks,
 
 
 def gen_hits2positions(
-        target_units, source_units, stoplist_set, features_size):
+        search, conn, target_units, source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -623,8 +622,16 @@ def gen_hits2positions(
     """
     target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
             target_units, stoplist_set, features_size)
+    # keep track of mapping between matrix row index and target unit index
+    # in ``target_units``
+    row2t_unit_ind = np.array([
+        u_ind
+        for u_ind in range(len(target_breaks) - 1)
+        for _ in range(target_breaks[u_ind+1] - target_breaks[u_ind])])
     stepsize = 500
     for su_start in range(0, len(source_units), stepsize):
+        search.update_current_stage_value(su_start / len(source_units))
+        conn.update(search)
         feature_source_matrix, source_breaks = _construct_feature_unit_matrix(
             source_units[su_start:su_start+stepsize],
             stoplist_set,
@@ -637,10 +644,12 @@ def gen_hits2positions(
         # with which source unit position
         coo = match_matrix.tocoo()
         yield _bin_hits_to_unit_indices(
-                coo.row, coo.col, target_breaks, source_breaks, su_start)
+            coo.row, coo.col, row2t_unit_ind, target_breaks, source_breaks,
+            su_start)
 
 
-def _gen_matches(target_units, source_units, stoplist_set, features_size):
+def _gen_matches(search, conn, target_units, source_units,
+                 stoplist_set, features_size):
     """Generate match information where at least 2 positions matched
 
     Parameters
@@ -684,7 +693,8 @@ def _gen_matches(target_units, source_units, stoplist_set, features_size):
         corresponding source positions
     """
     for hits2positions in gen_hits2positions(
-            target_units, source_units, stoplist_set, features_size):
+            search, conn, target_units, source_units,
+            stoplist_set, features_size):
         overhits2positions = {
             k: np.array(v) for k, v in hits2positions.items()
             if len(v) >= 2}
@@ -693,15 +703,21 @@ def _gen_matches(target_units, source_units, stoplist_set, features_size):
 
 
 def _score(
-        search_id, target_units, source_units, features, stoplist,
-        distance_basis,
-        max_distance, source_frequencies_getter, target_frequencies_getter,
+        search, conn, target_units, source_units, features, stoplist,
+        distance_basis, max_distance,
+        source_inv_frequencies_getter, target_inv_frequencies_getter,
         tag_helper):
     match_ents = []
+    numerator_sparse_rows = []
+    numerator_sparse_cols = []
+    numerator_sparse_data = []
+    denominators = []
     stoplist_set = set(stoplist)
     features_size = len(features)
+    search_id = search.id
     for target_ind, source_ind, positions in _gen_matches(
-            target_units, source_units, stoplist_set, features_size):
+            search, conn, target_units, source_units,
+            stoplist_set, features_size):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
         target_forms = np.array(target_unit['forms'])
@@ -714,10 +730,10 @@ def _score(
             source_distance = _get_distance_by_span(s_positions, source_forms)
         else:
             target_distance = _get_distance_by_least_frequency(
-                    target_frequencies_getter, t_positions,
+                    target_inv_frequencies_getter, t_positions,
                     target_forms)
             source_distance = _get_distance_by_least_frequency(
-                    source_frequencies_getter, s_positions,
+                    source_inv_frequencies_getter, s_positions,
                     source_forms)
         if source_distance <= 0 or target_distance <= 0:
             # less than two matching tokens in one of the units
@@ -732,14 +748,18 @@ def _score(
                     for t_pos, s_pos in zip(t_positions, s_positions)]))
             match_features -= stoplist_set
             if match_features:
-                match_frequencies = [
-                    target_frequencies_getter(target_forms[pos])
+                match_inv_frequencies = [
+                    target_inv_frequencies_getter(target_forms[pos])
                     for pos in set(t_positions)]
-                match_frequencies.extend(
-                    [source_frequencies_getter(source_forms[pos])
+                match_inv_frequencies.extend(
+                    [source_inv_frequencies_getter(source_forms[pos])
                         for pos in set(s_positions)])
-                score = np.log(
-                    (np.sum(np.power(match_frequencies, -1))) / distance)
+                numerator_sparse_rows.extend(
+                    [len(match_ents)] * len(match_inv_frequencies))
+                numerator_sparse_cols.extend(
+                    [i for i in range(len(match_inv_frequencies))])
+                numerator_sparse_data.extend(match_inv_frequencies)
+                denominators.append(distance)
                 match_ents.append(Match(
                     search_id=search_id,
                     source_unit=source_unit['_id'],
@@ -753,11 +773,20 @@ def _score(
                     matched_features=[
                         features[int(mf)].token
                         for mf in match_features],
-                    score=score,
                     source_snippet=source_unit['snippet'],
                     target_snippet=target_unit['snippet'],
                     highlight=[
                         (int(s_pos), int(t_pos))
                         for s_pos, t_pos in zip(s_positions, t_positions)]
                 ))
+    if match_ents:
+        numerators = csr_matrix(
+            (
+                numerator_sparse_data,
+                (numerator_sparse_rows, numerator_sparse_cols)
+            )
+        ).sum(axis=-1).A1
+        scores = np.log(numerators) - np.log(denominators)
+        for match, score in zip(match_ents, scores):
+            match.score = score
     return match_ents
