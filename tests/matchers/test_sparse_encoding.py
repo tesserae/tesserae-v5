@@ -526,7 +526,7 @@ def lucvergpop(request, lucverg_metadata):
         conn.update(features_for_update)
 
         unitizer = Unitizer()
-        lines, phrases, properties = unitizer.unitize(
+        lines, _ = unitizer.unitize(
             tokens, tags, tessfile.metadata)
 
         conn.insert_nocheck(lines)
