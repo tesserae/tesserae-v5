@@ -1,13 +1,13 @@
 import itertools
 import uuid
 
-from tesserae.db.entities import Feature, Search, Text
+from tesserae.db.entities import Search, Text
 from tesserae.matchers.sparse_encoding import SparseMatrixSearch
 from tesserae.matchers.text_options import TextOptions
 from tesserae.utils.multitext import multitext_search
 
 
-def test_latin_multitext_search(minipop, mini_latin_metadata):
+def test_latin_multitext_search(minipop):
     feature = 'lemmata'
     language = 'latin'
     texts = minipop.find(
@@ -24,7 +24,7 @@ def test_latin_multitext_search(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'lemmata',
@@ -33,7 +33,8 @@ def test_latin_multitext_search(minipop, mini_latin_metadata):
         freq_basis='corpus', max_distance=10,
         distance_basis='span', min_score=0)
 
-    results = multitext_search(minipop, matches, feature, 'line', texts)
+    results = multitext_search(search_result, minipop, matches, feature,
+                               'line', texts)
     assert len(results) == len(matches)
     for r, m in zip(results, matches):
         bigrams = [
@@ -45,7 +46,7 @@ def test_latin_multitext_search(minipop, mini_latin_metadata):
             assert bigram in r
 
 
-def test_greek_multitext_search(minipop, mini_latin_metadata):
+def test_greek_multitext_search(minipop):
     feature = 'lemmata'
     language = 'greek'
     texts = minipop.find(
@@ -62,7 +63,7 @@ def test_greek_multitext_search(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
     matches = matcher.match(
-        search_result.id,
+        search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'lemmata',
@@ -73,7 +74,8 @@ def test_greek_multitext_search(minipop, mini_latin_metadata):
         freq_basis='corpus', max_distance=10,
         distance_basis='span', min_score=0)
 
-    results = multitext_search(minipop, matches, feature, 'line', texts)
+    results = multitext_search(search_result, minipop, matches, feature,
+                               'line', texts)
     assert len(results) == len(matches)
     for r, m in zip(results, matches):
         bigrams = [
