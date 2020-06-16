@@ -196,12 +196,13 @@ class BaseTokenizer(object):
 
         for i, d in enumerate(display):
             # print(d, featurized['form'][norm_i].token)
-            if re.search(r'^[\d]+$', d, flags=re.UNICODE) or \
-                    re.search('^[' + self.diacriticals + ']+$', d,
-                              flags=re.UNICODE):
+            if re.search(
+                    r'^[\d' + self.diacriticals + ']+$', d, flags=re.UNICODE):
                 # since Greek word_regex picks up digits, we need to first make
                 # sure we're not dealing with digits
                 # also ignore free floating diacritical marks
+                # as well as digits with diacritical marks
+                # print('ignore: ', d, featurized['form'][norm_i].token)
                 features = {
                     key: punctuation if key == 'form' else [punctuation]
                     for key in featurized.keys()}
@@ -209,7 +210,7 @@ class BaseTokenizer(object):
                 if self.word_regex.search(d):
                     features = {key: val[norm_i]
                                 for key, val in featurized.items()}
-                    # print(d, features['form'].token)
+                    # print('word:', d, features['form'].token)
                 # increment normalized position in every non-non-word-token
                 norm_i += 1
             else:
