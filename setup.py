@@ -4,7 +4,6 @@ from setuptools import setup
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import shutil
-import sys
 import urllib.request
 import zipfile
 
@@ -18,8 +17,9 @@ def get_data():
         lemmatizer.
         """
     langs = ['lat', 'grc']
-    urls = ['https://github.com/cltk/lat_models_cltk/archive/master.zip',
-            'https://github.com/cltk/grc_models_cltk/archive/master.zip',
+    urls = [
+        'https://github.com/cltk/lat_models_cltk/archive/master.zip',
+        'https://github.com/cltk/grc_models_cltk/archive/master.zip',
     ]
     home = str(Path.home())
     for lang, url in zip(langs, urls):
@@ -29,9 +29,15 @@ def get_data():
             if not os.path.isdir(base):
                 os.makedirs(base, exist_ok=True)
 
+            final_name = os.path.join(base, lang + '_models_cltk')
+            if os.path.exists(final_name):
+                # don't download data we already have
+                continue
+
             # Download the Latin models and move the ZIP archive
             fname = os.path.join(base, lang + '_models_cltk.zip')
-            with urllib.request.urlopen(url) as response, open(fname, 'wb') as out_file:
+            with urllib.request.urlopen(url) as response, \
+                    open(fname, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
 
             # Extract all files from the ZIP archive
@@ -54,6 +60,7 @@ class InstallLemmataModels(install):
         # Run the standard installer
         install.run(self)
 
+
 class DevelopLemmataModels(develop):
     """Helper to install CLTK lemmatization models."""
     description = "Install CLTK lemmatization models to $HOME/cltk_data"
@@ -71,13 +78,14 @@ setup(
     url='https://github.com/tesserae/tesserae-v5',
     author='Jeff Kinnison',
     author_email='jkinniso@nd.edu',
-    packages=['tesserae',
-              'tesserae.cli',
-              'tesserae.db',
-              'tesserae.db.entities',
-              'tesserae.matchers',
-              'tesserae.tokenizers',
-              'tesserae.utils',
+    packages=[
+        'tesserae',
+        'tesserae.cli',
+        'tesserae.db',
+        'tesserae.db.entities',
+        'tesserae.matchers',
+        'tesserae.tokenizers',
+        'tesserae.utils',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
