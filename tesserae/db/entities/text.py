@@ -66,7 +66,9 @@ class Text(Entity):
         self.is_prose: typing.Optional[bool] = is_prose
         self.year: typing.Optional[int] = year
         self.path: typing.Optional[str] = path
-        self.ingestion_complete: typing.Optional[bool] = ingestion_complete
+        self.ingestion_complete: typing.Optional[bool] = ingestion_complete \
+            if ingestion_complete is not None \
+            else False
 
     def unique_values(self):
         return {
