@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Ingest multiple texts into Tesserae.
 
-Two JSON files are required as input: the database credentials file and the
-ingestion file.
+One JSON file is required as input: the database credentials file
 
 The database credentials file must contain a JSON object with the following
 attributes and values:
@@ -22,65 +21,33 @@ An example database credentials file would contain the following JSON object:
     "database": "tesserae"
 }
 
-The ingestion file must contain a list of JSON objects representing texts to be
-ingested.  Each JSON object should have the following attributes and values:
-    * "title": title of the work
-    * "author": author of the work
-    * "language": language in which the work was written
-    * "path": location of .tess file associated with this work
-    * "year": year when work was published (negative numbers refer to BCE)
-
-As an example, the ingestion file might begin as follows:
-[
-    {
-        "title": "aeneid",
-        "author": "vergil",
-        "language": "latin",
-        "path": "/location/of/tess/files/vergil.aeneid.tess",
-        "year": -19
-    },
-    {
-        "title": ...
-        ...
-    },
-    ...
-]
-
-For all .tess files referenced in the ingestion file, tokens, features,
-frequencies, and units are computed. All computed components are inserted into
-the database.
-
 Optionally, logging options may be passed as command line arguments as well.
 See the help message for more details.
 """
 import argparse
-import json
+import datetime
 import logging
+import json
 import sys
 import traceback
 
-from tqdm import tqdm
-
-from tesserae.db import TessMongoConnection, Text
-from tesserae.utils.ingest import ingest_text
+from tesserae.db import TessMongoConnection
+from tesserae.db.entities import Search
+from tesserae.utils.delete import remove_results
 
 
 def parse_args(args=None):
     p = argparse.ArgumentParser(
-        prog='tesserae.cli.mass_ingest',
-        description='Tesserae Mass Ingest: ingest lots of texts')
+        prog='tesserae.cli.cleancache',
+        description='Clean database of old results')
 
     p.add_argument(
         'db_cred',
         type=str,
-        help=('path to database credentials file (see mass_ingest.py for '
+        help=('path to database credentials file (see cleancache.py for '
               'details)'))
-    p.add_argument(
-        'ingest',
-        type=str,
-        help='path to ingest file (see mass_ingest.py for details)')
 
-    default_lfn = 'mass_ingest.log'
+    default_lfn = 'clean.log'
     p.add_argument(
         '--lfn',
         type=str,
@@ -98,7 +65,7 @@ def parse_args(args=None):
 
 
 def build_logger(logfilename, loglevel):
-    logger = logging.getLogger('mass_ingest')
+    logger = logging.getLogger('cleancache')
     # https://docs.python.org/3/howto/logging.html#logging-to-a-file
     numeric_level = getattr(logging, loglevel.upper(), None)
     if not isinstance(numeric_level, int):
@@ -125,20 +92,24 @@ def main():
         db=db_cred['database']
     )
 
-    with open(args.ingest) as ifh:
-        texts = [Text.json_decode(t) for t in json.load(ifh)]
-
-    for text in tqdm(texts):
-        logger.info(f'Starting ingest: {text.author}\t{text.title}')
-        try:
-            ingest_text(conn, text)
-        except KeyboardInterrupt:
-            logger.info('KeyboardInterrupt')
-            sys.exit(1)
-        # we want to catch all other errors and log them
-        except:  # noqa: E722
-            logger.exception(f'Failed to ingest: {text.author}\t{text.title}')
-            logger.exception(traceback.format_exc())
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=365)
+    for_deletion = [
+        Search.json_decode(s)
+        for s in conn.connection[Search.collection].find(
+            # https://stackoverflow.com/questions/11957595/mongodb-pymongo-query-with-datetime
+            {'last_queried': {'$lt': cutoff}})]
+    logger.info(
+        'Number of Search entities out of date: {}'.format(len(for_deletion))
+    )
+    try:
+        remove_results(conn, for_deletion)
+    except KeyboardInterrupt:
+        logger.info('KeyboardInterrupt')
+        sys.exit(1)
+    # we want to catch all other errors and log them
+    except:  # noqa: E722
+        logger.exception('Failed to delete out of date Search entities')
+        logger.exception(traceback.format_exc())
 
 
 if __name__ == '__main__':

@@ -42,6 +42,7 @@ import argparse
 import json
 import logging
 import sys
+import traceback
 
 from tqdm import tqdm
 
@@ -58,7 +59,7 @@ def parse_args(args=None):
         'db_cred',
         type=str,
         help=('path to database credentials file (see mass_reingest.py for '
-            'details)'))
+              'details)'))
     p.add_argument(
         'reingest',
         type=str,
@@ -136,9 +137,11 @@ def main():
         except KeyboardInterrupt:
             logger.info('KeyboardInterrupt')
             sys.exit(1)
-        except:
+        # we want to catch all other errors and log them
+        except:  # noqa: E722
             logger.exception(
                 f'Failed to reingest: {text.author}\t{text.title}')
+            logger.exception(traceback.format_exc())
 
 
 if __name__ == '__main__':

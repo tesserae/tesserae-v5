@@ -1,5 +1,6 @@
 """Functionality related to multitext search"""
 from collections import defaultdict
+import datetime
 import glob
 import itertools
 import os
@@ -99,6 +100,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         results_status.add_new_stage('get multitext data')
         search_id = results_status.id
         results_status.status = Search.RUN
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
         raw_results = multitext_search(
             results_status,
@@ -126,11 +128,13 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
             time.time() - start_time)
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
     # we want to catch all errors and log them into the Search entity
     except:  # noqa: E722
         results_status.status = Search.FAILED
         results_status.msg = traceback.format_exc()
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
 
 
@@ -575,6 +579,8 @@ def get_results(connection, results_id):
     """
     found = connection.find(
             Search.collection, results_id=results_id, status=Search.DONE)[0]
+    found.last_queried = datetime.datetime.utcnow()
+    connection.update(found)
     db_multiresults = connection.aggregate(
         MultiResult.collection,
         [

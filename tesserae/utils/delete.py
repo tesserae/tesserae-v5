@@ -2,8 +2,58 @@
 import os
 import shutil
 
-from tesserae.db.entities import Feature, Match, Search, Token, Unit
-from tesserae.utils.multitext import BigramWriter, unregister_bigrams
+from tesserae.db.entities import \
+    Feature, Match, MultiResult, Search, Token, Unit
+from tesserae.utils.multitext import \
+    BigramWriter, MULTITEXT_SEARCH, unregister_bigrams
+from tesserae.utils.search import NORMAL_SEARCH
+
+
+def remove_results(connection, searches):
+    """Remove results in the database associated with a collection of searches
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    searches : list of tesserae.db.entities.Search
+        A collection of searches to be deleted, with their associated data
+
+    """
+    normal_searches = []
+    multi_searches = []
+    for search in searches:
+        if search.search_type == NORMAL_SEARCH:
+            normal_searches.append(search)
+        elif search.search_type == MULTITEXT_SEARCH:
+            multi_searches.append(search)
+    if normal_searches:
+        matchdb = connection.connection[Match.collection]
+        matchdb.delete_many(
+            {'search_id': {'$in': [s.id for s in searches]}}
+        )
+        # make sure that multitext searches that are built on top of the
+        # searches that are about to be deleted are also included in the
+        # multitext searches that are to be deleted
+        multi_searches.extend(connection.aggregate(
+            Search.collection,
+            [
+                {
+                    '$match': {
+                        'parameters.search_uuid': {
+                            '$in': [s.results_id for s in searches]
+                        }
+                    }
+                }
+            ]
+        ))
+        connection.delete(normal_searches)
+    if multi_searches:
+        multidb = connection.connection[MultiResult.collection]
+        multidb.delete_many(
+            {'search_id': {'$in': [m.id for m in multi_searches]}}
+        )
+        connection.delete(multi_searches)
 
 
 def remove_text(connection, text):
@@ -29,18 +79,17 @@ def remove_text(connection, text):
         Search.collection,
         [
             {
-                '$match': {'texts': text_id}
+                '$match': {
+                    '$or': [
+                        {'parameters.source.object_id': str(text_id)},
+                        {'parameters.target.object_id': str(text_id)},
+                        {'parameters.text_ids': str(text_id)},
+                    ]
+                }
             }
         ]
     )
-    if searches:
-        matchdb = connection.connection[Match.collection]
-        matchdb.delete_many(
-            {'search_id': {'$in': [s.id for s in searches]}}
-        )
-        # remember to re-index after removing Match entities
-        matchdb.reindex()
-        connection.delete(searches)
+    remove_results(connection, searches)
 
     connection.connection[Feature.collection].update_many(
         {'frequencies.'+str(text_id): {'$exists': True}},

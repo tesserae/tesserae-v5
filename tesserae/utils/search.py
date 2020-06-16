@@ -1,4 +1,5 @@
 """Helper functions for running Tesserae search"""
+import datetime
 import time
 import traceback
 
@@ -76,6 +77,7 @@ def _run_search(connection, results_id, search_type, search_params):
         results_status.update_current_stage_value(1.0)
 
         results_status.status = Search.RUN
+        results_status.last_queried = datetime.datetime.utcnow()
         results_status.add_new_stage('match and score')
         connection.update(results_status)
         matches = matcher.match(results_status, **search_params)
@@ -92,11 +94,13 @@ def _run_search(connection, results_id, search_type, search_params):
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
             time.time() - start_time)
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
     # we want to catch all errors and log them into the Search entity
     except:  # noqa: E722
         results_status.status = Search.FAILED
         results_status.msg = traceback.format_exc()
+        results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
 
 
@@ -146,12 +150,8 @@ def check_cache(connection, source, target, method):
             'parameters.method.distance_basis': method['distance_basis']
         })
     ]
-    if found:
-        status_found = connection.find(
-            Search.collection,
-            _id=found[0].id)
-        if status_found and status_found[0].status != Search.FAILED:
-            return status_found[0].results_id
+    if found and found[0].status != Search.FAILED:
+        return found[0].results_id
     return None
 
 
@@ -169,6 +169,8 @@ def get_results(connection, results_id):
     """
     found = connection.find(
             Search.collection, results_id=results_id, status=Search.DONE)[0]
+    found.last_queried = datetime.datetime.utcnow()
+    connection.update(found)
     db_matches = connection.aggregate(
         Match.collection,
         [

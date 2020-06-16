@@ -5,6 +5,7 @@ Classes
 Search
     Search data model.
 """
+import datetime
 import typing
 
 from tesserae.db.entities import Entity
@@ -38,6 +39,8 @@ class Search(Entity):
         Status message for determining what phase the search is in
     msg : str, optional
         Further information associated with the status
+    last_queried : datetime.datetime, optional
+        Date information about last time this Search was queried
     """
 
     collection = 'searches'
@@ -49,7 +52,7 @@ class Search(Entity):
 
     def __init__(
         self, id=None, results_id=None, search_type=None, parameters=None,
-            progress=None, status=None, msg=None, matches=None):
+            progress=None, status=None, msg=None):
         super().__init__(id=id)
         self.results_id: typing.Optional[str] = results_id \
             if results_id is not None else ''
@@ -64,6 +67,7 @@ class Search(Entity):
             if status is not None else Search.FAILED
         self.msg: typing.Optional[str] = msg \
             if msg is not None else ''
+        self.last_queried: datetime.datetime = datetime.datetime.utcnow()
 
     def unique_values(self):
         uniques = {
@@ -76,7 +80,8 @@ class Search(Entity):
             f'Search(results_id={self.results_id}, '
             f'search_type={self.search_type}, '
             f'parameters={self.parameters}, '
-            f'status={self.status}, msg={self.msg})'
+            f'status={self.status}, msg={self.msg},'
+            f'last_queried={self.last_queried})'
         )
 
     def update_current_stage_value(self, value):
