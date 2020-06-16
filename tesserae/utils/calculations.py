@@ -69,9 +69,9 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
-def get_text_frequencies(connection, feature, text_id):
-    """Get frequency data (calculated by the given feature) for words in a
-    particular text.
+def get_inverse_text_frequencies(connection, feature, text_id):
+    """Get inverse frequency data (calculated by the given feature) for words
+    in a particular text.
 
     This method assumes that for a given word type, the feature types
     extracted from any one instance of the word type will be the same as
@@ -91,8 +91,8 @@ def get_text_frequencies(connection, feature, text_id):
     -------
     dict [int, float]
         the key should be a feature index of type form; the associated
-        value is the average proportion of words in the text sharing at
-        least one same feature type with the key word
+        value is the inverse of the average proportion of words in the text
+        sharing at least one same feature type with the key word
     """
     tindex2mtindex = {}
     findex2mfindex = {}
@@ -146,20 +146,35 @@ def get_text_frequencies(connection, feature, text_id):
     # by position j
     matching_words_matrix = word_feature_matrix.dot(
         word_feature_matrix.transpose())
-
+    # since only matching tokens remain, the column indices indicate
+    # which tokens match the token represented by row i; we need to
+    # count up how many times each word appeared; first, we change match
+    # indicators into the number of times the token indicated by the column was
+    # found
+    mtindices = []
+    mtcounts = []
+    for mtindex, count in word_counts.items():
+        mtindices.append(mtindex)
+        mtcounts.append(count)
+    count_matrix = matching_words_matrix.dot(
+        csr_matrix(
+            (
+                np.array(mtcounts),
+                (np.array(mtindices), np.zeros(len(mtindices)))
+            ),
+            shape=(matching_words_matrix.shape[0], 1)
+        )
+    )
+    # now, we can sum up each row to find the total number of times all
+    # associated tokens appeared with the token represented by the row
+    summed_rows = count_matrix.sum(axis=-1)
+    # dividing total number of tokens by the sums gives us the inverse
+    # frequencies
+    sparse_freqs = text_token_count / summed_rows
+    # finally, we re-map matrix indices to feature indices
     mtindex2tindex = {
-        mtindex: tindex for tindex, mtindex in tindex2mtindex.items()}
-    freqs = {}
-    coo = matching_words_matrix.tocoo()
-    for i, j in zip(coo.row, coo.col):
-        # since only matching tokens remain, the column indices indicate
-        # which tokens match the token represented by row i; we need to
-        # count up how many times each word appeared
-        cur_token = mtindex2tindex[i]
-        if cur_token not in freqs:
-            freqs[cur_token] = word_counts[j]
-        else:
-            freqs[cur_token] += word_counts[j]
-    for tok_ind in freqs:
-        freqs[tok_ind] = freqs[tok_ind] / text_token_count
-    return freqs
+        mtindex: tindex for tindex, mtindex in tindex2mtindex.items()
+    }
+    return {
+        mtindex2tindex[i]: freq for i, freq in enumerate(sparse_freqs.A1)
+    }

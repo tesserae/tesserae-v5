@@ -42,8 +42,6 @@ class TagHelper:
         unit_tags : list of str
             the tags of the unit
         """
-        tag_parts = []
-        tag_parts.append(self.text_cache[text_id.binary])
-        if unit_tags:
-            tag_parts.append(unit_tags[0])
-        return ' '.join(tag_parts)
+        if not unit_tags:
+            return self.text_cache[text_id.binary]
+        return f'{self.text_cache[text_id.binary]} {unit_tags[0]}'
