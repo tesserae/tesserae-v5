@@ -81,6 +81,7 @@ def _run_search(connection, results_id, search_type, search_params):
         results_status.add_new_stage('match and score')
         connection.update(results_status)
         matches = matcher.match(results_status, **search_params)
+        matches.sort(key=lambda m: m.score, reverse=True)
         results_status.update_current_stage_value(1.0)
 
         results_status.add_new_stage('save results')
