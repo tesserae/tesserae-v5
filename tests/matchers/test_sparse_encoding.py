@@ -16,8 +16,7 @@ from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
-from tesserae.utils.search import get_results
-from tesserae.utils.delete import obliterate
+from tesserae.utils.search import get_results, PageOptions
 from tesserae.utils.tessfile import TessFile
 
 
@@ -173,7 +172,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
     _check_search_results(v5_results, v3_results)
@@ -200,7 +199,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
     print(len(v5_results), len(v3_results))
@@ -267,7 +266,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_latin_corpus_results.tab')
@@ -299,7 +298,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_greek_corpus_results.tab')
@@ -351,7 +350,7 @@ def test_latin_sound(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_3gr.tab')
     _check_search_results(v5_results, v3_results)
@@ -377,7 +376,7 @@ def test_latin_semantic(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_syn.tab')
     _check_search_results(v5_results, v3_results)
@@ -403,7 +402,7 @@ def test_latin_semlem(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
         texts[0].path, 'mini_latin_results_syn_lem.tab')
@@ -431,7 +430,7 @@ def test_greek_sound(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
     print(len(v5_results), len(v3_results))
@@ -460,7 +459,7 @@ def test_greek_semantic(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_syn.tab')
     print(len(v5_results), len(v3_results))
@@ -488,7 +487,7 @@ def test_greek_semlem(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id)
+    v5_results = get_results(minipop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
         texts[0].path, 'mini_greek_results_syn_lem.tab')
@@ -503,8 +502,7 @@ def lucvergpop(request, lucverg_metadata):
         text = Text.json_decode(metadata)
         tessfile = TessFile(text.path, metadata=text)
 
-        result = conn.insert(text)
-        text_id = result.inserted_ids[0]
+        conn.insert(text)
 
         tokens, tags, features = \
             LatinTokenizer(conn).tokenize(
@@ -557,7 +555,7 @@ def test_lucverg(lucvergpop, lucverg_metadata):
     lucvergpop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     lucvergpop.update(search_result)
-    v5_results = get_results(lucvergpop, results_id)
+    v5_results = get_results(lucvergpop, results_id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'lucverg_time.tab')
     _check_search_results(v5_results, v3_results)
