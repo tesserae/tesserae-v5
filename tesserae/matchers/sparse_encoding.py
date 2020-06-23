@@ -10,9 +10,10 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from tesserae.db.entities import Entity, Feature, Match, Unit
-from tesserae.utils.retrieve import TagHelper
 from tesserae.utils.calculations import \
     get_corpus_frequencies, get_inverse_text_frequencies
+from tesserae.utils.retrieve import TagHelper
+from tesserae.utils.stopwords import get_feature_indices
 
 
 class SparseMatrixSearch(object):
@@ -125,7 +126,7 @@ class SparseMatrixSearch(object):
 
         Parameters
         ----------
-        search : tesserae.db.entities.search
+        search : tesserae.db.entities.Search
             The search job associated with this matching job.
         source : tesserae.matchers.text_options.TextOptions
             The source text to compare against, specifying by which units.
@@ -170,10 +171,12 @@ class SparseMatrixSearch(object):
                 source.text.language,
                 basis=stopword_basis)
         else:
-            stoplist = self.get_stoplist(
-                stopwords,
+            stoplist = get_feature_indices(
+                self.connection,
                 'form' if feature == 'form' else 'lemmata',
-                source.text.language)
+                source.text.language,
+                stopwords,
+            )
 
         features = sorted(
                 self.connection.find(

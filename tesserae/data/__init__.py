@@ -14,7 +14,7 @@ def load_greek_to_latin():
     Returns
     -------
     dict[str, Any]
-        Maps Greek lemma to a tuple of Latin synonyms; these Latin synonyms are
-        Latin lemmata
+        Maps a Greek lemma to a list of Latin synonyms; these Latin synonyms
+        are Latin lemmata
     """
     return _load_data_dictionary('g_l.pickle.gz')
