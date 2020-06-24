@@ -4,7 +4,7 @@ import numpy as np
 from tesserae.db.entities import Feature
 
 
-def get_feature_indices(conn, feature_type, language, stopwords):
+def get_feature_indices(conn, language, feature_type, stopwords):
     """Retrieve Feature indicies for specified stopwords
 
     Parameters

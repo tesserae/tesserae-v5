@@ -173,8 +173,8 @@ class SparseMatrixSearch(object):
         else:
             stoplist = get_feature_indices(
                 self.connection,
-                'form' if feature == 'form' else 'lemmata',
                 source.text.language,
+                'form' if feature == 'form' else 'lemmata',
                 stopwords,
             )
 
@@ -583,7 +583,8 @@ def _bin_hits_to_unit_indices(rows, cols, row2t_unit_ind, target_breaks,
 
 
 def gen_hits2positions(
-        search, conn, target_units, source_units, stoplist_set, features_size):
+        search, conn, target_feature_matrix, target_breaks,
+        source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -623,8 +624,6 @@ def gen_hits2positions(
         contains
 
     """
-    target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
-            target_units, stoplist_set, features_size)
     # keep track of mapping between matrix row index and target unit index
     # in ``target_units``
     row2t_unit_ind = np.array([
@@ -657,10 +656,13 @@ def _gen_matches(search, conn, target_units, source_units,
 
     Parameters
     ----------
-    source_units : list of dict
-        each dictionary represents unit information from the source text
+    search : tesserae.db.entities.Search
+        The search job associated with this matching job.
+    conn : TessMongoConnection
     target_units : list of dict
         each dictionary represents unit information from the target text
+    source_units : list of dict
+        each dictionary represents unit information from the source text
     stoplist_set : set of int
         feature indices on which matches should not be permitted
     features_size : int
@@ -695,8 +697,10 @@ def _gen_matches(search, conn, target_units, source_units,
         the first column contains target positions; the second column has
         corresponding source positions
     """
+    target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
+            target_units, stoplist_set, features_size)
     for hits2positions in gen_hits2positions(
-            search, conn, target_units, source_units,
+            search, conn, target_feature_matrix, target_breaks, source_units,
             stoplist_set, features_size):
         overhits2positions = {
             k: np.array(v) for k, v in hits2positions.items()
