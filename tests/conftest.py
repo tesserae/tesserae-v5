@@ -108,6 +108,28 @@ def mini_punctuation_metadata(tessfiles_latin_path):
 
 
 @pytest.fixture(scope='session')
+def mini_g2l_metadata(tessfiles_greek_path, tessfiles_latin_path):
+    return [
+        {
+            'title': 'miniacharnians',
+            'author': 'miniaristophanes',
+            'language': 'greek',
+            'year': -425,
+            'path': str(tessfiles_greek_path.joinpath('mini.ach.tess')),
+            'is_prose': False
+        },
+        {
+            'title': 'minipunica',
+            'author': 'minisilius',
+            'language': 'latin',
+            'year': 96,
+            'path': str(tessfiles_latin_path.joinpath('mini.punica.tess')),
+            'is_prose': False
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
 def lucverg_metadata(tessfiles_latin_path):
     return [
         {
