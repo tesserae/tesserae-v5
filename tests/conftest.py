@@ -11,7 +11,7 @@ import pymongo
 import pytest
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Feature, Text
+from tesserae.db.entities import Text
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.multitext import BigramWriter
@@ -258,28 +258,6 @@ def _load_v3_results(minitext_path, tab_filename):
 
 
 class V3Checker:
-    @staticmethod
-    def load_v3_mini_text_stem_freqs(conn, metadata):
-        db_cursor = conn.connection[Feature.collection].find(
-                {'feature': 'form', 'language': metadata['language']},
-                {'_id': False, 'index': True, 'token': True})
-        token2index = {e['token']: e['index'] for e in db_cursor}
-        # the .freq_score_stem file is named the same as its corresponding
-        # .tess file
-        freqs_path = metadata['path'][:-4] + 'freq_score_stem'
-        freqs = {}
-        with open(freqs_path, 'r', encoding='utf-8') as ifh:
-            for line in ifh:
-                if line.startswith('# count:'):
-                    denom = int(line.split()[-1])
-                    break
-            for line in ifh:
-                line = line.strip()
-                if line:
-                    word, count = line.split()
-                    freqs[token2index[word]] = float(count) / denom
-        return freqs
-
     @staticmethod
     def check_search_results(conn, results_id, textpath, tabname):
         v5_results = get_results(conn, results_id)

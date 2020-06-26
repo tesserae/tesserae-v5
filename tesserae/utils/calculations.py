@@ -69,6 +69,58 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
+def get_feature_counts_by_text(connection, feature, text):
+    """Get number of times instances of given feature type occur in a
+    particular text
+
+
+    This method assumes that for a given word type, the feature types
+    extracted from any one instance of the word type will be the same as
+    all other instances of the same word type.  Thus, further work would be
+    necessary, for example, if features could be extracted based on word
+    position.
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    feature : str
+        Feature category to be used in calculating frequencies
+    text : tesserae.db.entities.Text
+        Text whose feature frequencies are to be computed
+
+    Returns
+    -------
+    dict [int, int]
+        the key should be a feature index of type "form"; the associated
+        value is the number of tokens in the text sharing at least one same
+        feature type with the key word
+    """
+    freqs_textid = 'frequencies.' + str(text.id)
+    pipeline = [
+        # Get all database documents of the specified feature and language
+        # (from the "features" collection, as we later find out).
+        {'$match': {
+            'feature': feature,
+            'language': text.language,
+            freqs_textid: {'$exists': True}
+        }},
+        # Transform each document.
+        {'$project': {
+            # Don't keep their database identifiers,
+            '_id': False,
+            # but keep their indices.
+            'index': True,
+            # Also show their frequency,
+            'count': '$'+freqs_textid
+        }},
+        # Finally, sort those transformed documents by their index.
+        {'$sort': {'index': 1}}
+    ]
+
+    counts = connection.aggregate(Feature.collection, pipeline, encode=False)
+    return {count['index']: count['count'] for count in counts}
+
+
 def get_inverse_text_frequencies(connection, feature, text_id):
     """Get inverse frequency data (calculated by the given feature) for words
     in a particular text.
