@@ -125,6 +125,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
                             for bigram, values in result.items()]
             connection.insert_nocheck(multiresults)
 
+        results_status.update_current_stage_value(1.0)
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
             time.time() - start_time)

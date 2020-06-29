@@ -92,6 +92,7 @@ def _run_search(connection, results_id, search_type, search_params):
             connection.update(results_status)
             connection.insert_nocheck(matches[start:start+stepsize])
 
+        results_status.update_current_stage_value(1.0)
         results_status.status = Search.DONE
         results_status.msg = 'Done in {} seconds'.format(
             time.time() - start_time)
