@@ -81,6 +81,7 @@ def _run_search(connection, results_id, search_type, search_params):
         results_status.add_new_stage('match and score')
         connection.update(results_status)
         matches = matcher.match(results_status, **search_params)
+        matches.sort(key=lambda m: m.score, reverse=True)
         results_status.update_current_stage_value(1.0)
 
         results_status.add_new_stage('save results')
@@ -155,39 +156,60 @@ def check_cache(connection, source, target, method):
     return None
 
 
-def get_results(connection, results_id):
-    """Retrive search results with associated id
+class PageOptions:
+    """Data structure indicating paging options for results"""
+
+    def __init__(self, sort_by=None, sort_order=None, per_page=None,
+                 page_number=None):
+        self.sort_by = sort_by
+        if sort_order == 'ascending':
+            self.sort_order = 1
+        elif sort_order == 'descending':
+            self.sort_order = -1
+        else:
+            self.sort_order = None
+        self.per_page = int(per_page) if per_page is not None else None
+        self.page_number = int(page_number) \
+            if page_number is not None else None
+
+    def all_specified(self):
+        return self.sort_by is not None and \
+            self.sort_order is not None and \
+            self.per_page is not None and \
+            self.page_number is not None
+
+
+def retrieve_matches(connection, pipeline):
+    """Retrieve matches as specified
+
+    Projection is taken care of by this function
 
     Parameters
     ----------
-    results_id : str
-        UUID for Search whose results you are trying to retrieve
+    connection : tesserae.db.TessMongoConnection
+    pipeline : list of aggregation pipeline commands
 
     Returns
     -------
     list of MatchResult
     """
-    found = connection.find(
-            Search.collection, results_id=results_id, status=Search.DONE)[0]
-    found.last_queried = datetime.datetime.utcnow()
-    connection.update(found)
+    final_pipeline = pipeline + [
+        {
+            '$project': {
+                '_id': True,
+                'source_tag': True,
+                'target_tag': True,
+                'matched_features': True,
+                'score': True,
+                'source_snippet': True,
+                'target_snippet': True,
+                'highlight': True
+            }
+        }
+    ]
     db_matches = connection.aggregate(
         Match.collection,
-        [
-            {'$match': {'search_id': found.id}},
-            {
-                '$project': {
-                    '_id': True,
-                    'source_tag': True,
-                    'target_tag': True,
-                    'matched_features': True,
-                    'score': True,
-                    'source_snippet': True,
-                    'target_snippet': True,
-                    'highlight': True
-                }
-            }
-        ],
+        final_pipeline,
         encode=False
     )
     return [{
@@ -200,3 +222,89 @@ def get_results(connection, results_id):
         'target_snippet': match['target_snippet'],
         'highlight': match['highlight']
     } for match in db_matches]
+
+
+def retrieve_matches_by_search_id(connection, search_id):
+    """Obtain all matches associated with a given Search ID
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    return retrieve_matches(connection, [{'$match': {'search_id': search_id}}])
+
+
+def retrieve_matches_by_page(connection, search_id, page_options):
+    """Obtain relevant matches according to the paging options
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
+    page_options : PageOptions
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    all_specified = page_options.all_specified()
+    if all_specified and page_options.sort_by == 'score':
+        start = page_options.page_number * page_options.per_page
+        return retrieve_matches(
+            connection,
+            [
+                {'$match': {'search_id': search_id}},
+                {'$sort': {'score': page_options.sort_order}},
+                {'$skip': start},
+                {'$limit': page_options.per_page}
+            ]
+        )
+    all_matches = retrieve_matches_by_search_id(connection, search_id)
+    if all_specified:
+        start = page_options.page_number * page_options.per_page
+        end = start + page_options.per_page
+        if page_options.sort_by == 'source_tag':
+            all_matches.sort(
+                key=lambda x: tuple(x['source_tag'].split()[-1].split('.')),
+                reverse=page_options.sort_order == -1
+            )
+        if page_options.sort_by == 'target_tag':
+            all_matches.sort(
+                key=lambda x: tuple(x['target_tag'].split()[-1].split('.')),
+                reverse=page_options.sort_order == -1
+            )
+        if page_options.sort_by == 'matched_features':
+            all_matches.sort(
+                key=lambda x: x['matched_features'],
+                reverse=page_options.sort_order == -1
+            )
+        return all_matches[start:end]
+    return all_matches
+
+
+def get_results(connection, results_id, page_options):
+    """Retrive search results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    results_id : str
+        UUID for Search whose results you are trying to retrieve
+    page_options : PageOptions
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    found = connection.find(
+            Search.collection, results_id=results_id, status=Search.DONE)[0]
+    found.last_queried = datetime.datetime.utcnow()
+    connection.update(found)
+    return retrieve_matches_by_page(connection, found.id, page_options)
