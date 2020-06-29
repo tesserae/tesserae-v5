@@ -479,10 +479,10 @@ class TessMongoConnection():
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
         # index Match entities by Search.id for faster search results retrieval
-        self.connection[tesserae.db.entities.Match.collection].create_index(
+        self.connection[tesserae.db.entities.Match.collection].create_index([
             ('search_id', pymongo.ASCENDING),
-            ('score', pymongo.DESCENDING)
-        )
+            ('score', pymongo.DESCENDING),
+        ])
         # index Search entities by uuid
         self.connection[tesserae.db.entities.Search.collection].create_index(
             'results_id')
