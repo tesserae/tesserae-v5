@@ -239,10 +239,9 @@ def create_features(db_features, text, language, feature, feature_list):
         text = text.id
     db_features = {f.token: f for f in db_features}
 
-
     out_features = []
     for f in feature_list:
-        if isinstance(f, collections.Sequence) and not isinstance(f, str):
+        if isinstance(f, collections.abc.Sequence) and not isinstance(f, str):
             if f[0][0] == '<':
                 continue
             feature_group = []
