@@ -79,6 +79,20 @@ class GreekTokenizer(BaseTokenizer):
 
         return normalized, tags
 
+    def trigram(tokens):
+        characters = []
+        tokens = normalize(self, tokens, split=False)
+        for a in tokens:
+            characters.append(a)    
+        for a in characters:
+            if a == ' ':
+                characters.remove(a)
+        final = len(characters) - 1
+        grams = []
+        for a in range(final-1):
+            grams.append(characters[a]+characters[a+1]+characters[a+2])
+        return grams
+
     def featurize(self, tokens):
         """Get the features for a single Greek token.
 
@@ -102,7 +116,9 @@ class GreekTokenizer(BaseTokenizer):
         for lem in lemmata:
             lem_lemmata = [l[0] for l in lem[1]]
             fixed_lemmata.append(lem_lemmata)
+        grams = trigram(tokens)
         features = {
-            'lemmata': fixed_lemmata
+            'lemmata': fixed_lemmata,
+            'trigrams': grams
         }
         return features
