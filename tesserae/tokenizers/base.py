@@ -139,7 +139,8 @@ class BaseTokenizer(object):
         """
         # eliminate any lines that don't begin with a tag
         raw = '\n'.join([line for line in raw.split('\n')
-            if line.strip().startswith('<') and '>' in line]) + '\n'
+                         if line.strip().startswith('<') and '>' in line]) \
+            + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
@@ -178,9 +179,10 @@ class BaseTokenizer(object):
 
         # Convert all computed features into entities, discarding duplicates.
         db_features = _get_db_features_by_type(self.connection, language,
-                featurized.keys())
+                                               featurized.keys())
         results = [create_features(db_features[ft], text_id, language, ft,
-            featurized[ft]) for ft in featurized.keys()]
+                                   featurized[ft])
+                   for ft in featurized.keys()]
 
         for feature_list, feature in results:
             featurized[feature] = feature_list

@@ -7,37 +7,15 @@ from tesserae.utils.calculations import \
     get_inverse_text_frequencies
 
 
-def _load_v3_mini_text_freqs_file(conn, text, v3feature):
-    db_cursor = conn.connection[Feature.collection].find(
-            {'feature': 'form', 'language': text.language},
-            {'_id': False, 'index': True, 'token': True})
-    token2index = {e['token']: e['index'] for e in db_cursor}
-    # the .freq_score_* file is named the same as its corresponding
-    # .tess file
-    counts_path = text.path[:-4] + 'freq_score_' + v3feature
-    counts = {}
-    with open(counts_path, 'r', encoding='utf-8') as ifh:
-        for line in ifh:
-            if line.startswith('# count:'):
-                total = int(line.split()[-1])
-                break
-        for line in ifh:
-            line = line.strip()
-            if line:
-                word, count = line.split()
-                counts[token2index[word]] = int(count)
-    return total, counts
-
-
-def _load_v3_mini_text_counts(conn, text):
-    _, counts = _load_v3_mini_text_freqs_file(conn, text, 'word')
+def _load_v3_mini_text_counts(conn, text, v3checker):
+    _, counts = v3checker._load_v3_mini_text_freqs_file(conn, text, 'word')
     return counts
 
 
 def test_mini_get_feature_counts_by_text(minipop, v3checker):
     for text in minipop.find(Text.collection):
         v5_counts = get_feature_counts_by_text(minipop, 'form', text)
-        v3_counts = _load_v3_mini_text_counts(minipop, text)
+        v3_counts = _load_v3_mini_text_counts(minipop, text, v3checker)
         in_v5 = set(v5_counts.keys())
         in_v3 = set(v3_counts.keys())
         assert len(in_v5) == len(in_v3)
@@ -47,20 +25,20 @@ def test_mini_get_feature_counts_by_text(minipop, v3checker):
             assert v5_count == v3_counts[feature_index]
 
 
-def _load_v3_mini_text_stem_freqs(conn, text):
-    denom, counts = _load_v3_mini_text_freqs_file(conn, text, 'stem')
+def _load_v3_mini_text_stem_freqs(conn, text, v3checker):
+    denom, counts = v3checker._load_v3_mini_text_freqs_file(conn, text, 'stem')
     return {token: float(count) / denom for token, count in counts.items()}
 
 
 def test_mini_text_frequencies(
-        minipop, mini_latin_metadata, mini_greek_metadata):
+        minipop, mini_latin_metadata, mini_greek_metadata, v3checker):
     all_text_metadata = [m for m in itertools.chain.from_iterable(
         [mini_latin_metadata, mini_greek_metadata])]
     title2id = {t.title: t.id for t in minipop.find(
         Text.collection, title=[m['title'] for m in all_text_metadata])}
     for metadata in all_text_metadata:
         v3freqs = _load_v3_mini_text_stem_freqs(
-            minipop, Text.json_decode(metadata)
+            minipop, Text.json_decode(metadata), v3checker
         )
         text_id = title2id[metadata['title']]
         v5freqs = get_inverse_text_frequencies(minipop, 'lemmata', text_id)

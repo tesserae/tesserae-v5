@@ -11,7 +11,7 @@ import pymongo
 import pytest
 
 from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Text
+from tesserae.db.entities import Feature, Text
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.multitext import BigramWriter
@@ -309,6 +309,28 @@ class V3Checker:
         assert not match_discrepancies
         assert not in_v5_not_in_v3
         assert not in_v3_not_in_v5
+
+    @staticmethod
+    def _load_v3_mini_text_freqs_file(conn, text, v3feature):
+        db_cursor = conn.connection[Feature.collection].find(
+                {'feature': 'form', 'language': text.language},
+                {'_id': False, 'index': True, 'token': True})
+        token2index = {e['token']: e['index'] for e in db_cursor}
+        # the .freq_score_* file is named the same as its corresponding
+        # .tess file
+        counts_path = text.path[:-4] + 'freq_score_' + v3feature
+        counts = {}
+        with open(counts_path, 'r', encoding='utf-8') as ifh:
+            for line in ifh:
+                if line.startswith('# count:'):
+                    total = int(line.split()[-1])
+                    break
+            for line in ifh:
+                line = line.strip()
+                if line:
+                    word, count = line.split()
+                    counts[token2index[word]] = int(count)
+        return total, counts
 
 
 @pytest.fixture(scope='session')
