@@ -8,7 +8,7 @@ from tesserae.db import Feature, Search, Text, \
                         TessMongoConnection
 from tesserae.matchers import GreekToLatinSearch
 from tesserae.matchers.greek_to_latin import \
-    _build_greekind_to_latininds, _get_greek_to_latin_inv_freqs_by_text
+    _build_greekind_to_other_greekinds, _get_greek_to_latin_inv_freqs_by_text
 from tesserae.matchers.sparse_encoding import _get_units
 from tesserae.matchers.text_options import TextOptions
 from tesserae.utils import ingest_text
@@ -26,17 +26,18 @@ def g2lpop(request, mini_g2l_metadata):
 
 
 def test_greek_to_latin_inv_freq_by_text(g2lpop, v3checker):
-    greekind_to_latininds = _build_greekind_to_latininds(
-        g2lpop, load_greek_to_latin())
+    greek_to_latin = load_greek_to_latin()
+    print(greek_to_latin['αὖ'])
+    greekind_to_other_greekinds = _build_greekind_to_other_greekinds(
+        g2lpop, greek_to_latin)
     greek_text = g2lpop.find(Text.collection, language='greek')[0]
     greek_text_options = TextOptions(greek_text, 'line')
     greek_text_length = sum(
         len(u['forms'])
         for u in _get_units(g2lpop, greek_text_options, 'lemmata'))
-    inv_freqs = _get_greek_to_latin_inv_freqs_by_text(g2lpop,
-                                                      greek_text_options,
-                                                      greek_text_length,
-                                                      greekind_to_latininds)
+    inv_freqs = _get_greek_to_latin_inv_freqs_by_text(
+        g2lpop, greek_text_options, greek_text_length,
+        greekind_to_other_greekinds)
     v3_total, v3_counts = v3checker._load_v3_mini_text_freqs_file(
         g2lpop, greek_text, 'g_l')
     assert len(v3_counts) == len(inv_freqs)

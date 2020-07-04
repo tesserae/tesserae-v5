@@ -23,10 +23,15 @@ class GreekToLatinSearch:
         self.connection = connection
         self.greek_to_latin = load_greek_to_latin()
 
-    def match(self, search,
-              greek_text_options, latin_text_options,
-              greek_stopwords, latin_stopwords,
-              freq_basis='texts', max_distance=10, distance_basis='frequency',
+    def match(self,
+              search,
+              greek_text_options,
+              latin_text_options,
+              greek_stopwords,
+              latin_stopwords,
+              freq_basis='texts',
+              max_distance=10,
+              distance_basis='frequency',
               min_score=6):
         """Find matches between a Greek text and a Latin text
 
@@ -66,32 +71,24 @@ class GreekToLatinSearch:
         assert greek_text_options.text.language == 'greek'
         assert latin_text_options.text.language == 'latin'
         greek_stoplist_set = set(
-            get_feature_indices(self.connection, 'greek',
-                                'lemmata', greek_stopwords)
-        )
+            get_feature_indices(self.connection, 'greek', 'lemmata',
+                                greek_stopwords))
         latin_stoplist_set = set(
-            get_feature_indices(self.connection, 'latin',
-                                'lemmata', latin_stopwords)
-        )
-        greek_features = self.connection.find(
-            Feature.collection,
-            language='greek',
-            feature='lemmata'
-        )
+            get_feature_indices(self.connection, 'latin', 'lemmata',
+                                latin_stopwords))
+        greek_features = self.connection.find(Feature.collection,
+                                              language='greek',
+                                              feature='lemmata')
         greek_features.sort(key=lambda x: x.index)
-        latin_features = self.connection.find(
-            Feature.collection,
-            language='latin',
-            feature='lemmata'
-        )
+        latin_features = self.connection.find(Feature.collection,
+                                              language='latin',
+                                              feature='lemmata')
         latin_features.sort(key=lambda x: x.index)
-        greekind_to_latininds = _build_greekind_to_latininds(
-            self.connection, self.greek_to_latin
-        )
+        greekind_to_other_greekinds = _build_greekind_to_other_greekinds(
+            self.connection, self.greek_to_latin)
         valid_latin_tokens_to_indices = {
             f.token: f.index
-            for f in latin_features
-            if f.index not in latin_stoplist_set
+            for f in latin_features if f.index not in latin_stoplist_set
         }
 
         greek_units = _get_units(self.connection, greek_text_options,
@@ -99,17 +96,16 @@ class GreekToLatinSearch:
         latin_units = _get_units(self.connection, latin_text_options,
                                  'lemmata')
 
-        tag_helper = TagHelper(self.connection, [greek_text_options.text,
-                                                 latin_text_options.text])
+        tag_helper = TagHelper(
+            self.connection,
+            [greek_text_options.text, latin_text_options.text])
 
         greek_inv_frequencies_getter = _get_inv_greek_to_latin_freq_getter(
             self.connection, freq_basis, greek_text_options,
             sum(len(u['forms']) for u in greek_units),
-            greekind_to_latininds
-        )
+            greekind_to_other_greekinds)
         latin_inv_frequencies_getter = _get_inv_lemmata_freq_getter(
-            self.connection, freq_basis, latin_text_options
-        )
+            self.connection, freq_basis, latin_text_options)
 
         search_id = search.id
 
@@ -119,11 +115,10 @@ class GreekToLatinSearch:
         numerator_sparse_data = []
         denominators = []
         for greek_ind, latin_ind, positions in _gen_greek_to_latin_matches(
-            search, self.connection,
-            greek_units, greek_features, greek_stoplist_set,
-            self.greek_to_latin, valid_latin_tokens_to_indices,
-            latin_units, latin_features, latin_stoplist_set
-        ):
+                search, self.connection, greek_units, greek_features,
+                greek_stoplist_set, self.greek_to_latin,
+                valid_latin_tokens_to_indices, latin_units, latin_features,
+                latin_stoplist_set):
             greek_unit = greek_units[greek_ind]
             latin_unit = latin_units[latin_ind]
             greek_forms = np.array(greek_unit['forms'])
@@ -137,11 +132,9 @@ class GreekToLatinSearch:
                                                        latin_forms)
             else:
                 greek_distance = _get_distance_by_least_frequency(
-                    greek_inv_frequencies_getter, greek_positions, greek_forms
-                )
+                    greek_inv_frequencies_getter, greek_positions, greek_forms)
                 latin_distance = _get_distance_by_least_frequency(
-                    latin_inv_frequencies_getter, latin_positions, latin_forms
-                )
+                    latin_inv_frequencies_getter, latin_positions, latin_forms)
             if greek_distance <= 0 or latin_distance <= 0:
                 continue
             distance = greek_distance + latin_distance
@@ -168,92 +161,38 @@ class GreekToLatinSearch:
                         latin_inv_frequencies_getter(latin_forms[pos])
                         for pos in set(latin_positions)
                     ])
-                    numerator_sparse_rows.extend(
-                        [len(match_ents)] * len(match_inv_frequencies)
-                    )
+                    numerator_sparse_rows.extend([len(match_ents)] *
+                                                 len(match_inv_frequencies))
                     numerator_sparse_cols.extend(
-                        [i for i in range(len(match_inv_frequencies))]
-                    )
+                        [i for i in range(len(match_inv_frequencies))])
                     numerator_sparse_data.extend(match_inv_frequencies)
                     denominators.append(distance)
-                    match_ents.append(Match(
-                        search_id=search_id,
-                        source_unit=greek_unit['_id'],
-                        target_unit=latin_unit['_id'],
-                        source_tag=tag_helper.get_display_tag(
-                            greek_unit['text'],
-                            greek_unit['tags']
-                        ),
-                        target_tag=tag_helper.get_display_tag(
-                            latin_unit['text'],
-                            latin_unit['tags']
-                        ),
-                        matched_features=[
-                            latin_features[int(mf)].token
-                            for mf in match_features
-                        ],
-                        source_snippet=greek_unit['snippet'],
-                        target_snippet=latin_unit['snippet'],
-                        highlight=[
-                            (int(greek_pos), int(latin_pos))
-                            for greek_pos, latin_pos in zip(greek_positions,
-                                                            latin_positions)
-                        ]
-                    ))
+                    match_ents.append(
+                        Match(search_id=search_id,
+                              source_unit=greek_unit['_id'],
+                              target_unit=latin_unit['_id'],
+                              source_tag=tag_helper.get_display_tag(
+                                  greek_unit['text'], greek_unit['tags']),
+                              target_tag=tag_helper.get_display_tag(
+                                  latin_unit['text'], latin_unit['tags']),
+                              matched_features=[
+                                  latin_features[int(mf)].token
+                                  for mf in match_features
+                              ],
+                              source_snippet=greek_unit['snippet'],
+                              target_snippet=latin_unit['snippet'],
+                              highlight=[(int(greek_pos), int(latin_pos))
+                                         for greek_pos, latin_pos in zip(
+                                             greek_positions, latin_positions)
+                                         ]))
         if match_ents:
-            numerators = csr_matrix(
-                (
-                    numerator_sparse_data,
-                    (numerator_sparse_rows, numerator_sparse_cols)
-                )
-            ).sum(axis=-1).A1
+            numerators = csr_matrix((numerator_sparse_data,
+                                     (numerator_sparse_rows,
+                                      numerator_sparse_cols))).sum(axis=-1).A1
             scores = np.log(numerators) - np.log(denominators)
             for match, score in zip(match_ents, scores):
                 match.score = score
         return match_ents
-
-
-def _build_greekind_to_latininds(conn, greek_to_latin):
-    greek_token_to_form = {
-        f.token: f
-        for f in conn.find(
-            Feature.collection,
-            language='greek',
-            feature='form'
-        )
-    }
-    latin_token_to_form = {
-        f.token: f
-        for f in conn.find(
-            Feature.collection,
-            language='latin',
-            feature='form'
-        )
-    }
-
-    result = defaultdict(set)
-    for greek_token, latin_translations in greek_to_latin.items():
-        if greek_token in greek_token_to_form:
-            greek_ind = greek_token_to_form[greek_token].index
-            for latin_token in latin_translations:
-                if latin_token in latin_token_to_form:
-                    latin_ind = latin_token_to_form[latin_token].index
-                    result[greek_ind].add(latin_ind)
-    return result
-
-
-def _get_inv_lemmata_freq_getter(conn, freq_basis, text_options):
-    if freq_basis != 'texts':
-        return _inverse_averaged_freq_getter(
-            get_corpus_frequencies(
-                conn, 'lemmata', text_options.text.language
-            )
-        )
-    return _lookup_wrapper(
-        get_inverse_text_frequencies(
-            conn, 'lemmata', text_options.text.id
-        )
-    )
 
 
 def _reverse_mapping(a2bs):
@@ -264,21 +203,48 @@ def _reverse_mapping(a2bs):
     return result
 
 
+def _build_greekind_to_other_greekinds(conn, greek_to_latin):
+    greek_token_to_form = {
+        f.token: f
+        for f in conn.find(
+            Feature.collection, language='greek', feature='form')
+    }
+    latin_to_greek = _reverse_mapping(greek_to_latin)
+    result = defaultdict(set)
+    for greek_token, latin_translations in greek_to_latin.items():
+        if greek_token in greek_token_to_form:
+            other_greekinds = set()
+            for latin_token in latin_translations:
+                for other_greek_token in latin_to_greek[latin_token]:
+                    if other_greek_token in greek_token_to_form:
+                        other_greekinds.add(
+                            greek_token_to_form[other_greek_token].index)
+            result[greek_token_to_form[greek_token].index] = other_greekinds
+    return result
+
+
+def _get_inv_lemmata_freq_getter(conn, freq_basis, text_options):
+    if freq_basis != 'texts':
+        return _inverse_averaged_freq_getter(
+            get_corpus_frequencies(conn, 'lemmata',
+                                   text_options.text.language))
+    return _lookup_wrapper(
+        get_inverse_text_frequencies(conn, 'lemmata', text_options.text.id))
+
+
 def _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
-                                          greekind_to_latininds):
+                                          greekind_to_other_greekinds):
     greek_lemma_counts = get_feature_counts_by_text(conn, 'lemmata',
                                                     text_options.text)
-    latinind_to_greekinds = _reverse_mapping(greekind_to_latininds)
     result = {}
     for greek_form_ind, greek_counts in greek_lemma_counts.items():
         already_seen = set([greek_form_ind])
         value = greek_counts
-        for latinind in greekind_to_latininds[greek_form_ind]:
-            for greek_other_ind in latinind_to_greekinds[latinind]:
-                if greek_other_ind in already_seen:
-                    continue
-                value += greek_lemma_counts[greek_other_ind]
-                already_seen.add(greek_other_ind)
+        for other_greekind in greekind_to_other_greekinds[greek_form_ind]:
+            if other_greekind in already_seen:
+                continue
+            value += greek_lemma_counts[other_greekind]
+            already_seen.add(other_greekind)
         if value > 0:
             result[greek_form_ind] = float(text_length) / float(value)
     return result
@@ -286,21 +252,20 @@ def _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
 
 def _get_inv_greek_to_latin_freq_getter(conn, freq_basis, text_options,
                                         text_length,
-                                        greekind_to_latininds):
+                                        greekind_to_other_greekinds):
     if freq_basis != 'texts':
         # TODO handle corpus case
         pass
     # otherwise, handle text case
     return _lookup_wrapper(
-        _get_greek_to_latin_inv_freqs_by_text(
-            conn, text_options, text_length, greekind_to_latininds
-        )
-    )
+        _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
+                                              greekind_to_other_greekinds))
 
 
-def make_latinized_greek_matrix(
-        greek_units, greek_features, greek_stoplist_set,
-        greek_to_latin, valid_latin_tokens_to_indices, latin_features_size):
+def make_latinized_greek_matrix(greek_units, greek_features,
+                                greek_stoplist_set, greek_to_latin,
+                                valid_latin_tokens_to_indices,
+                                latin_features_size):
     latin_feature_inds = []
     pos_inds = []
     break_inds = [0]
@@ -309,8 +274,8 @@ def make_latinized_greek_matrix(
         cur_features = unit['features']
         for i, features in enumerate(cur_features):
             valid_greek_features = [
-                f for f in features
-                if f not in greek_stoplist_set and f >= 0]
+                f for f in features if f not in greek_stoplist_set and f >= 0
+            ]
             translated_tokens = [
                 greek_to_latin[greek_features[f].token]
                 for f in valid_greek_features
@@ -325,33 +290,29 @@ def make_latinized_greek_matrix(
             latin_feature_inds.extend(valid_latin_features)
             pos_inds.extend([end_break_inds + i] * len(valid_latin_features))
         break_inds.append(end_break_inds + len(cur_features))
-    return (
-        csr_matrix(
-            (np.ones(len(pos_inds), dtype=np.bool),
-             (pos_inds, latin_feature_inds)),
-            shape=(break_inds[-1], latin_features_size)
-        ),
-        np.array(break_inds)
-    )
+    return (csr_matrix(
+        (np.ones(len(pos_inds), dtype=np.bool),
+         (pos_inds, latin_feature_inds)),
+        shape=(break_inds[-1], latin_features_size)), np.array(break_inds))
 
 
-def _gen_greek_to_latin_matches(
-        search, conn,
-        greek_units, greek_features, greek_stoplist_set,
-        greek_to_latin, valid_latin_tokens_to_indices,
-        latin_units, latin_features, latin_stoplist_set):
+def _gen_greek_to_latin_matches(search, conn, greek_units, greek_features,
+                                greek_stoplist_set, greek_to_latin,
+                                valid_latin_tokens_to_indices, latin_units,
+                                latin_features, latin_stoplist_set):
     latinized_greek_matrix, greek_break_inds = make_latinized_greek_matrix(
-        greek_units, greek_features, greek_stoplist_set,
-        greek_to_latin, valid_latin_tokens_to_indices, len(latin_features)
-    )
+        greek_units, greek_features, greek_stoplist_set, greek_to_latin,
+        valid_latin_tokens_to_indices, len(latin_features))
 
-    for hits2positions in gen_hits2positions(
-        search, conn, latinized_greek_matrix, greek_break_inds,
-        latin_units, latin_stoplist_set, len(latin_features)
-    ):
+    for hits2positions in gen_hits2positions(search, conn,
+                                             latinized_greek_matrix,
+                                             greek_break_inds, latin_units,
+                                             latin_stoplist_set,
+                                             len(latin_features)):
         overhits2positions = {
-            k: np.array(v) for k, v in hits2positions.items()
-            if len(v) >= 2}
+            k: np.array(v)
+            for k, v in hits2positions.items() if len(v) >= 2
+        }
         for (t_ind, s_ind), positions in overhits2positions.items():
             yield (t_ind, s_ind, positions)
 
@@ -370,8 +331,7 @@ def _get_matched_greek_to_latin_features(greek_unit_features, greek_positions,
                 for latin_token in translations:
                     if latin_token in valid_latin_tokens_to_indices:
                         cur_pos_latin_features.append(
-                            valid_latin_tokens_to_indices[latin_token]
-                        )
+                            valid_latin_tokens_to_indices[latin_token])
         result.append(cur_pos_latin_features)
     return result
 
