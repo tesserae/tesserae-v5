@@ -27,7 +27,6 @@ def g2lpop(request, mini_g2l_metadata):
 
 def test_greek_to_latin_inv_freq_by_text(g2lpop, v3checker):
     greek_to_latin = load_greek_to_latin()
-    print(greek_to_latin['αὖ'])
     greekind_to_other_greekinds = _build_greekind_to_other_greekinds(
         g2lpop, greek_to_latin)
     greek_text = g2lpop.find(Text.collection, language='greek')[0]
@@ -52,7 +51,7 @@ def test_greek_to_latin_inv_freq_by_text(g2lpop, v3checker):
                             float(v3_total) / count), greek_forms[token]
 
 
-def test_greek_to_latin(g2lpop, mini_g2l_metadata, v3checker):
+def test_greek_to_latin_texts_basis(g2lpop, mini_g2l_metadata, v3checker):
     texts = g2lpop.find(Text.collection,
                         title=[m['title'] for m in mini_g2l_metadata])
     results_id = uuid.uuid4()
@@ -72,4 +71,28 @@ def test_greek_to_latin(g2lpop, mini_g2l_metadata, v3checker):
     search_result.status = Search.DONE
     g2lpop.update(search_result)
     v3checker.check_search_results(g2lpop, results_id, texts[0].path,
-                                   'mini_g2l.tab')
+                                   'mini_g2l_texts.tab')
+
+
+def test_greek_to_latin_corpus_basis(g2lpop, mini_g2l_metadata, v3checker):
+    with pytest.raises(ValueError):
+        texts = g2lpop.find(Text.collection,
+                            title=[m['title'] for m in mini_g2l_metadata])
+        results_id = uuid.uuid4()
+        search_result = Search(results_id=results_id)
+        g2lpop.insert(search_result)
+        matcher = GreekToLatinSearch(g2lpop)
+        v5_matches = matcher.match(search_result,
+                                   TextOptions(texts[0], 'line'),
+                                   TextOptions(texts[1], 'line'),
+                                   greek_stopwords=[],
+                                   latin_stopwords=['et', 'non', 'iam'],
+                                   freq_basis='corpus',
+                                   max_distance=999,
+                                   distance_basis='frequency',
+                                   min_score=0)
+        g2lpop.insert_nocheck(v5_matches)
+        search_result.status = Search.DONE
+        g2lpop.update(search_result)
+        v3checker.check_search_results(g2lpop, results_id, texts[0].path,
+                                       'mini_g2l_corpus.tab')
