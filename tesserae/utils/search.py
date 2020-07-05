@@ -321,11 +321,9 @@ def get_max_score(connection, search_id):
     float
         Maximum score of results associated with ``search_id``
     """
-    return connection.connection[Match.collection].find(
-        {'search_id': search_id}
-    ).sort(
-        {'score': -1}
-    ).limit(1)['score']
+    return connection.connection[Match.collection].find_one(
+        {'search_id': search_id}, sort=[('score', -1)]
+    )['score']
 
 
 def get_results_count(connection, search_id):
@@ -341,5 +339,5 @@ def get_results_count(connection, search_id):
     -------
     float
     """
-    return connection.connection[Match.collection].estimated_document_count(
+    return connection.connection[Match.collection].count_documents(
         {'search_id': search_id})
