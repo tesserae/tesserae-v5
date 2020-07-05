@@ -566,26 +566,22 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
     return None
 
 
-def get_results(connection, results_id):
+def get_results(connection, search_id):
     """Retrive search results with associated id
 
     Parameters
     ----------
-    results_id : str
-        UUID for Search whose results you are trying to retrieve
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
 
     Returns
     -------
     list of MatchResult
     """
-    found = connection.find(
-            Search.collection, results_id=results_id, status=Search.DONE)[0]
-    found.last_queried = datetime.datetime.utcnow()
-    connection.update(found)
     db_multiresults = connection.aggregate(
         MultiResult.collection,
         [
-            {'$match': {'search_id': found.id}},
+            {'$match': {'search_id': search_id}},
             {
                 '$project': {
                     '_id': False,
