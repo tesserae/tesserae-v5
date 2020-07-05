@@ -290,22 +290,54 @@ def retrieve_matches_by_page(connection, search_id, page_options):
     return all_matches
 
 
-def get_results(connection, results_id, page_options):
+def get_results(connection, search_id, page_options):
     """Retrive search results with associated id
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
-    results_id : str
-        UUID for Search whose results you are trying to retrieve
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
     page_options : PageOptions
 
     Returns
     -------
     list of MatchResult
     """
-    found = connection.find(
-            Search.collection, results_id=results_id, status=Search.DONE)[0]
-    found.last_queried = datetime.datetime.utcnow()
-    connection.update(found)
-    return retrieve_matches_by_page(connection, found.id, page_options)
+    return retrieve_matches_by_page(connection, search_id, page_options)
+
+
+def get_max_score(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search associated with results of interest
+
+    Returns
+    -------
+    float
+        Maximum score of results associated with ``search_id``
+    """
+    return connection.connection[Match.collection].find_one(
+        {'search_id': search_id}, sort=[('score', -1)]
+    )['score']
+
+
+def get_results_count(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    float
+    """
+    return connection.connection[Match.collection].count_documents(
+        {'search_id': search_id})
