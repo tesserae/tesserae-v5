@@ -72,7 +72,7 @@ def _assert_equivalent_results(got_results, true_results):
 
 def test_get_results_dump(resultsdb):
     search = resultsdb.find(Search.collection)[0]
-    got_results = get_results(resultsdb, search.results_id, PageOptions())
+    got_results = get_results(resultsdb, search.id, PageOptions())
     true_results = resultsdb.find(Match.collection, search_id=search.id)
     _assert_equivalent_results(got_results, true_results)
 
@@ -85,7 +85,7 @@ def test_get_results_sort_score(resultsdb):
         per_page=20,
         page_number=0
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results = resultsdb.find(Match.collection, search_id=search.id)
     true_results.sort(key=lambda x: x.score, reverse=True)
     _assert_equivalent_results(got_results, true_results[0:20])
@@ -96,7 +96,7 @@ def test_get_results_sort_score(resultsdb):
         per_page=50,
         page_number=1
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     _assert_equivalent_results(got_results, true_results[50:100])
 
     page_options = PageOptions(
@@ -105,7 +105,7 @@ def test_get_results_sort_score(resultsdb):
         per_page=20,
         page_number=2
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results.sort(key=lambda x: x.score, reverse=False)
     _assert_equivalent_results(got_results, true_results[40:60])
     page_options.sort_order = 1
@@ -119,7 +119,7 @@ def test_get_results_sort_source_tag(resultsdb):
         per_page=20,
         page_number=0
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results = resultsdb.find(Match.collection, search_id=search.id)
     true_results.sort(key=lambda x: x.source_tag, reverse=True)
     _assert_equivalent_results(got_results, true_results[0:20])
@@ -130,7 +130,7 @@ def test_get_results_sort_source_tag(resultsdb):
         per_page=50,
         page_number=1
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     _assert_equivalent_results(got_results, true_results[50:100])
 
     page_options = PageOptions(
@@ -139,7 +139,7 @@ def test_get_results_sort_source_tag(resultsdb):
         per_page=20,
         page_number=2
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results.sort(key=lambda x: x.source_tag, reverse=False)
     _assert_equivalent_results(got_results, true_results[40:60])
     page_options.sort_order = 1
@@ -153,7 +153,7 @@ def test_get_results_sort_target_tag(resultsdb):
         per_page=20,
         page_number=0
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results = resultsdb.find(Match.collection, search_id=search.id)
     true_results.sort(key=lambda x: x.target_tag, reverse=True)
     _assert_equivalent_results(got_results, true_results[0:20])
@@ -164,7 +164,7 @@ def test_get_results_sort_target_tag(resultsdb):
         per_page=50,
         page_number=1
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     _assert_equivalent_results(got_results, true_results[50:100])
 
     page_options = PageOptions(
@@ -173,7 +173,7 @@ def test_get_results_sort_target_tag(resultsdb):
         per_page=20,
         page_number=2
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results.sort(key=lambda x: x.target_tag, reverse=False)
     _assert_equivalent_results(got_results, true_results[40:60])
     page_options.sort_order = 1
@@ -187,7 +187,7 @@ def test_get_results_sort_matched_features(resultsdb):
         per_page=20,
         page_number=0
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results = resultsdb.find(Match.collection, search_id=search.id)
     true_results.sort(key=lambda x: x.matched_features, reverse=True)
     _assert_equivalent_results(got_results, true_results[0:20])
@@ -198,7 +198,7 @@ def test_get_results_sort_matched_features(resultsdb):
         per_page=50,
         page_number=1
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     _assert_equivalent_results(got_results, true_results[50:100])
 
     page_options = PageOptions(
@@ -207,7 +207,7 @@ def test_get_results_sort_matched_features(resultsdb):
         per_page=20,
         page_number=2
     )
-    got_results = get_results(resultsdb, search.results_id, page_options)
+    got_results = get_results(resultsdb, search.id, page_options)
     true_results.sort(key=lambda x: x.matched_features, reverse=False)
     _assert_equivalent_results(got_results, true_results[40:60])
     page_options.sort_order = 1
