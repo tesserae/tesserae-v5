@@ -1,4 +1,7 @@
+import time
+
 from tesserae.db.entities import Feature
+from tesserae.db.entities.text import TextStatus
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils.delete import remove_text
@@ -6,10 +9,75 @@ from tesserae.utils.multitext import register_bigrams
 from tesserae.utils.tessfile import TessFile
 
 
+def submit_ingest(jobqueue, text, file_location):
+    """Submit a job for ingesting a text
+
+    Parameters
+    ----------
+    jobqueue : tesserae.utils.coordinate.JobQueue
+    text : tesserae.db.entities.Text
+        Text entity to be ingested
+    file_location : str
+        Path to .tess file to be ingested
+
+    """
+    kwargs = {'text': text, 'file_location': file_location}
+    jobqueue.queue_job(_run_ingest, kwargs)
+
+
+def _run_ingest(connection, text, file_location):
+    """Instructions for running ingestion
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    text : tesserae.db.entities.Text
+        Text entity to be ingested
+    file_location : str
+        Path to .tess file to be ingested
+
+    """
+    start_time = time.time()
+    connection.insert(text)
+    if text.language not in _tokenizers:
+        text.ingestion_status = TextStatus.FAILED
+        text.ingestion_msg = \
+            'Unknown language: {}'.format(text.language)
+        return
+    text.ingestion_status = TextStatus.RUN
+    connection.update(text)
+
+    text.path = file_location
+    tessfile = TessFile(text.path, metadata=text)
+
+    _ingest_tessfile(connection, text, tessfile)
+    text.ingestion_status = TextStatus.DONE
+    text.ingestion_msg = \
+        f'Done in {time.time() - start_time} seconds'
+    connection.update(text)
+
+
 _tokenizers = {
     'greek': GreekTokenizer,
     'latin': LatinTokenizer,
 }
+
+
+def already_ingested(connection, text):
+    """Query database to see if a text is already ingested
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text whose ingestion status is in question
+
+    Returns
+    -------
+    bool
+    """
+    return text.ingestion_status == TextStatus.DONE
 
 
 def ingest_text(connection, text):
@@ -36,22 +104,43 @@ def ingest_text(connection, text):
     """
     if text.language not in _tokenizers:
         raise ValueError('Unknown language: {}'.format(text.language))
-    if text.ingestion_complete:
-        raise ValueError(
-            f'Cannot ingest an already ingested text '
-            f'({text.author}, {text.title})'
-        )
+    if already_ingested(connection, text):
+        raise ValueError(f'Cannot ingest an already ingested text '
+                         f'({text.author}, {text.title})')
     tessfile = TessFile(text.path, metadata=text)
 
     result = connection.insert(text)
     text_id = result.inserted_ids[0]
 
+    _ingest_tessfile(connection, text, tessfile)
+
+    text.ingestion_complete = True
+    connection.update(text)
+
+    return text_id
+
+
+def _ingest_tessfile(connection, text, tessfile):
+    """Process .tess file for inclusion in Tesserae database
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        Text entity associated with the .tess file to be ingested; must
+        already be added to Text.collection but not yet ingested
+    tessfile : tesserae.utils.TessFile
+        .tess file to be ingested
+    """
     tokens, tags, features = \
         _tokenizers[tessfile.metadata.language](connection).tokenize(
             tessfile.read(), text=tessfile.metadata)
 
-    feature_cache = {(f.feature, f.token): f for f in connection.find(
-        Feature.collection, language=text.language)}
+    feature_cache = {
+        (f.feature, f.token): f
+        for f in connection.find(Feature.collection, language=text.language)
+    }
     features_for_insert = []
     features_for_update = []
 
@@ -66,17 +155,11 @@ def ingest_text(connection, text):
     connection.update(features_for_update)
 
     unitizer = Unitizer()
-    lines, phrases = unitizer.unitize(
-        tokens, tags, tessfile.metadata)
+    lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
     register_bigrams(connection, text.id)
-
-    text.ingestion_complete = True
-    connection.update(text)
-
-    return text_id
 
 
 def reingest_text(connection, text):

@@ -58,7 +58,7 @@ class Text(Entity):
 
     def __init__(self, id=None, cts_urn=None, language=None, title=None,
                  author=None, year=None, path=None, is_prose=False,
-                 ingestion_complete=None):
+                 ingestion_status=None, ingestion_msg=None):
         super(Text, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.title: typing.Optional[str] = title
@@ -66,9 +66,11 @@ class Text(Entity):
         self.is_prose: typing.Optional[bool] = is_prose
         self.year: typing.Optional[int] = year
         self.path: typing.Optional[str] = path
-        self.ingestion_complete: typing.Optional[bool] = ingestion_complete \
-            if ingestion_complete is not None \
-            else False
+        self.ingestion_status: str = ingestion_status \
+            if ingestion_status is not None \
+            else TextStatus.INIT
+        self.ingestion_msg: str = ingestion_msg \
+            if ingestion_msg is not None else ''
 
     def unique_values(self):
         return {
@@ -83,3 +85,11 @@ class Text(Entity):
             f'author={self.author}, year={self.year}, '
             f'path={self.path}, is_prose={self.is_prose})'
         )
+
+
+class TextStatus:
+
+    INIT = 'Initialized'
+    RUN = 'Running'
+    DONE = 'Done'
+    FAILED = 'Failed'
