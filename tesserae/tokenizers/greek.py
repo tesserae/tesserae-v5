@@ -83,10 +83,7 @@ class GreekTokenizer(BaseTokenizer):
         characters = []
         tokens = normalize(self, tokens, split=False)
         for a in tokens:
-            characters.append(a)    
-        for a in characters:
-            if a == ' ':
-                characters.remove(a)
+            characters.append(a)  
         final = len(characters) - 1
         grams = []
         for a in range(final-1):
@@ -116,7 +113,9 @@ class GreekTokenizer(BaseTokenizer):
         for lem in lemmata:
             lem_lemmata = [l[0] for l in lem[1]]
             fixed_lemmata.append(lem_lemmata)
-        grams = trigram(tokens)
+        grams = []
+        for token in tokens:
+            grams.append(trigram(token))
         features = {
             'lemmata': fixed_lemmata,
             'trigrams': grams
