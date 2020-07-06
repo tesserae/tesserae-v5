@@ -1,28 +1,45 @@
 import time
+import traceback
 
 from tesserae.db.entities import Feature
 from tesserae.db.entities.text import TextStatus
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
+from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
 from tesserae.utils.multitext import register_bigrams
 from tesserae.utils.tessfile import TessFile
 
 
-def submit_ingest(jobqueue, text, file_location):
+class IngestQueue(JobQueue):
+    
+    def __init__(self, db_cred):
+        # make sure that only one text is ingested at a time
+        super().__init__(1, db_cred)
+
+
+def submit_ingest(ingest_queue, connection, text, file_location):
     """Submit a job for ingesting a text
 
     Parameters
     ----------
-    jobqueue : tesserae.utils.coordinate.JobQueue
+    ingest_queue : IngestQueue
+    connection : TessMongoConnection
     text : tesserae.db.entities.Text
         Text entity to be ingested
     file_location : str
         Path to .tess file to be ingested
 
+    Returns
+    -------
+    ObjectId
+        ID of text to be ingested
+
     """
+    connection.insert(text)
     kwargs = {'text': text, 'file_location': file_location}
-    jobqueue.queue_job(_run_ingest, kwargs)
+    ingest_queue.queue_job(_run_ingest, kwargs)
+    return text.id
 
 
 def _run_ingest(connection, text, file_location):
@@ -38,7 +55,6 @@ def _run_ingest(connection, text, file_location):
 
     """
     start_time = time.time()
-    connection.insert(text)
     if text.language not in _tokenizers:
         text.ingestion_status = TextStatus.FAILED
         text.ingestion_msg = \
@@ -50,7 +66,14 @@ def _run_ingest(connection, text, file_location):
     text.path = file_location
     tessfile = TessFile(text.path, metadata=text)
 
-    _ingest_tessfile(connection, text, tessfile)
+    try:
+        _ingest_tessfile(connection, text, tessfile)
+    # we want to catch all errors and log them into the Text entity
+    except:  # noqa: E722
+        text.ingestion_status = TextStatus.FAILED
+        text.ingestion_msg = traceback.format_exc()
+        connection.update(text)
+
     text.ingestion_status = TextStatus.DONE
     text.ingestion_msg = \
         f'Done in {time.time() - start_time} seconds'
