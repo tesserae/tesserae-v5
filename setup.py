@@ -109,6 +109,7 @@ setup(
         'pymongo>=3.6.1',
         'scipy',
         'tqdm',
+        'natsort',
     ],
     cmdclass={
         'install': InstallLemmataModels,
