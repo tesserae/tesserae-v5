@@ -1,6 +1,8 @@
 import time
 import traceback
 
+from natsort import natsorted
+
 from tesserae.db.entities import Feature
 from tesserae.db.entities.text import TextStatus
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
@@ -12,7 +14,7 @@ from tesserae.utils.tessfile import TessFile
 
 
 class IngestQueue(JobQueue):
-    
+
     def __init__(self, db_cred):
         # make sure that only one text is ingested at a time
         super().__init__(1, db_cred)
@@ -160,6 +162,9 @@ def _ingest_tessfile(connection, text, tessfile):
         _tokenizers[tessfile.metadata.language](connection).tokenize(
             tessfile.read(), text=tessfile.metadata)
 
+    text.divisions = _extract_divisions(tags)
+    connection.update(text)
+
     feature_cache = {
         (f.feature, f.token): f
         for f in connection.find(Feature.collection, language=text.language)
@@ -183,6 +188,12 @@ def _ingest_tessfile(connection, text, tessfile):
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
     register_bigrams(connection, text.id)
+
+
+def _extract_divisions(tags):
+    if len([v for v in tags[0].split('.') if v]) < 2:
+        return []
+    return natsorted(list({tag.split('.')[0] for tag in tags}))
 
 
 def reingest_text(connection, text):
