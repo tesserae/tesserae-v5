@@ -4,7 +4,7 @@ import traceback
 from natsort import natsorted
 
 from tesserae.db.entities import Feature
-from tesserae.db.entities.text import TextStatus
+from tesserae.db.entities.text import Text, TextStatus
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
@@ -14,7 +14,6 @@ from tesserae.utils.tessfile import TessFile
 
 
 class IngestQueue(JobQueue):
-
     def __init__(self, db_cred):
         # make sure that only one text is ingested at a time
         super().__init__(1, db_cred)
@@ -102,7 +101,12 @@ def already_ingested(connection, text):
     -------
     bool
     """
-    return text.ingestion_status == TextStatus.DONE
+    found = connection.find(Text.collection,
+                            author=text.author,
+                            title=text.title)
+    if found and found[0].ingestion_status == TextStatus.DONE:
+        return True
+    return False
 
 
 def ingest_text(connection, text):
