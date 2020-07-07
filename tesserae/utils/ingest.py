@@ -191,7 +191,7 @@ def _ingest_tessfile(connection, text, tessfile):
 
 
 def _extract_divisions(tags):
-    if len([v for v in tags[0].split('.') if v]) < 2:
+    if not tags or len([v for v in tags[0].split('.') if v]) < 2:
         return []
     return natsorted(list({tag.split('.')[0] for tag in tags}))
 
