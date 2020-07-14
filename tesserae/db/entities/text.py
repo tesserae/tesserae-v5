@@ -56,9 +56,18 @@ class Text(Entity):
 
     collection = 'texts'
 
-    def __init__(self, id=None, cts_urn=None, language=None, title=None,
-                 author=None, year=None, path=None, is_prose=False,
-                 ingestion_status=None, ingestion_msg=None):
+    def __init__(self,
+                 id=None,
+                 cts_urn=None,
+                 language=None,
+                 title=None,
+                 author=None,
+                 year=None,
+                 path=None,
+                 is_prose=False,
+                 ingestion_status=None,
+                 ingestion_msg=None,
+                 divisions=None):
         super(Text, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.title: typing.Optional[str] = title
@@ -71,6 +80,8 @@ class Text(Entity):
             else TextStatus.INIT
         self.ingestion_msg: str = ingestion_msg \
             if ingestion_msg is not None else ''
+        self.divisions: str = divisions \
+            if divisions is not None else []
 
     def unique_values(self):
         return {
@@ -80,11 +91,9 @@ class Text(Entity):
         }
 
     def __repr__(self):
-        return (
-            f'Text(language={self.language}, title={self.title}, '
-            f'author={self.author}, year={self.year}, '
-            f'path={self.path}, is_prose={self.is_prose})'
-        )
+        return (f'Text(language={self.language}, title={self.title}, '
+                f'author={self.author}, year={self.year}, '
+                f'path={self.path}, is_prose={self.is_prose})')
 
 
 class TextStatus:
