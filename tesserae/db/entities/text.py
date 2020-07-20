@@ -15,8 +15,8 @@ class Text(Entity):
 
     Text entries in the Tesserae database contain metadata about text files
     available to Tesserae. The language, title, author, and year are attributes
-    of the text's creation. The id, hash, path, and unit types are all
-    for internal bookeeping purposes.
+    of the text's creation. The id and path are for internal bookeeping
+    purposes.
 
     Parameters
     ----------
@@ -30,12 +30,10 @@ class Text(Entity):
         Full name of the text's author.
     year : int, optional
         Year that the text was written/published.
-    unit_types : str or list of str, optional
-        Available methods for splitting a text into units.
+    path : str
+        Path to .tess file
     is_prose : bool
-        Is this text prose?  Default is True.
-    extras : dict, optional
-        User-specified attributes
+        Whether text is prose work
 
     Attributes
     ----------
@@ -49,32 +47,41 @@ class Text(Entity):
         Full name of the text's author.
     year : int
         Year that the text was written/published.
-    unit_types : list of str
-        Available methods for splitting a text into units.
+    path : str
+        Path to .tess file
     is_prose : bool
-        Is this text prose?
-    extras : dict
-        User-specified attributes
+        Whether text is prose work
 
     """
 
     collection = 'texts'
 
-    def __init__(self, id=None, cts_urn=None, language=None, title=None,
-                 author=None, year=None, unit_types=None, path=None,
-                 is_prose=True, hash=None, extras=None):
+    def __init__(self,
+                 id=None,
+                 cts_urn=None,
+                 language=None,
+                 title=None,
+                 author=None,
+                 year=None,
+                 path=None,
+                 is_prose=False,
+                 ingestion_status=None,
+                 ingestion_msg=None,
+                 divisions=None):
         super(Text, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.title: typing.Optional[str] = title
         self.author: typing.Optional[str] = author
+        self.is_prose: typing.Optional[bool] = is_prose
         self.year: typing.Optional[int] = year
-        self.unit_types: typing.List[str] = \
-            unit_types if unit_types is not None else []
         self.path: typing.Optional[str] = path
-        self.is_prose: bool = is_prose
-        self.hash: typing.Optional[str] = hash
-        self.extras: typing.Dict[typing.Any, typing.Any] = \
-            extras if extras is not None else {}
+        self.ingestion_status: str = ingestion_status \
+            if ingestion_status is not None \
+            else TextStatus.INIT
+        self.ingestion_msg: str = ingestion_msg \
+            if ingestion_msg is not None else ''
+        self.divisions: str = divisions \
+            if divisions is not None else []
 
     def unique_values(self):
         return {
@@ -82,3 +89,16 @@ class Text(Entity):
             'title': self.title,
             'author': self.author
         }
+
+    def __repr__(self):
+        return (f'Text(language={self.language}, title={self.title}, '
+                f'author={self.author}, year={self.year}, '
+                f'path={self.path}, is_prose={self.is_prose})')
+
+
+class TextStatus:
+
+    INIT = 'Initialized'
+    RUN = 'Running'
+    DONE = 'Done'
+    FAILED = 'Failed'

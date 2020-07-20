@@ -11,6 +11,7 @@ from bson.objectid import ObjectId
 
 from tesserae.db.entities.entity import Entity
 
+
 class StopwordsList(Entity):
     """Named list of stopwords
 
@@ -40,3 +41,6 @@ class StopwordsList(Entity):
         self.name: typing.Optional[str] = name
         self.stopwords: typing.List[str] = \
             stopwords if stopwords is not None else []
+
+    def __repr__(self):
+        return f'StopwordsList(name={self.name}, stopwords={self.stopwords})'

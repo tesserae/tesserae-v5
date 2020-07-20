@@ -1,16 +1,22 @@
 """Utility operations for unit tests across multiple modules.
 """
 from pathlib import Path
-import pytest
-
-import datetime
 import getpass
-import glob
 import json
 import os
+import tempfile
 
-import numpy as np
 import pymongo
+import pytest
+
+from tesserae.db import TessMongoConnection, Text
+from tesserae.utils import ingest_text
+from tesserae.utils.delete import obliterate
+from tesserae.utils.multitext import BigramWriter
+
+
+# Make sure that bigram databases are written out to a temporary location
+BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
 
 
 def pytest_addoption(parser):
@@ -40,16 +46,16 @@ def mini_latin_metadata(tessfiles_latin_path):
             'author': 'minivergil',
             'language': 'latin',
             'year': -19,
-            'unit_types': ['line', 'phrase'],
-            'path': str(tessfiles_latin_path.joinpath('mini.aen.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.aen.tess')),
+            'is_prose': False
         },
         {
             'title': 'miniphar',
             'author': 'minilucan',
             'language': 'latin',
             'year': 65,
-            'unit_types': ['line', 'phrase'],
-            'path': str(tessfiles_latin_path.joinpath('mini.phar.tess'))
+            'path': str(tessfiles_latin_path.joinpath('mini.phar.tess')),
+            'is_prose': False
         },
     ]
 
@@ -62,16 +68,61 @@ def mini_greek_metadata(tessfiles_greek_path):
             'author': 'minihomer',
             'language': 'greek',
             'year': -1260,
-            'unit_types': ['line', 'phrase'],
-            'path': str(tessfiles_greek_path.joinpath('mini.il.tess'))
+            'path': str(tessfiles_greek_path.joinpath('mini.il.tess')),
+            'is_prose': False
         },
         {
             'title': 'minigorgis',
             'author': 'miniplato',
             'language': 'greek',
             'year': -283,
-            'unit_types': ['line', 'phrase'],
-            'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess'))
+            'path': str(tessfiles_greek_path.joinpath('mini.gorg.tess')),
+            'is_prose': True
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
+def mini_punctuation_metadata(tessfiles_latin_path):
+    return [
+        {
+            'title': 'minicivdei',
+            'author': 'miniaug',
+            'language': 'latin',
+            'year': 426,
+            'path': str(tessfiles_latin_path.joinpath('mini.aug.tess')),
+            'is_prose': True
+        },
+        {
+            'title': 'minidiv',
+            'author': 'minicicero',
+            'language': 'latin',
+            'year': -44,
+            'path': str(tessfiles_latin_path.joinpath('mini.cic.tess')),
+            'is_prose': True
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
+def lucverg_metadata(tessfiles_latin_path):
+    return [
+        {
+            'title': 'aeneid',
+            'author': 'vergil',
+            'language': 'latin',
+            'year': -19,
+            'path': str(tessfiles_latin_path.joinpath('vergil.aeneid.tess')),
+            'is_prose': False
+        },
+        {
+            'title': 'bellum civile',
+            'author': 'lucan',
+            'language': 'latin',
+            'year': 65,
+            'path': str(tessfiles_latin_path.joinpath(
+                'lucan.bellum_civile.tess')),
+            'is_prose': False
         },
     ]
 
@@ -129,3 +180,17 @@ def test_data(connection, tessfiles):
 def tessfiles():
     return os.path.abspath(
         os.path.join(os.path.dirname(__file__), 'tessfiles'))
+
+
+@pytest.fixture(scope='session')
+def minipop(request, mini_greek_metadata, mini_latin_metadata):
+    conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    conn.create_indices()
+    for metadata in mini_greek_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    for metadata in mini_latin_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    yield conn
+    obliterate(conn)

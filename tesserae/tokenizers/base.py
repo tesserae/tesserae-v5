@@ -55,9 +55,9 @@ class BaseTokenizer(object):
         self.connection = connection
 
         # This pattern is used over and over again
-        self.word_characters = 'a-zA-Z'
-        self.diacriticals = \
-            '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
+        self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
+        # must use within square brackets
+        self.diacriticals = '\u0300-\u036F'
 
         self.split_pattern = \
             '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
@@ -91,7 +91,16 @@ class BaseTokenizer(object):
         tags = re.findall(r'([<][^>]+[>])', raw, flags=re.UNICODE)
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
 
-        # Apply lowercase and NKFD normalization to the token string
+        # Remove what appear to be Tesserae line delimiters
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+
+        # Remove digits
+        raw = re.sub(r'\d+', '', raw, flags=re.UNICODE)
+
+        # Clean up end of line whitespace
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
+
+        # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
         # If requested, split based on the language's split pattern.
@@ -128,14 +137,19 @@ class BaseTokenizer(object):
             Features associated with the tokens to be inserted into the
             database.
         """
+        # eliminate any lines that don't begin with a tag
+        raw = '\n'.join([line for line in raw.split('\n')
+            if line.strip().startswith('<') and '>' in line]) + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
-        tags = [re.search(r'([\d]+[.a-z\d]*)', t).groups()[0] for t in tags]
+        tags = [t[:-1].split()[-1] for t in tags]
 
         # Compute the display version of each token by stripping the metadata
         # tags and converting newlines to their symbolic form.
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
+        raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,
@@ -175,18 +189,30 @@ class BaseTokenizer(object):
         norm_i = 0
 
         try:
-            punctuation = self.connection.find('features', feature='punctuation')[0]
+            punctuation = \
+                self.connection.find('features', feature='punctuation')[0]
         except IndexError:
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if re.search('[' + self.word_characters + ']+', d, flags=re.UNICODE):
-                features = {key: val[norm_i]
-                            for key, val in featurized.items()}
+            # print(d, featurized['form'][norm_i].token)
+            if re.search(
+                    r'^[\d' + self.diacriticals + ']+$', d, flags=re.UNICODE):
+                # since Greek word_regex picks up digits, we need to first make
+                # sure we're not dealing with digits
+                # also ignore free floating diacritical marks
+                # as well as digits with diacritical marks
+                # print('ignore: ', d, featurized['form'][norm_i].token)
+                features = {
+                    key: punctuation if key == 'form' else [punctuation]
+                    for key in featurized.keys()}
+            elif not re.search(self.split_pattern, d, flags=re.UNICODE):
+                if self.word_regex.search(d):
+                    features = {key: val[norm_i]
+                                for key, val in featurized.items()}
+                    # print('word:', d, features['form'].token)
+                # increment normalized position in every non-non-word-token
                 norm_i += 1
-            elif re.search(r'^[\d]+$', d, flags=re.UNICODE):
-                features = {key: punctuation if key == 'form' else [punctuation]
-                            for key in featurized.keys()}
             else:
                 features = None
 

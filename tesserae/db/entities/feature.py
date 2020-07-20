@@ -25,7 +25,7 @@ class Feature(Entity):
     ----------
     id : ObjectId, optional
         Database id of the Feature.
-    feature : {'form','lemma','semantic','sound'}, optional
+    feature : {'form','lemmata','semantic','sound'}, optional
         The type of feature.
     token : str, optional
         The string representation of the feature.
@@ -49,24 +49,16 @@ class Feature(Entity):
         self.frequencies: typing.Dict[ObjectId, int] = \
             frequencies if frequencies is not None else {}
 
-    # def json_encode(self, exclude):
-    #    self._ignore = []
-
-    #    if isinstance(self.semantic, Entity):
-    #        self.semantic = self.semantic.id
-    #    if isinstance(self.sound, Entity):
-    #        self.sound = self.sound.id
-
-    #     obj = super(Feature, self).json_encode()
-
-    #     self.semantic, self.sound = self._ignore
-    #     del self._ignore
-
-    #     return obj
-
     def unique_values(self):
         return {
             'language': self.language,
             'feature': self.feature,
             'token': self.token
         }
+
+    def __repr__(self):
+        return (
+            f'Feature(language={self.language}, feature={self.feature}, '
+            f'token={self.token}, index={self.index}, '
+            f'frequencies={self.frequencies})'
+        )
