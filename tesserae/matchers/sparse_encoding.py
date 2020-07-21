@@ -9,10 +9,11 @@ import itertools
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from tesserae.db.entities import Entity, Feature, Match, Unit
-from tesserae.utils.retrieve import TagHelper
+from tesserae.db.entities import Feature, Match, Unit
 from tesserae.utils.calculations import \
     get_corpus_frequencies, get_inverse_text_frequencies
+from tesserae.utils.retrieve import TagHelper
+from tesserae.utils.stopwords import create_stoplist, get_stoplist_indices
 
 
 class SparseMatrixSearch(object):
@@ -20,121 +21,6 @@ class SparseMatrixSearch(object):
 
     def __init__(self, connection):
         self.connection = connection
-
-    def get_stoplist(self, stopwords_list, feature=None, language=None):
-        """Retrieve ObjectIds for the given stopwords list
-
-        Parameters
-        ----------
-        stopwords_list : list of str
-            Words to consider as stopwords; these must be in normalized form
-
-        Returns
-        -------
-        stoplist : list of ObjectId
-            The `n` most frequent tokens in the basis texts.
-        """
-        pipeline = [{
-            '$match': {
-                'token': {
-                    '$in': stopwords_list
-                }
-            }
-        }, {
-            '$project': {
-                '_id': False,
-                'index': True
-            }
-        }]
-
-        if language is not None:
-            pipeline[0]['$match']['language'] = language
-
-        if feature is not None:
-            pipeline[0]['$match']['feature'] = feature
-
-        stoplist = self.connection.aggregate(Feature.collection,
-                                             pipeline,
-                                             encode=False)
-        return np.array([s['index'] for s in stoplist], dtype=np.uint32)
-
-    def create_stoplist(self, n, feature, language, basis='corpus'):
-        """Compute a stoplist of `n` tokens.
-
-        Parameters
-        ----------
-        n : int
-            The number of tokens to include in the stoplist.
-        basis : list of tesserae.db.entities.Text, optional
-            The texts to use as the frequency basis. If None, use frequencies
-            across the entire corpus.
-
-        Returns
-        -------
-        stoplist : list of ObjectId
-            The `n` most frequent tokens in the basis texts.
-        """
-        pipeline = [
-            {
-                '$match': {
-                    'feature': feature,
-                    'language': language
-                }
-            },
-        ]
-
-        if basis == 'corpus':
-            pipeline.append({
-                '$project': {
-                    '_id': False,
-                    'index': True,
-                    'token': True,
-                    'frequency': {
-                        '$reduce': {
-                            'input': {
-                                '$objectToArray': '$frequencies'
-                            },
-                            'initialValue': 0,
-                            'in': {
-                                '$sum': ['$$value', '$$this.v']
-                            }
-                        }
-                    }
-                }
-            })
-        else:
-            basis = [t.id if isinstance(t, Entity) else t for t in basis]
-            pipeline.extend([{
-                '$project': {
-                    '_id': False,
-                    'index': True,
-                    'token': True,
-                    'frequency': {
-                        '$sum':
-                        ['$frequencies.' + str(t_id) for t_id in basis]
-                    }
-                }
-            }])
-
-        pipeline.extend([{
-            '$sort': {
-                'frequency': -1
-            }
-        }, {
-            '$limit': n
-        }, {
-            '$project': {
-                'token': True,
-                'index': True,
-                'frequency': True
-            }
-        }])
-
-        stoplist = self.connection.aggregate(Feature.collection,
-                                             pipeline,
-                                             encode=False)
-        stoplist = list(stoplist)
-        return np.array([s['index'] for s in stoplist], dtype=np.uint32)
 
     def match(self,
               search,
@@ -195,14 +81,16 @@ class SparseMatrixSearch(object):
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
-            stoplist = self.create_stoplist(
+            stoplist = create_stoplist(
+                self.connection,
                 stopwords,
                 'form' if feature == 'form' else 'lemmata',
                 source.text.language,
                 basis=stopword_basis)
         else:
-            stoplist = self.get_stoplist(
-                stopwords, 'form' if feature == 'form' else 'lemmata',
+            stoplist = get_stoplist_indices(
+                self.connection, stopwords,
+                'form' if feature == 'form' else 'lemmata',
                 source.text.language)
 
         features = sorted(self.connection.find(Feature.collection,
