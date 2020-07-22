@@ -75,10 +75,9 @@ def parse_args(args=None):
         type=str,
         help=('path to database credentials file (see mass_ingest.py for '
               'details)'))
-    p.add_argument(
-        'ingest',
-        type=str,
-        help='path to ingest file (see mass_ingest.py for details)')
+    p.add_argument('ingest',
+                   type=str,
+                   help='path to ingest file (see mass_ingest.py for details)')
 
     default_lfn = 'mass_ingest.log'
     p.add_argument(
@@ -88,11 +87,10 @@ def parse_args(args=None):
         help=f'Log FileName: path to log file (default: {default_lfn})')
 
     default_level = 'DEBUG'
-    p.add_argument(
-        '--log',
-        type=str,
-        default=default_level,
-        help=f'logging level (default: {default_level})')
+    p.add_argument('--log',
+                   type=str,
+                   default=default_level,
+                   help=f'logging level (default: {default_level})')
 
     return p.parse_args(args)
 
@@ -120,10 +118,12 @@ def main():
     with open(args.db_cred) as ifh:
         db_cred = json.load(ifh)
 
-    conn = TessMongoConnection(
-        db_cred['host'], db_cred['port'], db_cred['user'], db_cred['password'],
-        db=db_cred['database']
-    )
+    conn = TessMongoConnection(db_cred['host'],
+                               db_cred['port'],
+                               db_cred['user'],
+                               db_cred['password'],
+                               db=db_cred['database'])
+    conn.create_indices()
 
     with open(args.ingest) as ifh:
         texts = [Text.json_decode(t) for t in json.load(ifh)]
