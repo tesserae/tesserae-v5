@@ -12,21 +12,24 @@ import uuid
 
 from tesserae.db import TessMongoConnection
 from tesserae.db.entities import Search
-from tesserae.matchers.sparse_encoding import SparseMatrixSearch
-from tesserae.utils.ingest import ingest_text
+from tesserae.matchers import SparseMatrixSearch
+from tesserae.matchers.text_options import TextOptions
+from tesserae.utils.search import \
+    check_cache, NORMAL_SEARCH, get_results, PageOptions, _run_search
+from tesserae.utils.stopwords import create_stoplist, get_stoplist_tokens
 
 
 def parse_args(args=None):
-    p = argparse.ArgumentParser(
-        prog='tesserae_ingest',
-        description='Ingest a text into the Tesserae database.')
+    p = argparse.ArgumentParser(prog='tesserae_search',
+                                description='Perform a Tesserae search')
 
-    db = p.add_argument_group(
-        title='database',
-        description='database connection details')
-    text = p.add_argument_group(
-        title='text',
-        description='text metadata')
+    db = p.add_argument_group(title='database',
+                              description='database connection details')
+    search = p.add_argument_group(
+        title='search',
+        description=(
+            'search parameters; use underscores (_) in place of spaces '
+            'if necessary'))
 
     db.add_argument('--user',
                     type=str,
@@ -34,7 +37,7 @@ def parse_args(args=None):
                     help='user to access the database as')
     db.add_argument('--password',
                     action='store_true',
-                    help='pass to be prompted for a database password')
+                    help='ask to be prompted for a database password')
     db.add_argument('--host',
                     type=str,
                     default='127.0.0.1',
@@ -48,88 +51,156 @@ def parse_args(args=None):
                     default='tesserae',
                     help='the name of the database to access')
 
-    text.add_argument('--source',
-                      type=str,
-                      help='title of the source text')
-    text.add_argument('--target',
-                      type=str,
-                      help='title of the target text')
-    text.add_argument('--unit',
-                      type=str,
-                      choices=['line', 'phrase'],
-                      help='units to match on')
-    text.add_argument('--feature',
-                      type=str,
-                      choices=['form', 'lemmata'],
-                      help='feature to match on')
-    text.add_argument('--n-stopwords', type=int, default=10,
-                      help='size of the stoplist')
-    text.add_argument('--stopword-basis', choices=['corpus', 'texts'],
-                      default='corpus', help='basis for stopword frequencies')
-    text.add_argument('--score-basis', choices=['word', 'stem'],
-                      default='word', help='compute frequency by word or individual stem')
-    text.add_argument('--frequency-basis', choices=['corpus', 'texts'],
-                      default='corpus', help='')
-    text.add_argument('--max-distance', type=int, default=10,
-                      help='maximum allowable ditance between match tokens')
-    text.add_argument('--distance-metric', choices=['span', 'frequency'],
-                      default='span', help='')
-    text.add_argument('--min-score', type=int, default=6,
-                      help='size of the stoplist')
-    text.add_argument('--parallel', action='store_true',
-                      help='enable parallel processing during search')
+    search.add_argument('source_author',
+                        type=str,
+                        help='author of the source text')
+    search.add_argument('source_title',
+                        type=str,
+                        help='title of the source text')
+    search.add_argument('source_unit',
+                        type=str,
+                        choices=['line', 'phrase'],
+                        help='units to match on the source text')
+    search.add_argument('target_author',
+                        type=str,
+                        help='author of the target text')
+    search.add_argument('target_title',
+                        type=str,
+                        help='title of the target text')
+    search.add_argument('target_unit',
+                        type=str,
+                        choices=['line', 'phrase'],
+                        help='units to match on the target text')
+    search.add_argument('--feature',
+                        type=str,
+                        choices=['form', 'lemmata'],
+                        default='lemmata',
+                        help='feature to match on')
+    search.add_argument('--n-stopwords',
+                        type=int,
+                        default=10,
+                        help='size of the stopwords list')
+    search.add_argument('--stopword-basis',
+                        choices=['corpus', 'texts'],
+                        default='corpus',
+                        help='data to use in computing a stopwords list')
+    search.add_argument('--score-basis',
+                        choices=['word', 'stem'],
+                        default='word',
+                        help='atom to consider in computing scores')
+    search.add_argument('--freq-basis',
+                        choices=['corpus', 'texts'],
+                        default='texts',
+                        help='data to use in computing frequencies')
+    search.add_argument(
+        '--max-distance',
+        type=int,
+        default=999,
+        help='maximum allowable distance between matched tokens')
+    search.add_argument('--distance-basis',
+                        choices=['span', 'frequency'],
+                        default='frequency',
+                        help='how to compute distance between matched tokens')
+    search.add_argument('--min-score',
+                        type=int,
+                        default=0,
+                        help='lowest scoring match to keep')
 
     return p.parse_args(args)
 
 
 def main():
-    """Ingest a text into Tesserae.
-
-    Takes a .tess files and computes tokens, features, frequencies, and units.
-    All computed components are inserted into the database.
-    """
+    """Perform Tesserae search and display the top 10 results"""
     args = parse_args()
     if args.password:
         password = getpass(prompt='Tesserae MongoDB Password: ')
     else:
         password = None
 
-    connection = TessMongoConnection(
-        args.host, args.port, args.user, password, db=args.database)
+    connection = TessMongoConnection(args.host,
+                                     args.port,
+                                     args.user,
+                                     password,
+                                     db=args.database)
 
-    source = connection.find('texts', title=args.source.lower())[0]
-    target = connection.find('texts', title=args.target.lower())[0]
+    source_author = args.source_author.lower().replace('-', ' ')
+    source_title = args.source_title.lower().replace('-', ' ')
+    source = TextOptions(text=connection.find('texts',
+                                              author=source_author,
+                                              title=source_title)[0],
+                         unit_type=args.source_unit)
+    target_author = args.target_author.lower().replace('_', ' ')
+    target_title = args.target_title.lower().replace('_', ' ')
+    target = TextOptions(text=connection.find('texts',
+                                              author=target_author,
+                                              title=target_title)[0],
+                         unit_type=args.target_unit)
 
-    engine = SparseMatrixSearch(connection)
     start = time.time()
-    search = Search(results_id=uuid.uuid4().hex)
-    connection.insert(search)
-    texts, params, matches = engine.match(search,
-                  [source, target], args.unit, args.feature,
-                  stopwords=args.n_stopwords,
-                  stopword_basis=args.stopword_basis,
-                  score_basis=args.score_basis,
-                  frequency_basis=args.frequency_basis,
-                  max_distance=args.max_distance,
-                  distance_metric=args.distance_metric,
-                  min_score=args.min_score,
-                  parallel=args.parallel)
+    stopword_indices = create_stoplist(
+        connection,
+        args.n_stopwords,
+        args.feature,
+        source.text.language,
+        basis='corpus' if args.stopword_basis == 'corpus' else
+        [source.text.id, target.text.id])
+    stopword_tokens = get_stoplist_tokens(connection, stopword_indices,
+                                          args.feature, source.text.language)
+    parameters = {
+        'source': {
+            'object_id': str(source.text.id),
+            'units': source.unit_type
+        },
+        'target': {
+            'object_id': str(target.text.id),
+            'units': target.unit_type
+        },
+        'method': {
+            'name': SparseMatrixSearch.matcher_type,
+            'feature': args.feature,
+            'stopwords': stopword_tokens,
+            'freq_basis': args.freq_basis,
+            'max_distance': args.max_distance,
+            'distance_basis': args.distance_basis
+        }
+    }
+    results_id = check_cache(connection, parameters['source'],
+                             parameters['target'], parameters['method'])
+    if results_id:
+        print('Cached results found.')
+        search = connection.find(Search.collection,
+                                 results_id=results_id,
+                                 search_type=NORMAL_SEARCH)[0]
+    else:
+        search = Search(results_id=uuid.uuid4().hex,
+                        search_type=NORMAL_SEARCH,
+                        parameters=parameters)
+        connection.insert(search)
+        search_params = {
+            'source': source,
+            'target': target,
+            'feature': parameters['method']['feature'],
+            'stopwords': parameters['method']['stopwords'],
+            'freq_basis': parameters['method']['freq_basis'],
+            'max_distance': parameters['method']['max_distance'],
+            'distance_basis': parameters['method']['distance_basis'],
+            'min_score': 0
+        }
+        _run_search(connection, search, SparseMatrixSearch.matcher_type,
+                    search_params)
+    matches = get_results(connection, search.id, PageOptions())
     end = time.time() - start
-    search.texts = texts
-    search.parameters = params
-    search.matches = matches
+    matches.sort(key=lambda x: x['score'], reverse=True)
     print(f'Search found {len(matches)} matches in {end}s.')
-    connection.insert(matches)
-    connection.update(search)
-    matches.sort(key=lambda x: x.score, reverse=True)
-    print('The Top 10 Matches')
+    display_count = 10 if len(matches) >= 10 else len(matches)
+    print(f'The Top {display_count} Matches')
     print('------------------')
     print()
     print("Result\tScore\tSource Locus\tTarget Locus\tShared")
     for i, m in enumerate(matches[:10]):
-        units = connection.find('units', _id=[m.source_unit, m.target_unit])
-        shared = m.matched_features
-        print(f'{i}.\t{m.score}\t{units[0].tags[0]}\t{units[1].tags[0]}\t{[t for t in shared]}')
+        shared = m['matched_features']
+        print(f'{i}.\t{m["score"]}\t{m["source_tag"]}\t{m["target_tag"]}\t'
+              f'{[t for t in shared]}')
 
 
 if __name__ == '__main__':
