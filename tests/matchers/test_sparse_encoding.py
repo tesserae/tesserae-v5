@@ -369,7 +369,7 @@ def test_latin_semantic(minipop, mini_latin_metadata):
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic',
-        stopwords=['et', 'non', 'atqui'],
+        stopwords=['et', 'neque', 'per'],
         stopword_basis='texts', score_basis='stem',
         freq_basis='texts', max_distance=999,
         distance_basis='frequency', min_score=0)
@@ -395,7 +395,7 @@ def test_latin_semlem(minipop, mini_latin_metadata):
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic + lemma',
-        stopwords=['et', 'non', 'atqui'],
+        stopwords=['et', 'neque', 'per'],
         stopword_basis='texts', score_basis='stem',
         freq_basis='texts', max_distance=999,
         distance_basis='frequency', min_score=0)
