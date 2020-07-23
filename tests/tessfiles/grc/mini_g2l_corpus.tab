@@ -14,6 +14,6 @@
 # filter    = off
 
 "RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
-1	"sil. 1.485"	"praemia et Italiam **tellure** **inquire** sub ima."	"aristop. ach. 341"	"τοὺς λίθους νύν μοι **χαμᾶζε** πρῶτον **ἐξεράσατε**."	"tellus; inquiro"	4
-2	"sil. 1.630"	"**Sed** postquam clades **patefecit** et horrida bella"	"aristop. ach. 1189"	"ὁδὶ δὲ καὐτός: **ἀλλ'** **ἄνοιγε** τὴν θύραν."	"sed; patefacio"	4
-3	"sil. 1.441"	"uoce mouere **fora** **atque** orando fingere mentes"	"aristop. ach. 855"	"Λυσίστρατός **τ'** ἐν **τἀγορᾷ**, Χολαργέων ὄνειδος,"	"forum; atque"	4
+1	"sil. 1.485"	"praemia et Italiam **tellure** **inquire** sub ima."	"aristop. ach. 341"	"τοὺς λίθους νύν μοι **χαμᾶζε** πρῶτον **ἐξεράσατε**."	"tellus; inquiro"	4.402
+2	"sil. 1.630"	"**Sed** postquam clades **patefecit** et horrida bella"	"aristop. ach. 1189"	"ὁδὶ δὲ καὐτός: **ἀλλ'** **ἄνοιγε** τὴν θύραν."	"sed; patefacio"	4.220
+3	"sil. 1.441"	"uoce mouere **fora** **atque** orando fingere mentes"	"aristop. ach. 855"	"Λυσίστρατός **τ'** ἐν **τἀγορᾷ**, Χολαργέων ὄνειδος,"	"atque; forum"	4.097
