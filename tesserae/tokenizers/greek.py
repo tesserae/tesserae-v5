@@ -5,6 +5,7 @@ from cltk.semantics.latin.lookup import Lemmata
 
 from tesserae.tokenizers.base import BaseTokenizer
 
+from tesserae.features.trigrams import tri_greek
 
 class GreekTokenizer(BaseTokenizer):
     def __init__(self, connection):
@@ -79,6 +80,7 @@ class GreekTokenizer(BaseTokenizer):
 
         return normalized, tags
 
+
     def featurize(self, tokens):
         """Get the features for a single Greek token.
 
@@ -98,11 +100,19 @@ class GreekTokenizer(BaseTokenizer):
         method.
         """
         lemmata = self.lemmatizer.lookup(tokens)
+#        print('Greek lemmata:', lemmata)
         fixed_lemmata = []
         for lem in lemmata:
             lem_lemmata = [l[0] for l in lem[1]]
             fixed_lemmata.append(lem_lemmata)
+#        print("fixed lemmata:", fixed_lemmata)
+        grams = tri_greek(tokens)
         features = {
-            'lemmata': fixed_lemmata
+            'lemmata': fixed_lemmata,
+            'sound': grams
         }
+#       features = {
+#            'lemmata': fixed_lemmata
+#        }
+#        print('features', features)
         return features
