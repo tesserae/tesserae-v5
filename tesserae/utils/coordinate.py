@@ -4,6 +4,7 @@ import queue
 
 from tesserae.db import TessMongoConnection
 
+
 class JobQueue:
     """Resource holder for Tesserae operations
 

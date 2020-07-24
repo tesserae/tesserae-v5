@@ -6,37 +6,16 @@ import traceback
 from tesserae.db.entities import Match, Search
 import tesserae.matchers
 
-
 NORMAL_SEARCH = 'vanilla'
 
 
-def submit_search(jobqueue, results_id, search_type, search_params):
+def submit_search(jobqueue, connection, results_id, search_type,
+                  search_params):
     """Submit a job for Tesserae search
 
     Parameters
     ----------
     jobqueue : tesserae.utils.coordinate.JobQueue
-    results_id : str
-        UUID to associate with search to be performed
-    search_type : str
-        the search to perform; must be a key in tesserae.matchers.matcher_map
-    search_params : dict
-        parameter names mapped to arguments to be used for the search
-
-    """
-    kwargs = {
-        'results_id': results_id,
-        'search_type': search_type,
-        'search_params': search_params
-    }
-    jobqueue.queue_job(_run_search, kwargs)
-
-
-def _run_search(connection, results_id, search_type, search_params):
-    """Instructions for running Tesserae search
-
-    Parameters
-    ----------
     connection : TessMongoConnection
     results_id : str
         UUID to associate with search to be performed
@@ -46,7 +25,6 @@ def _run_search(connection, results_id, search_type, search_params):
         parameter names mapped to arguments to be used for the search
 
     """
-    start_time = time.time()
     parameters = {
         'source': {
             'object_id': str(search_params['source'].text.id),
@@ -65,13 +43,33 @@ def _run_search(connection, results_id, search_type, search_params):
             'distance_basis': search_params['distance_basis']
         }
     }
-    results_status = Search(
-        results_id=results_id,
-        search_type=NORMAL_SEARCH,
-        status=Search.INIT, msg='',
-        parameters=parameters
-    )
+    results_status = Search(results_id=results_id,
+                            search_type=NORMAL_SEARCH,
+                            status=Search.INIT,
+                            msg='',
+                            parameters=parameters)
     connection.insert(results_status)
+    kwargs = {
+        'results_status': results_status,
+        'search_type': search_type,
+        'search_params': search_params
+    }
+    jobqueue.queue_job(_run_search, kwargs)
+
+
+def _run_search(connection, results_status, search_type, search_params):
+    """Instructions for running Tesserae search
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    results_status : tesserae.db.entities.Search
+        Status keeper
+    search_params : dict
+        parameter names mapped to arguments to be used for the search
+
+    """
+    start_time = time.time()
     try:
         matcher = tesserae.matchers.matcher_map[search_type](connection)
         results_status.update_current_stage_value(1.0)
@@ -90,12 +88,12 @@ def _run_search(connection, results_id, search_type, search_params):
         for start in range(0, len(matches), stepsize):
             results_status.update_current_stage_value(start / len(matches))
             connection.update(results_status)
-            connection.insert_nocheck(matches[start:start+stepsize])
+            connection.insert_nocheck(matches[start:start + stepsize])
 
         results_status.update_current_stage_value(1.0)
         results_status.status = Search.DONE
-        results_status.msg = 'Done in {} seconds'.format(
-            time.time() - start_time)
+        results_status.msg = 'Done in {} seconds'.format(time.time() -
+                                                         start_time)
         results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
     # we want to catch all errors and log them into the Search entity
@@ -132,35 +130,53 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/tutorial/query-arrays/
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
+    search_for = {
+        'search_type':
+        NORMAL_SEARCH,
+        'parameters.source.object_id':
+        str(source['object_id']),
+        'parameters.source.units':
+        source['units'],
+        'parameters.target.object_id':
+        str(target['object_id']),
+        'parameters.target.units':
+        target['units'],
+        'parameters.method.name':
+        method['name'],
+        'parameters.method.feature':
+        method['feature'],
+        '$and': [{
+            'parameters.method.stopwords': {
+                '$all': method['stopwords']
+            }
+        }, {
+            'parameters.method.stopwords': {
+                '$size': len(method['stopwords'])
+            }
+        }],
+        'parameters.method.freq_basis':
+        method['freq_basis'],
+        'parameters.method.max_distance':
+        method['max_distance'],
+        'parameters.method.distance_basis':
+        method['distance_basis']
+    }
     found = [
         Search.json_decode(f)
-        for f in connection.connection[Search.collection].find({
-            'search_type': NORMAL_SEARCH,
-            'parameters.source.object_id': str(source['object_id']),
-            'parameters.source.units': source['units'],
-            'parameters.target.object_id': str(target['object_id']),
-            'parameters.target.units': target['units'],
-            'parameters.method.name': method['name'],
-            'parameters.method.feature': method['feature'],
-            '$and': [
-                {'parameters.method.stopwords': {'$all': method['stopwords']}},
-                {'parameters.method.stopwords': {
-                    '$size': len(method['stopwords'])}}
-            ],
-            'parameters.method.freq_basis': method['freq_basis'],
-            'parameters.method.max_distance': method['max_distance'],
-            'parameters.method.distance_basis': method['distance_basis']
-        })
+        for f in connection.connection[Search.collection].find(search_for)
     ]
-    if found and found[0].status != Search.FAILED:
-        return found[0].results_id
+    for s in found:
+        if s.status != Search.FAILED:
+            return s.results_id
     return None
 
 
 class PageOptions:
     """Data structure indicating paging options for results"""
-
-    def __init__(self, sort_by=None, sort_order=None, per_page=None,
+    def __init__(self,
+                 sort_by=None,
+                 sort_order=None,
+                 per_page=None,
                  page_number=None):
         self.sort_by = sort_by
         if sort_order == 'ascending':
@@ -194,25 +210,21 @@ def retrieve_matches(connection, pipeline):
     -------
     list of MatchResult
     """
-    final_pipeline = pipeline + [
-        {
-            '$project': {
-                '_id': True,
-                'source_tag': True,
-                'target_tag': True,
-                'matched_features': True,
-                'score': True,
-                'source_snippet': True,
-                'target_snippet': True,
-                'highlight': True
-            }
+    final_pipeline = pipeline + [{
+        '$project': {
+            '_id': True,
+            'source_tag': True,
+            'target_tag': True,
+            'matched_features': True,
+            'score': True,
+            'source_snippet': True,
+            'target_snippet': True,
+            'highlight': True
         }
-    ]
-    db_matches = connection.aggregate(
-        Match.collection,
-        final_pipeline,
-        encode=False
-    )
+    }]
+    db_matches = connection.aggregate(Match.collection,
+                                      final_pipeline,
+                                      encode=False)
     return [{
         'object_id': str(match['_id']),
         'source_tag': match['source_tag'],
@@ -258,15 +270,19 @@ def retrieve_matches_by_page(connection, search_id, page_options):
     all_specified = page_options.all_specified()
     if all_specified and page_options.sort_by == 'score':
         start = page_options.page_number * page_options.per_page
-        return retrieve_matches(
-            connection,
-            [
-                {'$match': {'search_id': search_id}},
-                {'$sort': {'score': page_options.sort_order}},
-                {'$skip': start},
-                {'$limit': page_options.per_page}
-            ]
-        )
+        return retrieve_matches(connection, [{
+            '$match': {
+                'search_id': search_id
+            }
+        }, {
+            '$sort': {
+                'score': page_options.sort_order
+            }
+        }, {
+            '$skip': start
+        }, {
+            '$limit': page_options.per_page
+        }])
     all_matches = retrieve_matches_by_search_id(connection, search_id)
     if all_specified:
         start = page_options.page_number * page_options.per_page
@@ -274,38 +290,65 @@ def retrieve_matches_by_page(connection, search_id, page_options):
         if page_options.sort_by == 'source_tag':
             all_matches.sort(
                 key=lambda x: tuple(x['source_tag'].split()[-1].split('.')),
-                reverse=page_options.sort_order == -1
-            )
+                reverse=page_options.sort_order == -1)
         if page_options.sort_by == 'target_tag':
             all_matches.sort(
                 key=lambda x: tuple(x['target_tag'].split()[-1].split('.')),
-                reverse=page_options.sort_order == -1
-            )
+                reverse=page_options.sort_order == -1)
         if page_options.sort_by == 'matched_features':
-            all_matches.sort(
-                key=lambda x: x['matched_features'],
-                reverse=page_options.sort_order == -1
-            )
+            all_matches.sort(key=lambda x: x['matched_features'],
+                             reverse=page_options.sort_order == -1)
         return all_matches[start:end]
     return all_matches
 
 
-def get_results(connection, results_id, page_options):
-    """Retrive search results with associated id
+def get_results(connection, search_id, page_options):
+    """Retrieve search results with associated id
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
-    results_id : str
-        UUID for Search whose results you are trying to retrieve
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
     page_options : PageOptions
 
     Returns
     -------
     list of MatchResult
     """
-    found = connection.find(
-            Search.collection, results_id=results_id, status=Search.DONE)[0]
-    found.last_queried = datetime.datetime.utcnow()
-    connection.update(found)
-    return retrieve_matches_by_page(connection, found.id, page_options)
+    return retrieve_matches_by_page(connection, search_id, page_options)
+
+
+def get_max_score(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search associated with results of interest
+
+    Returns
+    -------
+    float
+        Maximum score of results associated with ``search_id``
+    """
+    return connection.connection[Match.collection].find_one(
+        {'search_id': search_id}, sort=[('score', -1)])['score']
+
+
+def get_results_count(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    float
+    """
+    return connection.connection[Match.collection].count_documents(
+        {'search_id': search_id})

@@ -176,7 +176,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
     _check_search_results(v5_results, v3_results)
@@ -203,7 +203,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
     print(len(v5_results), len(v3_results))
@@ -270,7 +270,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_latin_corpus_results.tab')
@@ -302,7 +302,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
             texts[0].path, 'mini_greek_corpus_results.tab')
@@ -355,7 +355,7 @@ def test_latin_sound(minipop, mini_latin_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_3gr.tab')
     for p in v3_results:
@@ -406,14 +406,14 @@ def test_latin_semantic(minipop, mini_latin_metadata):
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic',
-        stopwords=['et', 'non', 'atqui'],
+        stopwords=['et', 'neque', 'per'],
         stopword_basis='texts', score_basis='stem',
         freq_basis='texts', max_distance=999,
         distance_basis='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_syn.tab')
     _check_search_results(v5_results, v3_results)
@@ -432,14 +432,14 @@ def test_latin_semlem(minipop, mini_latin_metadata):
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
         'semantic + lemma',
-        stopwords=['et', 'non', 'atqui'],
+        stopwords=['et', 'neque', 'per'],
         stopword_basis='texts', score_basis='stem',
         freq_basis='texts', max_distance=999,
         distance_basis='frequency', min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
         texts[0].path, 'mini_latin_results_syn_lem.tab')
@@ -467,7 +467,7 @@ def test_greek_sound(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
     for p in v3_results:
@@ -500,7 +500,7 @@ def test_greek_semantic(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_syn.tab')
     print(len(v5_results), len(v3_results))
@@ -528,7 +528,7 @@ def test_greek_semlem(minipop, mini_greek_metadata):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, results_id, PageOptions())
+    v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(
         texts[0].path, 'mini_greek_results_syn_lem.tab')
@@ -596,7 +596,7 @@ def test_lucverg(lucvergpop, lucverg_metadata):
     lucvergpop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     lucvergpop.update(search_result)
-    v5_results = get_results(lucvergpop, results_id, PageOptions())
+    v5_results = get_results(lucvergpop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'lucverg_time.tab')
     _check_search_results(v5_results, v3_results)

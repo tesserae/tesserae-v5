@@ -89,3 +89,6 @@ class Search(Entity):
 
     def add_new_stage(self, stage):
         self.progress.append({'stage': stage, 'value': 0.0})
+
+    def update_last_queried(self):
+        self.last_queried = datetime.datetime.utcnow()
