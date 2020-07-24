@@ -5,12 +5,13 @@ import uuid
 
 import math
 import pytest
+import numpy as np
 
 from tesserae.db import Feature, Search, Text, \
                         TessMongoConnection
 from tesserae.matchers.sparse_encoding import \
         SparseMatrixSearch, get_inverse_text_frequencies, \
-        get_corpus_frequencies
+        get_corpus_frequencies, _get_units
 from tesserae.matchers.text_options import TextOptions
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
@@ -18,6 +19,7 @@ from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.search import get_results, PageOptions
 from tesserae.utils.tessfile import TessFile
+from tesserae.utils.stopwords import get_stoplist_tokens
 
 
 @pytest.fixture(scope='session')
@@ -141,11 +143,14 @@ def _check_search_results(v5_results, v3_results):
         for source_loc in v5_relations[target_loc]:
             if target_loc not in v3_relations or \
                     source_loc not in v3_relations[target_loc]:
-                in_v5_not_in_v3.append(v5_relations[target_loc][source_loc])
+                in_v5_not_in_v3.append(v5_relations[target_loc][source_loc]['matched_features'])
     pprint.pprint(score_discrepancies)
     pprint.pprint(match_discrepancies)
+    print('only in v5')
     pprint.pprint(in_v5_not_in_v3)
+    print('only in v3')
     pprint.pprint(in_v3_not_in_v5)
+    print('next')
     assert not score_discrepancies
     assert not match_discrepancies
     assert not in_v5_not_in_v3
@@ -353,7 +358,46 @@ def test_latin_sound(minipop, mini_latin_metadata):
     v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_3gr.tab')
+    for p in v3_results:
+        print('v3 trigrams:', p['matched_features'])
+    for p in v5_results:
+        print('v5 trigrams:', p['matched_features'])
+    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
     _check_search_results(v5_results, v3_results)
+
+
+def test_latin_trigrams(minipop, mini_latin_metadata):
+    texts = minipop.find(
+        Text.collection, title=[m['title'] for m in mini_latin_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
+    v5_results = []
+    v3_results = []
+    raw_v5_results = []
+    target_units = _get_units(minipop, TextOptions(texts[0], 'line'), 'sound')
+    for b in target_units:
+        raw_v5_results.append(b['features'])
+    raw_v3_results = _load_v3_results(texts[0].path, 
+    'mini_latin_results_3gr.tab')
+    for a in raw_v3_results:
+        v3_results.append(a['matched_features'])
+    print('v5 results:')
+    for a in raw_v5_results:
+        print(a)
+        for n in a:
+            print(n)
+            n = np.asarray(n)
+            print('array',n)
+            print(np.shape(n))
+            b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
+            v5_results.append(b)
+    print(v5_results)    
+    print('v3 results:')
+    for a in v3_results:
+        print(a)
+    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
+    assert False
 
 
 def test_latin_semantic(minipop, mini_latin_metadata):
@@ -433,7 +477,11 @@ def test_greek_sound(minipop, mini_greek_metadata):
     v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
-    print(len(v5_results), len(v3_results))
+    for p in v3_results:
+        print('v3 trigrams:', p['matched_features'])
+    for p in v5_results:
+        print('v5 trigrams:', p['matched_features'])
+    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
     _check_search_results(v5_results, v3_results)
 
 

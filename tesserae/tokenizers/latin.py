@@ -7,7 +7,7 @@ from cltk.stem.latin.j_v import JVReplacer
 
 from tesserae.tokenizers.base import BaseTokenizer
 from tesserae.db.entities import Token
-
+from tesserae.features.trigrams import tri_latin
 
 class LatinTokenizer(BaseTokenizer):
     def __init__(self, connection):
@@ -51,6 +51,7 @@ class LatinTokenizer(BaseTokenizer):
 
         return normalized, tags
 
+
     def featurize(self, tokens):
         """Lemmatize a Latin token.
 
@@ -58,7 +59,6 @@ class LatinTokenizer(BaseTokenizer):
         ----------
         tokens : list of str
             The token to featurize.
-
         Returns
         -------
         lemmata : dict
@@ -69,16 +69,22 @@ class LatinTokenizer(BaseTokenizer):
         Input should be sanitized with `LatinTokenizer.normalize` prior to
         using this method.
         """
+        print('tokenizers.latin.featurize')
         if not isinstance(tokens, list):
             tokens = [tokens]
         lemmata = self.lemmatizer.lookup(tokens)
+#        print("Latin lemmata:", lemmata)
         fixed_lemmata = []
         for lem in lemmata:
             lem_lemmata = [l[0] for l in lem[1]]
             fixed_lemmata.append(lem_lemmata)
+#        print("fixed lemmata:", fixed_lemmata)
+        grams = tri_latin(tokens)
         features = {
-            'lemmata': fixed_lemmata
+            'lemmata': fixed_lemmata,
+            'sound': grams
         }
+#        print('features', features)
         # for i, l in enumerate(lemmata):
         #     features.append({'lemmata': [lem[0] for lem in l[1]]})
         return features
