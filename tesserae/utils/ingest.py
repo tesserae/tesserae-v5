@@ -10,6 +10,8 @@ from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
 from tesserae.utils.multitext import register_bigrams
+from tesserae.utils.search import NORMAL_SEARCH
+from tesserae.utils.multitext import MULTITEXT_SEARCH
 from tesserae.utils.tessfile import TessFile
 
 
@@ -59,32 +61,30 @@ def _run_ingest(connection, text, file_location, enable_multitext=False):
     """
     start_time = time.time()
     if text.language not in _tokenizers:
-        text.ingestion_status = TextStatus.FAILED
-        text.ingestion_msg = \
-            'Unknown language: {}'.format(text.language)
+        text.ingestion_status = (TextStatus.FAILED,
+                                 'Unknown language: {}'.format(text.language))
+        connection.update(text)
         return
     if already_ingested(connection, text):
-        text.ingestion_status = TextStatus.FAILED
-        text.ingestion_msg = (
+        text.ingestion_status = (
+            TextStatus.FAILED,
             f'Text already in database (author: {text.author}, '
             f'title: {text.title})')
+        connection.update(text)
         return
-    text.ingestion_status = TextStatus.RUN
-    connection.update(text)
 
     text.path = file_location
     tessfile = TessFile(text.path, metadata=text)
 
     try:
         _ingest_tessfile(connection, text, tessfile, enable_multitext)
-        text.ingestion_status = TextStatus.DONE
-        text.ingestion_msg = \
-            f'Done in {time.time() - start_time} seconds'
+        text.ingestion_status = (
+            TextStatus.DONE,
+            f'Ingestion complete in {time.time()-start_time} seconds')
         connection.update(text)
     # we want to catch all errors and log them into the Text entity
     except:  # noqa: E722
-        text.ingestion_status = TextStatus.FAILED
-        text.ingestion_msg = traceback.format_exc()
+        text.ingestion_status = (TextStatus.FAILED, traceback.format_exc())
         connection.update(text)
 
 
