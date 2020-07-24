@@ -15,6 +15,7 @@ def tri_greek(tokens):
 		final = len(characters) - 1
 		if len(characters) < 3:
 			grams = [' ']
+			#empty string conflicts with create_features in tesserae/tokenizers/base.py
 		else:
 			for a in range(final-1):
 				grams.append(characters[a]+characters[a+1]+characters[a+2])
@@ -37,6 +38,7 @@ def tri_latin(tokens):
 		final = len(characters) - 1
 		if len(characters) < 3:
 			grams = [' ']
+			#empty string conflicts with create_features in tesserae/tokenizers/base.py
 		else:
 			for a in range(final-1):
 				grams.append(characters[a]+characters[a+1]+characters[a+2])

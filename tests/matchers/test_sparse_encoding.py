@@ -19,6 +19,7 @@ from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.search import get_results, PageOptions
 from tesserae.utils.tessfile import TessFile
+from tesserae.utils.stopwords import get_stoplist_tokens
 
 
 @pytest.fixture(scope='session')
@@ -334,7 +335,6 @@ def test_mini_punctuation(punctpop, mini_punctuation_metadata):
     # the point of this test is to make sure no Exception is thrown
 
 
-"""
 def test_latin_sound(minipop, mini_latin_metadata):
     texts = minipop.find(
         Text.collection,
@@ -364,9 +364,9 @@ def test_latin_sound(minipop, mini_latin_metadata):
         print('v5 trigrams:', p['matched_features'])
     print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
     _check_search_results(v5_results, v3_results)
-    """
 
-def test_latin_sound(minipop, mini_latin_metadata):
+
+def test_latin_trigrams(minipop, mini_latin_metadata):
     texts = minipop.find(
         Text.collection, title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
@@ -374,23 +374,30 @@ def test_latin_sound(minipop, mini_latin_metadata):
     minipop.insert(search_result)
     v5_results = []
     v3_results = []
+    raw_v5_results = []
     target_units = _get_units(minipop, TextOptions(texts[0], 'line'), 'sound')
     for b in target_units:
-        v5_results.append(b['features'])
+        raw_v5_results.append(b['features'])
     raw_v3_results = _load_v3_results(texts[0].path, 
     'mini_latin_results_3gr.tab')
     for a in raw_v3_results:
         v3_results.append(a['matched_features'])
     print('v5 results:')
-    for a in v5_results:
-        a = np.asarray(a)
-        print(np.shape(a))
-        print('array', a)
+    for a in raw_v5_results:
+        print(a)
+        for n in a:
+            print(n)
+            n = np.asarray(n)
+            print('array',n)
+            print(np.shape(n))
+            b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
+            v5_results.append(b)
+    print(v5_results)    
     print('v3 results:')
     for a in v3_results:
         print(a)
     print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
-    assert v5_results == v3_results
+    assert False
 
 
 def test_latin_semantic(minipop, mini_latin_metadata):
