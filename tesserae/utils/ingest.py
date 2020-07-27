@@ -11,7 +11,6 @@ from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
 from tesserae.utils.multitext import register_bigrams
 from tesserae.utils.search import NORMAL_SEARCH
-from tesserae.utils.multitext import MULTITEXT_SEARCH
 from tesserae.utils.tessfile import TessFile
 
 
@@ -191,10 +190,16 @@ def _ingest_tessfile(connection, text, tessfile, enable_multitext=False):
     unitizer = Unitizer()
     lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
+    features_ingested = {feature for feature in lines[0].tokens[0]['features']}
+    for feature in features_ingested:
+        text.update_ingestion_details(feature, NORMAL_SEARCH, TextStatus.DONE,
+                                      '')
+    connection.update(text)
+
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
     if enable_multitext:
-        register_bigrams(connection, text.id)
+        register_bigrams(connection, text)
 
 
 def _extract_divisions(tags):
