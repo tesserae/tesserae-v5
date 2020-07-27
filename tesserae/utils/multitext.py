@@ -352,6 +352,7 @@ def register_bigrams(connection, text):
     for feature in accepted_features:
         text.update_ingestion_details(feature, MULTITEXT_SEARCH,
                                       TextStatus.RUN, '')
+    connection.update(text)
     feat2inv_freqs = {
         f_type: compute_inverse_frequencies(connection, f_type, text.id)
         for f_type in accepted_features
@@ -385,6 +386,7 @@ def register_bigrams(connection, text):
     for feature in accepted_features:
         text.update_ingestion_details(feature, MULTITEXT_SEARCH,
                                       TextStatus.DONE, '')
+    connection.update(text)
 
 
 def unregister_bigrams(connection, text):
