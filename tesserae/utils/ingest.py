@@ -10,6 +10,7 @@ from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
 from tesserae.utils.multitext import register_bigrams
+from tesserae.utils.search import NORMAL_SEARCH
 from tesserae.utils.tessfile import TessFile
 
 
@@ -43,7 +44,7 @@ def submit_ingest(ingest_queue, connection, text, file_location):
     return text.id
 
 
-def _run_ingest(connection, text, file_location):
+def _run_ingest(connection, text, file_location, enable_multitext=False):
     """Instructions for running ingestion
 
     Parameters
@@ -53,32 +54,37 @@ def _run_ingest(connection, text, file_location):
         Text entity to be ingested
     file_location : str
         Path to .tess file to be ingested
+    enable_multitext : bool (default: False)
+        Whether to enable multitext search with this text
 
     """
     start_time = time.time()
     if text.language not in _tokenizers:
-        text.ingestion_status = TextStatus.FAILED
-        text.ingestion_msg = \
-            'Unknown language: {}'.format(text.language)
+        text.ingestion_status = (TextStatus.FAILED,
+                                 'Unknown language: {}'.format(text.language))
+        connection.update(text)
         return
-    text.ingestion_status = TextStatus.RUN
-    connection.update(text)
+    if already_ingested(connection, text):
+        text.ingestion_status = (
+            TextStatus.FAILED,
+            f'Text already in database (author: {text.author}, '
+            f'title: {text.title})')
+        connection.update(text)
+        return
 
     text.path = file_location
     tessfile = TessFile(text.path, metadata=text)
 
     try:
-        _ingest_tessfile(connection, text, tessfile)
+        _ingest_tessfile(connection, text, tessfile, enable_multitext)
+        text.ingestion_status = (
+            TextStatus.DONE,
+            f'Ingestion complete in {time.time()-start_time} seconds')
+        connection.update(text)
     # we want to catch all errors and log them into the Text entity
     except:  # noqa: E722
-        text.ingestion_status = TextStatus.FAILED
-        text.ingestion_msg = traceback.format_exc()
+        text.ingestion_status = (TextStatus.FAILED, traceback.format_exc())
         connection.update(text)
-
-    text.ingestion_status = TextStatus.DONE
-    text.ingestion_msg = \
-        f'Done in {time.time() - start_time} seconds'
-    connection.update(text)
 
 
 _tokenizers = {
@@ -109,7 +115,7 @@ def already_ingested(connection, text):
     return False
 
 
-def ingest_text(connection, text):
+def ingest_text(connection, text, enable_multitext=False):
     """Update database with a new text
 
     ``text`` must not already exist in the database
@@ -120,6 +126,8 @@ def ingest_text(connection, text):
         A connection to the database
     text : tesserae.db.entities.Text
         The text to be ingested
+    enable_multitext : bool (default: False)
+        Whether to enable multitext search with this text
 
     Returns
     -------
@@ -129,27 +137,18 @@ def ingest_text(connection, text):
     Raises
     ------
     ValueError
-        Raised when unknown language is encountered
+        Raised when an error occurs during ingestion
     """
-    if text.language not in _tokenizers:
-        raise ValueError('Unknown language: {}'.format(text.language))
-    if already_ingested(connection, text):
-        raise ValueError(f'Cannot ingest an already ingested text '
-                         f'({text.author}, {text.title})')
-    tessfile = TessFile(text.path, metadata=text)
-
-    result = connection.insert(text)
-    text_id = result.inserted_ids[0]
-
-    _ingest_tessfile(connection, text, tessfile)
-
-    text.ingestion_complete = True
-    connection.update(text)
-
-    return text_id
+    connection.insert(text)
+    _run_ingest(connection, text, text.path, enable_multitext)
+    if text.ingestion_status == TextStatus.FAILED:
+        error_msg = text.ingestion_msg
+        remove_text(connection, text)
+        raise ValueError(error_msg)
+    return text.id
 
 
-def _ingest_tessfile(connection, text, tessfile):
+def _ingest_tessfile(connection, text, tessfile, enable_multitext=False):
     """Process .tess file for inclusion in Tesserae database
 
     Parameters
@@ -161,6 +160,8 @@ def _ingest_tessfile(connection, text, tessfile):
         already be added to Text.collection but not yet ingested
     tessfile : tesserae.utils.TessFile
         .tess file to be ingested
+    enable_multitext : bool (default: False)
+        Whether to enable multitext search with this text
     """
     tokens, tags, features = \
         _tokenizers[tessfile.metadata.language](connection).tokenize(
@@ -189,9 +190,16 @@ def _ingest_tessfile(connection, text, tessfile):
     unitizer = Unitizer()
     lines, phrases = unitizer.unitize(tokens, tags, tessfile.metadata)
 
+    features_ingested = {feature for feature in lines[0].tokens[0]['features']}
+    for feature in features_ingested:
+        text.update_ingestion_details(feature, NORMAL_SEARCH, TextStatus.DONE,
+                                      '')
+    connection.update(text)
+
     connection.insert_nocheck(tokens)
     connection.insert_nocheck(lines + phrases)
-    register_bigrams(connection, text.id)
+    if enable_multitext:
+        register_bigrams(connection, text)
 
 
 def _extract_divisions(tags):
@@ -200,7 +208,7 @@ def _extract_divisions(tags):
     return natsorted(list({tag.split('.')[0] for tag in tags}))
 
 
-def reingest_text(connection, text):
+def reingest_text(connection, text, enable_multitext=False):
     """Ingest a text again
 
     Intended for use in the case of ingestion failure
@@ -211,6 +219,8 @@ def reingest_text(connection, text):
         A connection to the database
     text : tesserae.db.entities.Text
         The text to be re-ingested
+    enable_multitext : bool (default: False)
+        Whether to enable multitext search with this text
 
     Returns
     -------
@@ -221,4 +231,4 @@ def reingest_text(connection, text):
     remove_text(connection, text)
     text.id = None
     text.ingestion_complete = False
-    return ingest_text(connection, text)
+    return ingest_text(connection, text, enable_multitext)

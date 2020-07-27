@@ -14,21 +14,29 @@ from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.multitext import BigramWriter
 
-
 # Make sure that bigram databases are written out to a temporary location
 BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
 
 
 def pytest_addoption(parser):
-    parser.addoption('--db-host', action='store', default='127.0.0.1',
+    parser.addoption('--db-host',
+                     action='store',
+                     default='127.0.0.1',
                      help='IP of the test database host')
-    parser.addoption('--db-port', action='store', default=27017, type=int,
+    parser.addoption('--db-port',
+                     action='store',
+                     default=27017,
+                     type=int,
                      help='Port that the test database listens on')
-    parser.addoption('--db-user', action='store',
+    parser.addoption('--db-user',
+                     action='store',
                      help='User to log into the test database as')
-    parser.addoption('--db-pwd', action='store_true',
+    parser.addoption('--db-pwd',
+                     action='store_true',
                      help='Pass this flag to input database password on start')
-    parser.addoption('--db-name', action='store', default='tess_test',
+    parser.addoption('--db-name',
+                     action='store',
+                     default='tess_test',
                      help='Name of the test database to use.')
 
 
@@ -120,8 +128,8 @@ def lucverg_metadata(tessfiles_latin_path):
             'author': 'lucan',
             'language': 'latin',
             'year': 65,
-            'path': str(tessfiles_latin_path.joinpath(
-                'lucan.bellum_civile.tess')),
+            'path':
+            str(tessfiles_latin_path.joinpath('lucan.bellum_civile.tess')),
             'is_prose': False
         },
     ]
@@ -178,8 +186,8 @@ def test_data(connection, tessfiles):
 
 @pytest.fixture(scope='session')
 def tessfiles():
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), 'tessfiles'))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        'tessfiles'))
 
 
 @pytest.fixture(scope='session')
@@ -188,9 +196,9 @@ def minipop(request, mini_greek_metadata, mini_latin_metadata):
     conn.create_indices()
     for metadata in mini_greek_metadata:
         text = Text.json_decode(metadata)
-        ingest_text(conn, text)
+        ingest_text(conn, text, enable_multitext=True)
     for metadata in mini_latin_metadata:
         text = Text.json_decode(metadata)
-        ingest_text(conn, text)
+        ingest_text(conn, text, enable_multitext=True)
     yield conn
     obliterate(conn)

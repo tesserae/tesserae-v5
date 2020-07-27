@@ -16,23 +16,16 @@ from tesserae.utils.ingest import ingest_text
 
 def parse_args(args=None):
     p = argparse.ArgumentParser(
-        prog='tesserae_ingest',
+        prog='tesserae.cli.ingest',
         description='Ingest a text into the Tesserae database.')
 
-    db = p.add_argument_group(
-        title='database',
-        description='database connection details')
-    text = p.add_argument_group(
-        title='text',
-        description='text metadata')
+    db = p.add_argument_group(title='database',
+                              description='database connection details')
+    text = p.add_argument_group(title='text', description='text metadata')
 
-    p.add_argument('input',
-                   type=str,
-                   help='path to the .tess fiel to ingest')
+    p.add_argument('input', type=str, help='path to the .tess fiel to ingest')
 
-    db.add_argument('--user',
-                    type=str,
-                    help='user to access the database as')
+    db.add_argument('--user', type=str, help='user to access the database as')
     db.add_argument('--password',
                     action='store_true',
                     help='pass to be prompted for a database password')
@@ -49,23 +42,21 @@ def parse_args(args=None):
                     default='tesserae',
                     help='the name of the database to access')
 
-    text.add_argument('--title',
-                      type=str,
-                      help='title of the text')
-    text.add_argument('--author',
-                      type=str,
-                      help='author of the text')
-    text.add_argument('--language',
+    text.add_argument('title', type=str, help='title of the text')
+    text.add_argument('author', type=str, help='author of the text')
+    text.add_argument('language',
                       type=str,
                       choices=['latin', 'greek'],
                       help='language the text was written in')
-    text.add_argument('--year',
-                      type=int,
-                      help='year of authorship')
+    text.add_argument('--year', type=int, help='year of authorship')
     text.add_argument('--prose',
                       action='store_true',
-                      help='pass to indicate that the text is prose,' \
-                           + ' otherwise it is considered poetry')
+                      help=('pass to indicate that the text is prose, '
+                            'otherwise it is considered poetry'))
+    text.add_argument('--enable-multitext',
+                      action='store_true',
+                      help=('pass to compute and store multitext information '
+                            'for this text'))
 
     return p.parse_args(args)
 
@@ -82,18 +73,25 @@ def main():
     else:
         password = None
 
-    connection = TessMongoConnection(
-        args.host, args.port, args.user, password, db=args.database)
+    connection = TessMongoConnection(args.host,
+                                     args.port,
+                                     args.user,
+                                     password,
+                                     db=args.database)
 
     text_hash = hashlib.md5()
     text_hash.update(TessFile(args.input).read().encode())
     text_hash = text_hash.hexdigest()
 
-    text = Text(language=args.language, title=args.title, author=args.author,
-                year=args.year, path=args.input, hash=text_hash,
+    text = Text(language=args.language,
+                title=args.title,
+                author=args.author,
+                year=args.year,
+                path=args.input,
+                hash=text_hash,
                 is_prose=args.prose)
 
-    ingest_text(connection, text)
+    ingest_text(connection, text, enable_multitext=args.enable_multitext)
 
 
 if __name__ == '__main__':

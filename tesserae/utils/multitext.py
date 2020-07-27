@@ -13,6 +13,7 @@ import numpy as np
 
 from tesserae.db.entities import \
     Feature, Match, MultiResult, Search, Text, Unit
+from tesserae.db.entities.text import TextStatus
 from tesserae.utils.calculations import get_inverse_text_frequencies
 
 MULTITEXT_SEARCH = 'multitext'
@@ -336,37 +337,40 @@ def _create_bigram_db_path(text_id, unit_type, feature):
                      f'{text_id_str}_{unit_type}_{feature}.db'))
 
 
-def register_bigrams(connection, text_id):
+def register_bigrams(connection, text):
     """Compute and store bigram information for the specified Text
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
         A connection to the Tesserae database
-    text_id : ObjectId
-        ObjectId of Text
+    text_id : tesserae.db.entities.Text
+        The text whose bigram information is to be computed and stored
 
     """
     accepted_features = ('form', 'lemmata')
+    for feature in accepted_features:
+        text.update_ingestion_details(feature, MULTITEXT_SEARCH,
+                                      TextStatus.RUN, '')
+    connection.update(text)
     feat2inv_freqs = {
-        f_type: compute_inverse_frequencies(connection, f_type, text_id)
+        f_type: compute_inverse_frequencies(connection, f_type, text.id)
         for f_type in accepted_features
     }
-    text = connection.find(Text.collection, _id=text_id)[0]
     unit_types = ['phrase']
     if not text.is_prose:
         unit_types.append('line')
     for unit_type in unit_types:
         with connection.connection[Unit.collection].find(
             {
-                'text': text_id,
+                'text': text.id,
                 'unit_type': unit_type
             }, {
                 '_id': True,
                 'tokens': True
             },
                 no_cursor_timeout=True) as unit_cursor:
-            with BigramWriter(text_id, unit_type) as writer:
+            with BigramWriter(text.id, unit_type) as writer:
                 for unit_dict in unit_cursor:
                     by_feature = defaultdict(list)
                     unit_id = unit_dict['_id']
@@ -379,20 +383,24 @@ def register_bigrams(connection, text_id):
                         writer.record_bigrams(feature, values,
                                               by_feature['form'],
                                               feat2inv_freqs[feature], unit_id)
+    for feature in accepted_features:
+        text.update_ingestion_details(feature, MULTITEXT_SEARCH,
+                                      TextStatus.DONE, '')
+    connection.update(text)
 
 
-def unregister_bigrams(connection, text_id):
+def unregister_bigrams(connection, text):
     """Remove bigram data for the specified Text
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
         A connection to the Tesserae database
-    text_id : ObjectId
-        ObjectId of Text
+    text : tesserae.db.entities.Text
+        Text whose bigram information is to be removed
 
     """
-    text_id_str = str(text_id)
+    text_id_str = str(text.id)
     for filename in glob.glob(
             os.path.join(BigramWriter.BIGRAM_DB_DIR, f'{text_id_str}_*.db')):
         os.remove(filename)

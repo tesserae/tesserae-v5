@@ -20,7 +20,7 @@ from tesserae.utils.stopwords import create_stoplist, get_stoplist_tokens
 
 
 def parse_args(args=None):
-    p = argparse.ArgumentParser(prog='tesserae_search',
+    p = argparse.ArgumentParser(prog='tesserae.cli.search',
                                 description='Perform a Tesserae search')
 
     db = p.add_argument_group(title='database',
