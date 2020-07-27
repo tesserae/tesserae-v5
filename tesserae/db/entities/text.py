@@ -117,7 +117,7 @@ class Text(Entity):
 
     def update_ingestion_details(self, feature, search_type, status_type, msg):
         if feature not in self.ingestion_details:
-            self.ingestion_details[feature]
+            self.ingestion_details[feature] = {}
         self.ingestion_details[feature][search_type] = (status_type, msg)
 
     def check_ingestion_details(self, feature, search_type):
