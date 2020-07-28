@@ -141,10 +141,10 @@ def ingest_text(connection, text, enable_multitext=False):
     """
     connection.insert(text)
     _run_ingest(connection, text, text.path, enable_multitext)
-    if text.ingestion_status == TextStatus.FAILED:
-        error_msg = text.ingestion_msg
+    status, msg = text.ingestion_status
+    if status == TextStatus.FAILED:
         remove_text(connection, text)
-        raise ValueError(error_msg)
+        raise ValueError(msg)
     return text.id
 
 

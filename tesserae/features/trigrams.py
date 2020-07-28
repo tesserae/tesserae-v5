@@ -14,7 +14,7 @@ def trigrammify(tokens):
                 characters.append(char)
         final = len(characters) - 1
         if len(characters) < 3:
-            grams = [' ']
+            grams = []
         else:
             for a in range(final - 1):
                 grams.append(characters[a] + characters[a + 1] +
