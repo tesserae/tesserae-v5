@@ -1,13 +1,11 @@
-import collections
 import re
-import unicodedata
 
 from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
 from tesserae.tokenizers.base import BaseTokenizer
-from tesserae.db.entities import Token
-from tesserae.features.trigrams import tri_latin
+from tesserae.features.trigrams import trigrammify
+
 
 class LatinTokenizer(BaseTokenizer):
     def __init__(self, connection):
@@ -45,12 +43,14 @@ class LatinTokenizer(BaseTokenizer):
         normalized = self.jv_replacer.replace(normalized)
 
         if split:
-            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-            normalized = [t for t in normalized
-                          if t and re.search(r'[\w]+', t)]
+            normalized = re.split(self.split_pattern,
+                                  normalized,
+                                  flags=re.UNICODE)
+            normalized = [
+                t for t in normalized if t and re.search(r'[\w]+', t)
+            ]
 
         return normalized, tags
-
 
     def featurize(self, tokens):
         """Lemmatize a Latin token.
@@ -69,22 +69,14 @@ class LatinTokenizer(BaseTokenizer):
         Input should be sanitized with `LatinTokenizer.normalize` prior to
         using this method.
         """
-        print('tokenizers.latin.featurize')
         if not isinstance(tokens, list):
             tokens = [tokens]
         lemmata = self.lemmatizer.lookup(tokens)
-#        print("Latin lemmata:", lemmata)
         fixed_lemmata = []
-        for lem in lemmata:
-            lem_lemmata = [l[0] for l in lem[1]]
+        for lemma in lemmata:
+            lem_lemmata = [lem[0] for lem in lemma[1]]
             fixed_lemmata.append(lem_lemmata)
-#        print("fixed lemmata:", fixed_lemmata)
-        grams = tri_latin(tokens)
-        features = {
-            'lemmata': fixed_lemmata,
-            'sound': grams
-        }
-#        print('features', features)
-        # for i, l in enumerate(lemmata):
-        #     features.append({'lemmata': [lem[0] for lem in l[1]]})
+
+        grams = trigrammify(tokens)
+        features = {'lemmata': fixed_lemmata, 'sound': grams}
         return features
