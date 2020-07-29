@@ -96,4 +96,4 @@ if __name__ == '__main__':
 
     connection = TessMongoConnection(
         args.host, args.port, args.user, password, db=args.database)
-    main(connection, args.search_id, args.format, filepath=args.path)
+    main(connection, args.search, args.format, filepath=args.path)
