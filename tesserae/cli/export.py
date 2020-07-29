@@ -51,7 +51,7 @@ def parse_args(args=None):
         help='output format')
     text.add_argument(
         '--path',
-        type='str',
+        type=str,
         help='path to write export to (standard out if not supplied)')
     text.add_argument(
         '--delimiter',
