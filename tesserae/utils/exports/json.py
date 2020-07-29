@@ -34,12 +34,12 @@ def build(connection, search_id):
     obj : dict
       JSON-compatible dictionary with search metadata and results.
   """
-  search = connection.find(Search.collection, id=search_id)
+  search = connection.find(Search.collection, id=search_id)[0]
   results = connection.find(Match.collection, search_id=search_id)
   source = connection.find(Text.collection,
-                           id=search.parameters['source']['object_id'])
+                           id=search.parameters['source']['object_id'])[0]
   target = connection.find(Text.collection,
-                           id=search.parameters['target']['object_id'])
+                           id=search.parameters['target']['object_id'])[0]
   
   results.sort(key=lambda x: x.score, reverse=True)
   max_score = max(results[0].score, 10)
