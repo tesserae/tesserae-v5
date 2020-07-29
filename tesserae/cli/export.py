@@ -90,7 +90,7 @@ def main(connection, search_id, format, filepath=None, delimiter=','):
 if __name__ == '__main__':
     args = parse_args()
     if args.password:
-        password = getpass(prompt='Tesserae MongoDB Password: ')
+        password = getpass.getpass(prompt='Tesserae MongoDB Password: ')
     else:
         password = None
 
