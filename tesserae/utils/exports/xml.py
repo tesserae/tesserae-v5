@@ -20,9 +20,11 @@ import xml.etree.ElementTree as ET
 
 from tesserae.db.entities import Match, Search, Text, Unit
 from tesserae.utils.exports.highlight import highlight_matches
+from tesserae.utils.paging import Pager
+from tesserae.utils.search import get_max_score
 
   
-def build(connection, search_id):
+def build(connection, search, source, target):
   """Construct an XML tree from a completed Tesserae search.
 
   Parameters
@@ -31,24 +33,19 @@ def build(connection, search_id):
     Connection to the MongoDB instance.
   search_id : str or `bson.objectid.ObjectID`
     The database id of the search to serialize.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   
   Returns
   -------
     root : `xml.etree.ElementTree.Element`
       Root node of the XML tree with search metadata and results inside.
   """
-  # Pull the search and text data from the database.
-  search = connection.find(Search.collection, id=search_id)[0]
-  results = connection.find(Match.collection, search_id=search_id)
-  source = connection.find(Text.collection,
-                           id=search.parameters['source']['object_id'])[0]
-  target = connection.find(Text.collection,
-                           id=search.parameters['target']['object_id'])[0]
-  
-  # Sort the search results by score and get the max and min scores.
-  results.sort(key=lambda x: x.score, reverse=True)
-  max_score = max(results[0].score, 10)
-  min_score = int(math.floor(results[-1].score))
+  max_score = get_max_score(connection, search.id)
+  pages = Pager(connection, search.id)
 
   # The root element contains most search parameters as attributes.
   root = ET.Element(
@@ -63,7 +60,7 @@ def build(connection, search_id):
       'stbasis': '',
       'max_dist': f'{search.parameters["method"]["max_distance"]}',
       'dibasis': f'{search.parameters["method"]["distance_basis"]}',
-      'cutoff': f'{min_score}',
+      'cutoff': f'{0}',
     }
   )
 
@@ -73,47 +70,54 @@ def build(connection, search_id):
                 text=', '.join(search.stopwords))
 
   # Each result is converted to an XML element and added to the tree.
-  for r in results:
-    format_result(root, r, max_score)
+  for page in pages:
+    for result in page:
+      format_result(root, result, max_score)
   
   return root
 
 
-def dump(connection, search_id, filepath):
+def dump(filename, connection, search, source, target):
   """Dump a Tesserae search to file as XML.
 
   Parameters
   ----------
-  connection : tesserae.db.TessMongoConnection
-    Connection to the MongoDB instance.
-  search_id : str or `bson.objectid.ObjectID`
-    The database id of the search to serialize.
   filepath : str
     Path to the output XML file.
+  connection : tesserae.db.TessMongoConnection
+    Connection to the MongoDB instance.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   """
   # The xml module does not have a native file write, so first convert to
   # string, then dump the string to file.
-  out = dumps(connection, search_id)
-  with open(filepath, 'w') as f:
+  out = dumps(connection, search, source, target)
+  with open(filename, 'w') as f:
     f.write(out)
 
 
-def dumps(connection, search_id):
+def dumps(connection, search, source, target):
   """Dump a Tesserae search to an XML string.
 
   Parameters
   ----------
   connection : tesserae.db.TessMongoConnection
     Connection to the MongoDB instance.
-  search_id : str or `bson.objectid.ObjectID`
-    The database id of the search to serialize.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   
   Returns
   -------
     out : str
       XML string with search metadata and results.
   """
-  out = build(connection, search_id)
+  out = build(connection, search)
   return ET.tostring(out)
 
 

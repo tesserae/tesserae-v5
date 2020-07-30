@@ -16,21 +16,25 @@ import io
 import itertools
 import math
 
-from tesserae.db.entities import Match, Search, Text, Unit
 from tesserae.utils.exports.highlight import highlight_matches
+from tesserae.utils.paging import Pager
+from tesserae.utils.search import get_max_score
 
 
-def build(connection, search_id, stream, delimiter=','):
+def build(stream, connection, search, source, target, delimiter=','):
   """Construct CSV from a completed Tesserae search.
 
   Parameters
   ----------
-  connection : tesserae.db.TessMongoConnection
-    Connection to the MongoDB instance.
-  search_id : str or `bson.objectid.ObjectID`
-    The database id of the search to serialize.
   stream : io.TextIOBase
     Text stream to write to, usually a string or file stream
+  connection : tesserae.db.TessMongoConnection
+    Connection to the MongoDB instance.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   delimiter : str, optional
     The row iterm separator. Default: ','.
   
@@ -39,25 +43,15 @@ def build(connection, search_id, stream, delimiter=','):
     stream : io.TextIOBase
       The same object passed to ``stream``.
   """
-  # Pull the search and text data from the database.
-  search = connection.find(Search.collection, id=search_id)[0]
-  results = connection.find(Match.collection, search_id=search_id)
-  source = connection.find(Text.collection,
-                           id=search.parameters['source']['object_id'])[0]
-  target = connection.find(Text.collection,
-                           id=search.parameters['target']['object_id'])[0]
-  
-  # Sort the search results by score and get the max and min scores.
-  results.sort(key=lambda x: x.score, reverse=True)
-  max_score = max(results[0].score, 10)
-  min_score = int(math.floor(results[-1].score))
+  max_score = get_max_score(connection, search.id)
+  pages = Pager(connection, search.id)
 
   # The search parameters and metadata are written as comments to the top of
   # the CSV stream.
   comments = [
     f'# Tesserae V5 Results',
     f'#',
-    f'# session\t= {search_id}',
+    f'# session\t= {search.id}',
     f'# source\t= {source.author}.{source.title.lower().replace(" ", "_")}',
     f'# target\t= {target.author}.{target.title.lower().replace(" ", "_")}',
     f'# unit\t= {search.parameters["source"]["unit"]}',
@@ -67,7 +61,7 @@ def build(connection, search_id, stream, delimiter=','):
     f'# stopwords\t= {search.parameters["method"]["stopwords"]}',
     f'# max_dist\t= {search.parameters["method"]["max_distance"]}',
     f'# dibasis\t= {search.parameters["method"]["distance_basis"]}',
-    f'# cutoff\t= {min_score}',
+    f'# cutoff\t= {0}',
     f'# filter\t= off',
   ]
 
@@ -84,43 +78,52 @@ def build(connection, search_id, stream, delimiter=','):
   )
   writer.writeheader()
 
-  # Convert each result to a dict with keys corresponding to the headers
-  # passed to ``writer``.
-  results = zip(results,
-                range(1, len(results) + 1),
-                itertools.repeat(max_score, len(results)))
-  writer.writerows(itertools.starmap(format_result, results))
+  for i, page in enumerate(pages):
+    # Convert each result to a dict with keys corresponding to the headers
+    # passed to ``writer``.
+    start = i * 200 + 1
+    end = start + 200
+    results = zip(page,
+                  range(start, end),
+                  itertools.repeat(max_score, len(results)))
+    writer.writerows(itertools.starmap(format_result, results))
   
   return stream
 
 
-def dump(connection, search_id, filepath, delimiter=','):
+def dump(filename, connection, search, source, target, delimiter):
   """Dump a Tesserae search to file as CSV.
 
   Parameters
   ----------
+  filename : str
+    Path to the output CSV file.
   connection : tesserae.db.TessMongoConnection
     Connection to the MongoDB instance.
-  search_id : str or `bson.objectid.ObjectID`
-    The database id of the search to serialize.
-  filepath : str
-    Path to the output CSV file.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   delimiter : str, optional
     The row iterm separator. Default: ','.
   """
-  with open(filepath, 'w') as f:
-    build(connection, search_id, f, delimiter=delimiter)
+  with open(filename, 'w') as f:
+    build(f, connection, search, source, target, delimiter=delimiter)
 
 
-def dumps(connections, search_id, delimiter):
+def dumps(connection, search, source, target, delimiter):
   """Dump a Tesserae search to an CSV string.
 
   Parameters
   ----------
   connection : tesserae.db.TessMongoConnection
     Connection to the MongoDB instance.
-  search_id : str or `bson.objectid.ObjectID`
-    The database id of the search to serialize.
+  search : `tesserae.db.entities.Search`
+    Search metadata.
+  source : `tesserae.db.entities.Text`
+  target : `tesserae.db.entities.Text`
+    Source and target text data.
   delimiter : str, optional
     The row iterm separator. Default: ','.
   
@@ -130,7 +133,7 @@ def dumps(connections, search_id, delimiter):
       CSV string with search metadata and results.
   """
   output = io.StringIO()
-  build(connections, search_id, output, delimiter=delimiter)
+  build(output, connection, search, source, target, delimiter=delimiter)
   return output.getvalue()
 
 
