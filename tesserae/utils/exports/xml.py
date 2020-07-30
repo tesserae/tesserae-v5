@@ -117,7 +117,7 @@ def dumps(connection, search, source, target):
     out : str
       XML string with search metadata and results.
   """
-  out = build(connection, search)
+  out = build(connection, search, source, target)
   return ET.tostring(out)
 
 
