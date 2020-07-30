@@ -1,8 +1,10 @@
 import argparse
 import getpass
 
-from tesserae.db import TessMongoConnection
+from bson.objectid import ObjectId
 
+from tesserae.db import TessMongoConnection
+from tesserae.utils.exports import export
 
 def parse_args(args=None):
     p = argparse.ArgumentParser(
@@ -62,29 +64,25 @@ def parse_args(args=None):
     return p.parse_args(args)
 
 
-def main(connection, search_id, format, filepath=None, delimiter=','):
-    if format == 'json':
-        from tesserae.utils.exports.json import dump, dumps
-        args = (connection, search_id)
-        if filepath:
-            args = args + (filepath,)
-    elif format == 'xml':
-        from tesserae.utils.exports.xml import dump, dumps
-        args = (connection, search_id)
-        if filepath:
-            args = args + (filepath,)
-    else:
-        from tesserae.utils.exports.csv import dump, dumps
-        args = (connection, search_id)
-        if filepath:
-            args = args + (filepath,)
-        args = args + (delimiter,)
+def main(connection, search_id, file_format, filepath=None, delimiter=','):
+    """Export a search to file or screen.
 
-
-    if filepath:
-        dump(*args)
-    else:
-        print(dumps(*args))
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        Connection to the Tesserae database.
+    search_id : bson.objectid.ObjectId
+        Database id of the search to run.
+    format : str
+        The file format to dump.
+    filepath : str, optional
+        The file to write. If not provided, the contents will be written to
+        `sys.stdout`.
+    delimiter : str, optional
+        The column delimiter for CSV-like files. Only used when ``format``
+        is 'csv'.
+    """
+    export(connection, search_id, file_format, filepath=None, delimiter=',')
 
 
 if __name__ == '__main__':
@@ -96,4 +94,7 @@ if __name__ == '__main__':
 
     connection = TessMongoConnection(
         args.host, args.port, args.user, password, db=args.database)
-    main(connection, args.search, args.format, filepath=args.path)
+
+    search_id = ObjectId(args.search)
+
+    main(connection, search_id, args.format, filepath=args.path)
