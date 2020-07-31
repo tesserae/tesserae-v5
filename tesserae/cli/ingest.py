@@ -23,7 +23,7 @@ def parse_args(args=None):
                               description='database connection details')
     text = p.add_argument_group(title='text', description='text metadata')
 
-    p.add_argument('input', type=str, help='path to the .tess fiel to ingest')
+    p.add_argument('input', type=str, help='path to the .tess file to ingest')
 
     db.add_argument('--user', type=str, help='user to access the database as')
     db.add_argument('--password',
