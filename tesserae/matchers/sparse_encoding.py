@@ -71,11 +71,18 @@ class SparseMatrixSearch(object):
             The methods used to compute distance.
             - 'frequency': the distance between the two least frequent words
             - 'span': the greatest distance between any two matching words
+        min_score : float
+            The minimum score a match must have in order to be included in the
+            results
 
         Raises
         ------
         ValueError
             Raised when a parameter was poorly specified
+
+        Returns
+        -------
+        list of tesserae.db.entities.Match
         """
         texts = [source.text, target.text]
         if isinstance(stopwords, int):
@@ -122,7 +129,7 @@ class SparseMatrixSearch(object):
                                                     distance_basis,
                                                     max_distance, tag_helper)
 
-        return match_ents
+        return [m for m in match_ents if m.score >= min_score]
 
 
 def _get_units(connection, textoptions, feature):
