@@ -3,6 +3,8 @@ import datetime
 import time
 import traceback
 
+from natsort import natsorted
+
 from tesserae.db.entities import Match, Search
 import tesserae.matchers
 
@@ -40,7 +42,8 @@ def submit_search(jobqueue, connection, results_id, search_type,
             'stopwords': search_params['stopwords'],
             'freq_basis': search_params['freq_basis'],
             'max_distance': search_params['max_distance'],
-            'distance_basis': search_params['distance_basis']
+            'distance_basis': search_params['distance_basis'],
+            'min_score': search_params['min_score']
         }
     }
     results_status = Search(results_id=results_id,
@@ -159,7 +162,9 @@ def check_cache(connection, source, target, method):
         'parameters.method.max_distance':
         method['max_distance'],
         'parameters.method.distance_basis':
-        method['distance_basis']
+        method['distance_basis'],
+        'parameters.method.min_score':
+        method['min_score']
     }
     found = [
         Search.json_decode(f)
@@ -288,16 +293,17 @@ def retrieve_matches_by_page(connection, search_id, page_options):
         start = page_options.page_number * page_options.per_page
         end = start + page_options.per_page
         if page_options.sort_by == 'source_tag':
-            all_matches.sort(
-                key=lambda x: tuple(x['source_tag'].split()[-1].split('.')),
-                reverse=page_options.sort_order == -1)
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['source_tag'],
+                                    reverse=page_options.sort_order == -1)
         if page_options.sort_by == 'target_tag':
-            all_matches.sort(
-                key=lambda x: tuple(x['target_tag'].split()[-1].split('.')),
-                reverse=page_options.sort_order == -1)
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['target_tag'],
+                                    reverse=page_options.sort_order == -1)
         if page_options.sort_by == 'matched_features':
-            all_matches.sort(key=lambda x: x['matched_features'],
-                             reverse=page_options.sort_order == -1)
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['matched_features'],
+                                    reverse=page_options.sort_order == -1)
         return all_matches[start:end]
     return all_matches
 
