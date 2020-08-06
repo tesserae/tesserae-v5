@@ -3,9 +3,10 @@ import traceback
 
 from natsort import natsorted
 
-from tesserae.db.entities import Feature
+from tesserae.db.entities import Feature, Unit
 from tesserae.db.entities.text import Text, TextStatus
 from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
+from tesserae.tokenizers.base import create_features
 from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
@@ -232,3 +233,80 @@ def reingest_text(connection, text, enable_multitext=False):
     text.id = None
     text.ingestion_complete = False
     return ingest_text(connection, text, enable_multitext)
+
+
+def add_feature(connection, text, feature, enable_multitext=False):
+    """Add feature information for a text
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text to update with a new feature
+    feature : str
+        The type of feature to extract and account for from the text
+    enable_multitext : bool (default: False)
+        Whether to enable multitext search with this text
+    """
+    for unit, features in gen_updated_unit_and_features(
+            connection, text, feature):
+        feature_cache = {(f.feature, f.token): f
+                         for f in connection.find(Feature.collection,
+                                                  language=text.language)}
+        features_for_insert = []
+        features_for_update = []
+
+        for f in features:
+            if (f.feature, f.token) not in feature_cache:
+                features_for_insert.append(f)
+                feature_cache[(f.feature, f.token)] = f
+            else:
+                f.id = feature_cache[(f.feature, f.token)].id
+                features_for_update.append(f)
+        connection.insert(features_for_insert)
+        connection.update(features_for_update)
+        connection.update(unit)
+
+
+def gen_updated_unit_and_features(connection, text, feature):
+    """Compute features and updated units for the text
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text to update with a new feature
+    feature : str
+        The type of feature to extract and account for from the text
+    """
+    units = connection.find(Unit.collection, text=text, unit_type=unit_type)
+    # go by line; keep track of frequencies of new features
+    # then go by phrase; don't double-count frequencies
+    for unit in units:
+        features_already_in_db = connection.find(Feature.collection,
+                                                 language=text.language,
+                                                 feature=feature)
+        feature_list = extract_new_features(units, text.language, feature)
+        # TODO make sure that feature_list really is what I think it is
+        for token, extracted in zip(unit.tokens, feature_list):
+            token['features'][feature] = [f.index for f in extracted]
+        new_features, _ = create_features(features_already_in_db, text.id,
+                                          text.language, feature, feature_list)
+        yield unit, new_features
+
+
+def extract_new_features(units, language, feature):
+    """Extract new features from specified units
+
+    Parameters
+    ----------
+    units : list of tesserae.db.entities.Unit
+        Units from which features are to be extracted
+    language : str
+        The language of the text from which the units come
+    feature : str
+        The type of feature to extract and account for from the text
+    """
+    # TODO figure out how to extract appropriate features
