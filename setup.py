@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-from setuptools import setup
+from setuptools import find_packages, setup
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import shutil
@@ -77,15 +77,7 @@ setup(name='tesserae',
       url='https://github.com/tesserae/tesserae-v5',
       author='Jeff Kinnison',
       author_email='jkinniso@nd.edu',
-      packages=[
-          'tesserae',
-          'tesserae.cli',
-          'tesserae.db',
-          'tesserae.db.entities',
-          'tesserae.matchers',
-          'tesserae.tokenizers',
-          'tesserae.utils',
-      ],
+      packages=find_packages(),
       classifiers=[
           'Development Status :: 3 - Alpha',
           'Intended Audience :: Research',
