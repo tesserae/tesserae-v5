@@ -581,23 +581,38 @@ def get_results(connection, search_id):
     -------
     list of MatchResult
     """
-    db_multiresults = connection.aggregate(MultiResult.collection, [{
-        '$match': {
-            'search_id': search_id
-        }
-    }, {
-        '$project': {
-            '_id': False,
-            'match_id': True,
-            'bigram': True,
-            'units': True,
-            'scores': True,
-        }
-    }],
-                                           encode=False)
+    db_multiresults = [
+        mr for mr in connection.aggregate(MultiResult.collection, [{
+            '$match': {
+                'search_id': search_id
+            }
+        }, {
+            '$project': {
+                '_id': False,
+                'match_id': True,
+                'bigram': True,
+                'units': True,
+                'scores': True,
+            }
+        }],
+                                          encode=False)
+    ]
+    needed_units = {
+        unit.id: unit
+        for unit in connection.find(
+            Unit.collection,
+            _id=[uid for mr in db_multiresults for uid in mr['units']])
+    }
     return [{
-        'match_id': str(mr['match_id']),
-        'bigram': mr['bigram'],
-        'units': [str(uid) for uid in mr['units']],
-        'scores': mr['scores']
+        'match_id':
+        str(mr['match_id']),
+        'bigram':
+        mr['bigram'],
+        'units': [{
+            'unit_id': str(u.id),
+            'tag': u.tags[0],
+            'snippet': u.snippet,
+            'score': score
+        } for u, score in zip((needed_units[uid]
+                               for uid in mr['units']), mr['scores'])]
     } for mr in db_multiresults]
