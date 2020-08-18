@@ -603,16 +603,22 @@ def get_results(connection, search_id):
             Unit.collection,
             _id=[uid for mr in db_multiresults for uid in mr['units']])
     }
-    return [{
-        'match_id':
-        str(mr['match_id']),
-        'bigram':
-        mr['bigram'],
-        'units': [{
-            'unit_id': str(u.id),
-            'tag': u.tags[0],
-            'snippet': u.snippet,
-            'score': score
-        } for u, score in zip((needed_units[uid]
-                               for uid in mr['units']), mr['scores'])]
-    } for mr in db_multiresults]
+    return [
+        {
+            'match_id':
+            str(mr['match_id']),
+            'bigram':
+            mr['bigram'],
+            'units': [
+                {
+                    'unit_id': str(u.id),
+                    'tag': u.tags[0],
+                    'snippet': u.snippet,
+                    # TODO implement
+                    'highlight': [],
+                    'score': score
+                } for u, score in zip((needed_units[uid]
+                                       for uid in mr['units']), mr['scores'])
+            ]
+        } for mr in db_multiresults
+    ]
