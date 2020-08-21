@@ -113,7 +113,7 @@ def main():
     """Perform Tesserae search and display the top 10 results"""
     args = parse_args()
     if args.password:
-        password = getpass(prompt='Tesserae MongoDB Password: ')
+        password = getpass.getpass(prompt='Tesserae MongoDB Password: ')
     else:
         password = None
 
