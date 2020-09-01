@@ -49,7 +49,7 @@ def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_results.tab')
 
 
@@ -77,7 +77,7 @@ def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_results.tab')
 
 
@@ -103,7 +103,7 @@ def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata,
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_corpus_results.tab')
 
 
@@ -134,7 +134,7 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata,
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_corpus_results.tab')
 
 
@@ -185,7 +185,7 @@ def test_latin_sound(minipop, mini_latin_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_results_3gr.tab')
 
 
@@ -244,7 +244,7 @@ def test_latin_semantic(minipop, mini_latin_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_results_syn.tab')
 
 
@@ -269,7 +269,7 @@ def test_latin_semlem(minipop, mini_latin_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_results_syn_lem.tab')
 
 
@@ -295,7 +295,7 @@ def test_greek_sound(minipop, mini_greek_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_results_3gr.tab')
 
 
@@ -323,7 +323,7 @@ def test_greek_semantic(minipop, mini_greek_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_results_syn.tab')
 
 
@@ -351,7 +351,7 @@ def test_greek_semlem(minipop, mini_greek_metadata, v3checker):
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v3checker.check_search_results(minipop, results_id, texts[0].path,
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_results_syn_lem.tab')
 
 
@@ -417,5 +417,5 @@ def test_lucverg(lucvergpop, lucverg_metadata, v3checker):
     lucvergpop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     lucvergpop.update(search_result)
-    v3checker.check_search_results(lucvergpop, results_id, texts[0].path,
+    v3checker.check_search_results(lucvergpop, search_result.id, texts[0].path,
                                    'lucverg_time.tab')
