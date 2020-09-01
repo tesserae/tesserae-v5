@@ -68,8 +68,6 @@ class GreekToLatinSearch:
         ValueError
             Raised when a parameter was poorly specified
         """
-        if freq_basis != 'texts':
-            raise ValueError(f'Unsupported freq_basis: {freq_basis}')
         assert greek_text_options.text.language == 'greek'
         assert latin_text_options.text.language == 'latin'
         greek_stoplist_set = set(
@@ -86,7 +84,7 @@ class GreekToLatinSearch:
                                               language='latin',
                                               feature='lemmata')
         latin_features.sort(key=lambda x: x.index)
-        greekind_to_other_greekinds = _build_greekind_to_other_greekinds(
+        greek_ind_to_other_greek_inds = _build_greek_ind_to_other_greek_inds(
             self.connection, self.greek_to_latin)
         valid_latin_tokens_to_indices = {
             f.token: f.index
@@ -103,9 +101,8 @@ class GreekToLatinSearch:
             [greek_text_options.text, latin_text_options.text])
 
         greek_inv_frequencies_getter = _get_inv_greek_to_latin_freq_getter(
-            self.connection, freq_basis, greek_text_options,
-            greek_units,
-            greekind_to_other_greekinds)
+            self.connection, freq_basis, greek_text_options, greek_units,
+            greek_ind_to_other_greek_inds)
         latin_inv_frequencies_getter = _get_inv_lemmata_freq_getter(
             self.connection, freq_basis, latin_text_options, latin_units)
 
@@ -205,7 +202,7 @@ def _reverse_mapping(a2bs):
     return result
 
 
-def _build_greekind_to_other_greekinds(conn, greek_to_latin):
+def _build_greek_ind_to_other_greek_inds(conn, greek_to_latin):
     greek_token_to_form = {
         f.token: f
         for f in conn.find(
@@ -215,13 +212,13 @@ def _build_greekind_to_other_greekinds(conn, greek_to_latin):
     result = defaultdict(set)
     for greek_token, latin_translations in greek_to_latin.items():
         if greek_token in greek_token_to_form:
-            other_greekinds = set()
+            other_greek_inds = set()
             for latin_token in latin_translations:
                 for other_greek_token in latin_to_greek[latin_token]:
                     if other_greek_token in greek_token_to_form:
-                        other_greekinds.add(
+                        other_greek_inds.add(
                             greek_token_to_form[other_greek_token].index)
-            result[greek_token_to_form[greek_token].index] = other_greekinds
+            result[greek_token_to_form[greek_token].index] = other_greek_inds
     return result
 
 
@@ -229,25 +226,24 @@ def _get_inv_lemmata_freq_getter(conn, freq_basis, text_options, latin_units):
     if freq_basis != 'texts':
         return _inverse_averaged_freq_getter(
             get_corpus_frequencies(conn, 'lemmata',
-                                   text_options.text.language),
-            latin_units)
+                                   text_options.text.language), latin_units)
     return _lookup_wrapper(
         get_inverse_text_frequencies(conn, 'lemmata', text_options.text.id))
 
 
 def _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
-                                          greekind_to_other_greekinds):
+                                          greek_ind_to_other_greek_inds):
     greek_lemma_counts = get_feature_counts_by_text(conn, 'lemmata',
                                                     text_options.text)
     result = {}
     for greek_form_ind, greek_counts in greek_lemma_counts.items():
         already_seen = set([greek_form_ind])
         value = greek_counts
-        for other_greekind in greekind_to_other_greekinds[greek_form_ind]:
-            if other_greekind in already_seen:
+        for other_greek_ind in greek_ind_to_other_greek_inds[greek_form_ind]:
+            if other_greek_ind in already_seen:
                 continue
-            value += greek_lemma_counts[other_greekind]
-            already_seen.add(other_greekind)
+            value += greek_lemma_counts[other_greek_ind]
+            already_seen.add(other_greek_ind)
         if value > 0:
             result[greek_form_ind] = float(text_length) / float(value)
     return result
@@ -255,17 +251,16 @@ def _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
 
 def _get_inv_greek_to_latin_freq_getter(conn, freq_basis, text_options,
                                         greek_units,
-                                        greekind_to_other_greekinds):
+                                        greek_ind_to_other_greek_inds):
     if freq_basis != 'texts':
         return _inverse_averaged_freq_getter(
             get_corpus_frequencies(conn, 'lemmata',
-                                   text_options.text.language),
-            greek_units)
+                                   text_options.text.language), greek_units)
     # otherwise, handle text case
     text_length = sum(len(u['forms']) for u in greek_units)
     return _lookup_wrapper(
         _get_greek_to_latin_inv_freqs_by_text(conn, text_options, text_length,
-                                              greekind_to_other_greekinds))
+                                              greek_ind_to_other_greek_inds))
 
 
 def make_latinized_greek_matrix(greek_units, greek_features,
