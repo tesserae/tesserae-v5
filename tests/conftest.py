@@ -268,8 +268,8 @@ def _load_v3_results(minitext_path, tab_filename):
 
 class V3Checker:
     @staticmethod
-    def check_search_results(conn, results_id, textpath, tabname):
-        v5_results = get_results(conn, results_id, PageOptions())
+    def check_search_results(conn, search_id, textpath, tabname):
+        v5_results = get_results(conn, search_id, PageOptions())
         v5_results.sort(key=lambda x: -x['score'])
         v3_results = _load_v3_results(textpath, tabname)
         v3_relations = _build_relations(v3_results)

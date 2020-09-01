@@ -70,7 +70,7 @@ def test_greek_to_latin_texts_basis(g2lpop, mini_g2l_metadata, v3checker):
     g2lpop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     g2lpop.update(search_result)
-    v3checker.check_search_results(g2lpop, results_id, texts[0].path,
+    v3checker.check_search_results(g2lpop, search_result.id, texts[0].path,
                                    'mini_g2l_texts.tab')
 
 
@@ -94,5 +94,5 @@ def test_greek_to_latin_corpus_basis(g2lpop, mini_g2l_metadata, v3checker):
         g2lpop.insert_nocheck(v5_matches)
         search_result.status = Search.DONE
         g2lpop.update(search_result)
-        v3checker.check_search_results(g2lpop, results_id, texts[0].path,
+        v3checker.check_search_results(g2lpop, search_result.id, texts[0].path,
                                        'mini_g2l_corpus.tab')
