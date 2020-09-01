@@ -256,7 +256,6 @@ class TessMongoConnection():
         except IndexError:
             exists = []
 
-
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
             new_ents = []
@@ -479,8 +478,10 @@ class TessMongoConnection():
         self.connection[tesserae.db.entities.Unit.collection].create_index(
             'text')
         # index Match entities by Search.id for faster search results retrieval
-        self.connection[tesserae.db.entities.Match.collection].create_index(
-            'search_id')
+        self.connection[tesserae.db.entities.Match.collection].create_index([
+            ('search_id', pymongo.ASCENDING),
+            ('score', pymongo.DESCENDING),
+        ])
         # index Search entities by uuid
         self.connection[tesserae.db.entities.Search.collection].create_index(
             'results_id')

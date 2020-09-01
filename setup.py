@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import shutil
@@ -71,40 +71,33 @@ class DevelopLemmataModels(develop):
         develop.run(self)
 
 
-setup(
-    name='tesserae',
-    version='0.1a1',
-    description='Fast multi-text n-gram matching for intertext studies.',
-    url='https://github.com/tesserae/tesserae-v5',
-    author='Jeff Kinnison',
-    author_email='jkinniso@nd.edu',
-    packages=find_packages(),
-    include_package_data=True,
-    classifiers=[
-        'Development Status :: 3 - Alpha',
-        'Intended Audience :: Research',
-        'Intended Audience :: Developers',
-        'Intended Audience :: Users',
-        'Topic :: Digital Humanities :: Classics',
-        'Topic :: Digital Humanities :: Text Processing',
-        'Topic :: Digital Humanities :: Intertext Matching',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Operating System :: POSIX',
-        'Operating System :: Unix',
-        'Operating System :: MacOS',
-    ],
-    keywords='machine_learning hyperparameters distributed_computing',
-    install_requires=[
-        'cltk>=0.1.83',
-        'nltk>=3.2.5',
-        'numpy>=1.14.0',
-        'pymongo>=3.6.1',
-        'scipy',
-        'tqdm',
-    ],
-    cmdclass={
-        'install': InstallLemmataModels,
-        'develop': DevelopLemmataModels,
-    }
-)
+setup(name='tesserae',
+      version='0.1a1',
+      description='Fast multi-text n-gram matching for intertext studies.',
+      url='https://github.com/tesserae/tesserae-v5',
+      author='Jeff Kinnison',
+      author_email='jkinniso@nd.edu',
+      packages=find_packages(),
+      classifiers=[
+          'Development Status :: 3 - Alpha',
+          'Intended Audience :: Research',
+          'Intended Audience :: Developers',
+          'Intended Audience :: Users',
+          'Topic :: Digital Humanities :: Classics',
+          'Topic :: Digital Humanities :: Text Processing',
+          'Topic :: Digital Humanities :: Intertext Matching',
+          'Programming Language :: Python :: 3',
+          'Programming Language :: Python :: 3.6',
+          'Operating System :: POSIX',
+          'Operating System :: Unix',
+          'Operating System :: MacOS',
+      ],
+      keywords='machine_learning hyperparameters distributed_computing',
+      install_requires=[
+          'cltk>=0.1.83', 'nltk>=3.2.5', 'numpy>=1.14.0', 'pymongo>=3.6.1',
+          'scipy', 'tqdm', 'natsort', 'six'
+      ],
+      cmdclass={
+          'install': InstallLemmataModels,
+          'develop': DevelopLemmataModels,
+      })

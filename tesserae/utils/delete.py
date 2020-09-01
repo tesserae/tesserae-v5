@@ -29,30 +29,25 @@ def remove_results(connection, searches):
             multi_searches.append(search)
     if normal_searches:
         matchdb = connection.connection[Match.collection]
-        matchdb.delete_many(
-            {'search_id': {'$in': [s.id for s in searches]}}
-        )
+        matchdb.delete_many({'search_id': {'$in': [s.id for s in searches]}})
         # make sure that multitext searches that are built on top of the
         # searches that are about to be deleted are also included in the
         # multitext searches that are to be deleted
-        multi_searches.extend(connection.aggregate(
-            Search.collection,
-            [
-                {
-                    '$match': {
-                        'parameters.search_uuid': {
-                            '$in': [s.results_id for s in searches]
-                        }
+        multi_searches.extend(
+            connection.aggregate(Search.collection, [{
+                '$match': {
+                    'parameters.search_uuid': {
+                        '$in': [s.results_id for s in searches]
                     }
                 }
-            ]
-        ))
+            }]))
         connection.delete(normal_searches)
     if multi_searches:
         multidb = connection.connection[MultiResult.collection]
         multidb.delete_many(
-            {'search_id': {'$in': [m.id for m in multi_searches]}}
-        )
+            {'search_id': {
+                '$in': [m.id for m in multi_searches]
+            }})
         connection.delete(multi_searches)
 
 
@@ -71,32 +66,36 @@ def remove_text(connection, text):
 
     """
     text_id = text.id
+    str_text_id = str(text_id)
 
     connection.connection[Token.collection].delete_many({'text': text_id})
     connection.connection[Unit.collection].delete_many({'text': text_id})
 
-    searches = connection.aggregate(
-        Search.collection,
-        [
-            {
-                '$match': {
-                    '$or': [
-                        {'parameters.source.object_id': str(text_id)},
-                        {'parameters.target.object_id': str(text_id)},
-                        {'parameters.text_ids': str(text_id)},
-                    ]
-                }
-            }
-        ]
-    )
+    searches = connection.aggregate(Search.collection, [{
+        '$match': {
+            '$or': [
+                {
+                    'parameters.source.object_id': str_text_id
+                },
+                {
+                    'parameters.target.object_id': str_text_id
+                },
+                {
+                    'parameters.text_ids': str_text_id
+                },
+            ]
+        }
+    }])
     remove_results(connection, searches)
 
     connection.connection[Feature.collection].update_many(
-        {'frequencies.'+str(text_id): {'$exists': True}},
-        {'$unset': {'frequencies.'+str(text_id): ""}}
-    )
+        {'frequencies.' + str_text_id: {
+            '$exists': True
+        }}, {'$unset': {
+            'frequencies.' + str_text_id: ""
+        }})
 
-    unregister_bigrams(connection, text_id)
+    unregister_bigrams(connection, text)
 
     connection.delete(text)
 

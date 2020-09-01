@@ -15,23 +15,31 @@ from tesserae.db.entities import Feature, Text
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
 from tesserae.utils.multitext import BigramWriter
-from tesserae.utils.search import get_results
-
+from tesserae.utils.search import get_results, PageOptions
 
 # Make sure that bigram databases are written out to a temporary location
 BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
 
 
 def pytest_addoption(parser):
-    parser.addoption('--db-host', action='store', default='127.0.0.1',
+    parser.addoption('--db-host',
+                     action='store',
+                     default='127.0.0.1',
                      help='IP of the test database host')
-    parser.addoption('--db-port', action='store', default=27017, type=int,
+    parser.addoption('--db-port',
+                     action='store',
+                     default=27017,
+                     type=int,
                      help='Port that the test database listens on')
-    parser.addoption('--db-user', action='store',
+    parser.addoption('--db-user',
+                     action='store',
                      help='User to log into the test database as')
-    parser.addoption('--db-pwd', action='store_true',
+    parser.addoption('--db-pwd',
+                     action='store_true',
                      help='Pass this flag to input database password on start')
-    parser.addoption('--db-name', action='store', default='tess_test',
+    parser.addoption('--db-name',
+                     action='store',
+                     default='tess_test',
                      help='Name of the test database to use.')
 
 
@@ -145,8 +153,8 @@ def lucverg_metadata(tessfiles_latin_path):
             'author': 'lucan',
             'language': 'latin',
             'year': 65,
-            'path': str(tessfiles_latin_path.joinpath(
-                'lucan.bellum_civile.tess')),
+            'path':
+            str(tessfiles_latin_path.joinpath('lucan.bellum_civile.tess')),
             'is_prose': False
         },
     ]
@@ -203,19 +211,20 @@ def test_data(connection, tessfiles):
 
 @pytest.fixture(scope='session')
 def tessfiles():
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), 'tessfiles'))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        'tessfiles'))
 
 
 @pytest.fixture(scope='session')
 def minipop(request, mini_greek_metadata, mini_latin_metadata):
     conn = TessMongoConnection('localhost', 27017, None, None, 'minitess')
+    conn.create_indices()
     for metadata in mini_greek_metadata:
         text = Text.json_decode(metadata)
-        ingest_text(conn, text)
+        ingest_text(conn, text, enable_multitext=True)
     for metadata in mini_latin_metadata:
         text = Text.json_decode(metadata)
-        ingest_text(conn, text)
+        ingest_text(conn, text, enable_multitext=True)
     yield conn
     obliterate(conn)
 
@@ -260,7 +269,7 @@ def _load_v3_results(minitext_path, tab_filename):
 class V3Checker:
     @staticmethod
     def check_search_results(conn, results_id, textpath, tabname):
-        v5_results = get_results(conn, results_id)
+        v5_results = get_results(conn, results_id, PageOptions())
         v5_results.sort(key=lambda x: -x['score'])
         v3_results = _load_v3_results(textpath, tabname)
         v3_relations = _build_relations(v3_results)
@@ -281,9 +290,8 @@ class V3Checker:
                 v3_score = v3_match['score']
                 v5_score = v5_match['score']
                 if f'{v5_score:.3f}' != f'{v3_score:.3f}':
-                    score_discrepancies.append((
-                        target_loc, source_loc,
-                        v5_score-v3_score))
+                    score_discrepancies.append(
+                        (target_loc, source_loc, v5_score - v3_score))
                 v5_match_features = set(v5_match['matched_features'])
                 v3_match_features = set()
                 for match_f in v3_match['matched_features']:
@@ -292,9 +300,8 @@ class V3Checker:
                 only_in_v5 = v5_match_features - v3_match_features
                 only_in_v3 = v3_match_features - v5_match_features
                 if only_in_v5 or only_in_v3:
-                    match_discrepancies.append((
-                        target_loc, source_loc, only_in_v5,
-                        only_in_v3))
+                    match_discrepancies.append(
+                        (target_loc, source_loc, only_in_v5, only_in_v3))
         for target_loc in v5_relations:
             for source_loc in v5_relations[target_loc]:
                 if target_loc not in v3_relations or \
@@ -313,8 +320,14 @@ class V3Checker:
     @staticmethod
     def _load_v3_mini_text_freqs_file(conn, text, v3feature):
         db_cursor = conn.connection[Feature.collection].find(
-                {'feature': 'form', 'language': text.language},
-                {'_id': False, 'index': True, 'token': True})
+            {
+                'feature': 'form',
+                'language': text.language
+            }, {
+                '_id': False,
+                'index': True,
+                'token': True
+            })
         token2index = {e['token']: e['index'] for e in db_cursor}
         # the .freq_score_* file is named the same as its corresponding
         # .tess file

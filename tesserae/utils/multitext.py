@@ -13,8 +13,8 @@ import numpy as np
 
 from tesserae.db.entities import \
     Feature, Match, MultiResult, Search, Text, Unit
+from tesserae.db.entities.text import TextStatus
 from tesserae.utils.calculations import get_inverse_text_frequencies
-
 
 MULTITEXT_SEARCH = 'multitext'
 
@@ -77,23 +77,20 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         'text_ids': texts_ids_strs,
         'unit_type': unit_type,
     }
-    results_status = Search(
-        results_id=results_id,
-        search_type=MULTITEXT_SEARCH,
-        status=Search.INIT, msg='',
-        parameters=parameters
-    )
+    results_status = Search(results_id=results_id,
+                            search_type=MULTITEXT_SEARCH,
+                            status=Search.INIT,
+                            msg='',
+                            parameters=parameters)
     connection.insert(results_status)
     search = connection.find(Search.collection, results_id=search_uuid)[0]
     results_status.update_current_stage_value(0.33)
     connection.update(results_status)
-    matches = connection.find(
-        Match.collection, search_id=search.id)
+    matches = connection.find(Match.collection, search_id=search.id)
     results_status.update_current_stage_value(0.66)
     connection.update(results_status)
-    texts = connection.find(
-        Text.collection, _id=[ObjectId(tid) for tid in texts_ids_strs]
-    )
+    texts = connection.find(Text.collection,
+                            _id=[ObjectId(tid) for tid in texts_ids_strs])
     try:
         results_status.update_current_stage_value(1.0)
 
@@ -102,10 +99,9 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         results_status.status = Search.RUN
         results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
-        raw_results = multitext_search(
-            results_status,
-            connection, matches, search.parameters['method']['feature'],
-            unit_type, texts)
+        raw_results = multitext_search(results_status, connection, matches,
+                                       search.parameters['method']['feature'],
+                                       unit_type, texts)
         results_status.update_current_stage_value(1.0)
 
         results_status.add_new_stage('save multitext results')
@@ -114,20 +110,22 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
         for start in range(0, len(matches), stepsize):
             results_status.update_current_stage_value(start / len(matches))
             connection.update(results_status)
-            multiresults = [MultiResult(
-                search_id=search_id,
-                match_id=m.id,
-                bigram=list(bigram),
-                units=[v[0] for v in values],
-                scores=[v[1] for v in values]
-            ) for m, result in zip(matches[start:start+stepsize],
-                                   raw_results[start:start+stepsize])
-                            for bigram, values in result.items()]
+            multiresults = [
+                MultiResult(search_id=search_id,
+                            match_id=m.id,
+                            bigram=list(bigram),
+                            units=[v[0] for v in values],
+                            scores=[v[1] for v in values])
+                for m, result in zip(matches[start:start + stepsize],
+                                     raw_results[start:start + stepsize])
+                for bigram, values in result.items()
+            ]
             connection.insert_nocheck(multiresults)
 
+        results_status.update_current_stage_value(1.0)
         results_status.status = Search.DONE
-        results_status.msg = 'Done in {} seconds'.format(
-            time.time() - start_time)
+        results_status.msg = 'Done in {} seconds'.format(time.time() -
+                                                         start_time)
         results_status.last_queried = datetime.datetime.utcnow()
         connection.update(results_status)
     # we want to catch all errors and log them into the Search entity
@@ -170,8 +168,8 @@ def compute_inverse_frequencies(connection, feature_type, text_id):
     1d np.array
         index by form index to obtain corresponding inverse text frequency
     """
-    inv_freqs_dict = get_inverse_text_frequencies(
-        connection, feature_type, text_id)
+    inv_freqs_dict = get_inverse_text_frequencies(connection, feature_type,
+                                                  text_id)
     inverse_frequencies = np.zeros(max(inv_freqs_dict) + 1)
     inverse_frequencies[[k for k in inv_freqs_dict.keys()]] = \
         [v for v in inv_freqs_dict.values()]
@@ -188,8 +186,8 @@ class BigramWriter:
     indices on the databases.
     """
 
-    BIGRAM_DB_DIR = os.path.join(
-        os.path.expanduser('~'), 'tess_data', 'bigrams')
+    BIGRAM_DB_DIR = os.path.join(os.path.expanduser('~'), 'tess_data',
+                                 'bigrams')
     transaction_threshold = 10000
 
     def __init__(self, text_id, unit_type):
@@ -243,8 +241,8 @@ class BigramWriter:
             ObjectId of the Unit whose bigrams are being recorded
         """
         collected = {}
-        for pos1, (unigrams1, outerform1) in enumerate(
-                zip(positioned_unigrams, forms)):
+        for pos1, (unigrams1,
+                   outerform1) in enumerate(zip(positioned_unigrams, forms)):
             form1 = outerform1[0]
             for word1 in unigrams1:
                 pos2_start = pos1 + 1
@@ -261,13 +259,12 @@ class BigramWriter:
                                 # multitext (i.e., two adjacent words have a
                                 # distance of 1, words that have one word
                                 # between them have a distance of two, etc.)
-                                (pos2_increment + 1,))
+                                (
+                                    pos2_increment + 1, ))
         unit_id_binary = unit_id.binary
         to_write = self.data[feature]
-        to_write.extend([
-            (word1, word2, unit_id_binary, score)
-            for (word1, word2), score in collected.items()
-        ])
+        to_write.extend([(word1, word2, unit_id_binary, score)
+                         for (word1, word2), score in collected.items()])
 
         if len(to_write) > BigramWriter.transaction_threshold:
             self.write_data(feature, to_write)
@@ -282,25 +279,22 @@ class BigramWriter:
             the type of feature being recorded
         to_write : list 5-tuple
         """
-        dbpath = _create_bigram_db_path(
-            self.text_id, self.unit_type, feature)
+        dbpath = _create_bigram_db_path(self.text_id, self.unit_type, feature)
         if not os.path.exists(dbpath):
             conn = sqlite3.connect(dbpath)
             conn.execute('create table bigrams('
-                            'id integer primary key, '
-                            'word1 integer, '
-                            'word2 integer, '
-                            'unitid blob(12), '
-                            'score real '
+                         'id integer primary key, '
+                         'word1 integer, '
+                         'word2 integer, '
+                         'unitid blob(12), '
+                         'score real '
                          ')')
         else:
             conn = sqlite3.connect(dbpath)
         with conn:
             conn.executemany(
                 'insert into bigrams(word1, word2, unitid, score) '
-                'values (?, ?, ?, ?)',
-                to_write
-            )
+                'values (?, ?, ?, ?)', to_write)
         conn.close()
 
     def __enter__(self):
@@ -311,8 +305,8 @@ class BigramWriter:
             if to_write:
                 self.write_data(feature, to_write)
                 to_write.clear()
-            dbpath = _create_bigram_db_path(
-                self.text_id, self.unit_type, feature)
+            dbpath = _create_bigram_db_path(self.text_id, self.unit_type,
+                                            feature)
             conn = sqlite3.connect(dbpath)
             conn.execute('drop index if exists bigrams_index')
             conn.execute('create index bigrams_index on bigrams ('
@@ -338,37 +332,45 @@ def _create_bigram_db_path(text_id, unit_type, feature):
 
     """
     text_id_str = str(text_id)
-    return str(os.path.join(
-        BigramWriter.BIGRAM_DB_DIR, f'{text_id_str}_{unit_type}_{feature}.db'))
+    return str(
+        os.path.join(BigramWriter.BIGRAM_DB_DIR,
+                     f'{text_id_str}_{unit_type}_{feature}.db'))
 
 
-def register_bigrams(connection, text_id):
+def register_bigrams(connection, text):
     """Compute and store bigram information for the specified Text
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
         A connection to the Tesserae database
-    text_id : ObjectId
-        ObjectId of Text
+    text_id : tesserae.db.entities.Text
+        The text whose bigram information is to be computed and stored
 
     """
     accepted_features = ('form', 'lemmata')
+    for feature in accepted_features:
+        text.update_ingestion_details(feature, MULTITEXT_SEARCH,
+                                      TextStatus.RUN, '')
+    connection.update(text)
     feat2inv_freqs = {
-        f_type: compute_inverse_frequencies(connection, f_type, text_id)
+        f_type: compute_inverse_frequencies(connection, f_type, text.id)
         for f_type in accepted_features
     }
-    text = connection.find(Text.collection, _id=text_id)[0]
     unit_types = ['phrase']
     if not text.is_prose:
         unit_types.append('line')
     for unit_type in unit_types:
         with connection.connection[Unit.collection].find(
-            {'text': text_id, 'unit_type': unit_type},
-            {'_id': True, 'tokens': True},
-            no_cursor_timeout=True
-        ) as unit_cursor:
-            with BigramWriter(text_id, unit_type) as writer:
+            {
+                'text': text.id,
+                'unit_type': unit_type
+            }, {
+                '_id': True,
+                'tokens': True
+            },
+                no_cursor_timeout=True) as unit_cursor:
+            with BigramWriter(text.id, unit_type) as writer:
                 for unit_dict in unit_cursor:
                     by_feature = defaultdict(list)
                     unit_id = unit_dict['_id']
@@ -378,25 +380,29 @@ def register_bigrams(connection, text_id):
                             if feature in accepted_features:
                                 by_feature[feature].append(values)
                     for feature, values in by_feature.items():
-                        writer.record_bigrams(
-                            feature, values, by_feature['form'],
-                            feat2inv_freqs[feature], unit_id)
+                        writer.record_bigrams(feature, values,
+                                              by_feature['form'],
+                                              feat2inv_freqs[feature], unit_id)
+    for feature in accepted_features:
+        text.update_ingestion_details(feature, MULTITEXT_SEARCH,
+                                      TextStatus.DONE, '')
+    connection.update(text)
 
 
-def unregister_bigrams(connection, text_id):
+def unregister_bigrams(connection, text):
     """Remove bigram data for the specified Text
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
         A connection to the Tesserae database
-    text_id : ObjectId
-        ObjectId of Text
+    text : tesserae.db.entities.Text
+        Text whose bigram information is to be removed
 
     """
-    text_id_str = str(text_id)
-    for filename in glob.glob(os.path.join(
-            BigramWriter.BIGRAM_DB_DIR, f'{text_id_str}_*.db')):
+    text_id_str = str(text.id)
+    for filename in glob.glob(
+            os.path.join(BigramWriter.BIGRAM_DB_DIR, f'{text_id_str}_*.db')):
         os.remove(filename)
 
 
@@ -423,8 +429,7 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
 
     """
     results = {}
-    bigram_db_path = _create_bigram_db_path(
-        text_id, unit_type, feature)
+    bigram_db_path = _create_bigram_db_path(text_id, unit_type, feature)
     conn = sqlite3.connect(bigram_db_path)
     with conn:
         for word1, word2 in bigrams:
@@ -433,19 +438,15 @@ def lookup_bigrams(text_id, unit_type, feature, bigrams):
             if int1 > int2:
                 int1, int2 = int2, int1
             bigram = (int1, int2)
-            results[bigram] = [
-                (ObjectId(bytes(row[0])), row[1])
-                for row in conn.execute(
-                    'select unitid, score from bigrams where '
-                    'word1=? and word2=?',
-                    bigram
-                )
-            ]
+            results[bigram] = [(ObjectId(bytes(row[0])), row[1])
+                               for row in conn.execute(
+                                   'select unitid, score from bigrams where '
+                                   'word1=? and word2=?', bigram)]
     return results
 
 
-def multitext_search(results_status, connection,
-                     matches, feature_type, unit_type, texts):
+def multitext_search(results_status, connection, matches, feature_type,
+                     unit_type, texts):
     """Retrieves Units containing matched bigrams
 
     Multitext search addresses the question, "Given these matches I've found
@@ -485,7 +486,8 @@ def multitext_search(results_status, connection,
     token2index = {
         f.token: f.index
         for f in connection.find(
-            Feature.collection, feature=feature_type, language=language)}
+            Feature.collection, feature=feature_type, language=language)
+    }
     results_status.update_current_stage_value(0.25)
     connection.update(results_status)
 
@@ -498,24 +500,18 @@ def multitext_search(results_status, connection,
 
     bigram2units = defaultdict(list)
     for text in texts:
-        bigram_data = lookup_bigrams(
-            text.id, 'phrase' if text.is_prose else unit_type, feature_type,
-            bigram_indices)
+        bigram_data = lookup_bigrams(text.id,
+                                     'phrase' if text.is_prose else unit_type,
+                                     feature_type, bigram_indices)
         for bigram, data in bigram_data.items():
-            bigram2units[bigram].extend([
-                u for u in data
-            ])
+            bigram2units[bigram].extend([u for u in data])
     results_status.update_current_stage_value(0.75)
     connection.update(results_status)
 
-    return [
-        {
-            bigram: bigram2units[
-                (token2index[bigram[0]], token2index[bigram[1]])]
-            for bigram in itertools.combinations(sorted(m.matched_features), 2)
-        }
-        for m in matches
-    ]
+    return [{
+        bigram: bigram2units[(token2index[bigram[0]], token2index[bigram[1]])]
+        for bigram in itertools.combinations(sorted(m.matched_features), 2)
+    } for m in matches]
 
 
 def check_cache(connection, search_uuid, text_ids_str, unit_type):
@@ -550,56 +546,79 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
     found = [
         Search.json_decode(f)
         for f in connection.connection[Search.collection].find({
-            'search_type': MULTITEXT_SEARCH,
-            'parameters.search_uuid': search_uuid,
-            '$and': [
-                {'parameters.text_ids': {'$all': text_ids_str}},
-                {'parameters.text_ids': {
-                    '$size': len(text_ids_str)}}
-            ],
-            'parameters.unit_type': unit_type,
+            'search_type':
+            MULTITEXT_SEARCH,
+            'parameters.search_uuid':
+            search_uuid,
+            '$and': [{
+                'parameters.text_ids': {
+                    '$all': text_ids_str
+                }
+            }, {
+                'parameters.text_ids': {
+                    '$size': len(text_ids_str)
+                }
+            }],
+            'parameters.unit_type':
+            unit_type,
         })
     ]
-    if found and found[0].status != Search.FAILED:
-        return found[0].results_id
+    for s in found:
+        if s.status != Search.FAILED:
+            return s.results_id
     return None
 
 
-def get_results(connection, results_id):
+def get_results(connection, search_id):
     """Retrive search results with associated id
 
     Parameters
     ----------
-    results_id : str
-        UUID for Search whose results you are trying to retrieve
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
 
     Returns
     -------
     list of MatchResult
     """
-    found = connection.find(
-            Search.collection, results_id=results_id, status=Search.DONE)[0]
-    found.last_queried = datetime.datetime.utcnow()
-    connection.update(found)
-    db_multiresults = connection.aggregate(
-        MultiResult.collection,
-        [
-            {'$match': {'search_id': found.id}},
-            {
-                '$project': {
-                    '_id': False,
-                    'match_id': True,
-                    'bigram': True,
-                    'units': True,
-                    'scores': True,
-                }
+    db_multiresults = [
+        mr for mr in connection.aggregate(MultiResult.collection, [{
+            '$match': {
+                'search_id': search_id
             }
-        ],
-        encode=False
-    )
-    return [{
-        'match_id': str(mr['match_id']),
-        'bigram': mr['bigram'],
-        'units': [str(uid) for uid in mr['units']],
-        'scores': mr['scores']
-    } for mr in db_multiresults]
+        }, {
+            '$project': {
+                '_id': False,
+                'match_id': True,
+                'bigram': True,
+                'units': True,
+                'scores': True,
+            }
+        }],
+                                          encode=False)
+    ]
+    needed_units = {
+        unit.id: unit
+        for unit in connection.find(
+            Unit.collection,
+            _id=[uid for mr in db_multiresults for uid in mr['units']])
+    }
+    return [
+        {
+            'match_id':
+            str(mr['match_id']),
+            'bigram':
+            mr['bigram'],
+            'units': [
+                {
+                    'unit_id': str(u.id),
+                    'tag': u.tags[0],
+                    'snippet': u.snippet,
+                    # TODO implement
+                    'highlight': [],
+                    'score': score
+                } for u, score in zip((needed_units[uid]
+                                       for uid in mr['units']), mr['scores'])
+            ]
+        } for mr in db_multiresults
+    ]
