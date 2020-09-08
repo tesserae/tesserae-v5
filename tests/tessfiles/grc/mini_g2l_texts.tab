@@ -1,0 +1,18 @@
+# Tesserae V3 results
+#
+# session   = NA
+# source    = ztest.ach
+# target    = ztest.punica
+# unit      = line
+# feature   = g_l
+# stopsize  = 3
+# stbasis   = both
+# stopwords = is quis atque
+# max_dist  = 999
+# dibasis   = freq
+# cutoff    = 0
+# filter    = off
+
+"RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
+1	"sil. 1.485"	"praemia et Italiam **tellure** **inquire** sub ima."	"aristop. ach. 341"	"τοὺς λίθους νύν μοι **χαμᾶζε** πρῶτον **ἐξεράσατε**."	"inquiro; tellus"	4.060
+2	"sil. 1.630"	"**Sed** postquam clades **patefecit** et horrida bella"	"aristop. ach. 1189"	"ὁδὶ δὲ καὐτός: **ἀλλ'** **ἄνοιγε** τὴν θύραν."	"sed; patefacio"	3.878

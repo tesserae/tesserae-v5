@@ -249,7 +249,7 @@ def create_features(db_features, text, language, feature, feature_list):
 
     out_features = []
     for f in feature_list:
-        if isinstance(f, collections.Sequence) and not isinstance(f, str):
+        if isinstance(f, collections.abc.Sequence) and not isinstance(f, str):
             if len(f) < 1:
                 out_features.append([])
                 continue
