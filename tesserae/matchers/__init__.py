@@ -1,3 +1,4 @@
+from .default import DefaultMatcher
 from .sparse_encoding import SparseMatrixSearch
 from .greek_to_latin import GreekToLatinSearch
 
