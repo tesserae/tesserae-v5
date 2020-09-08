@@ -22,6 +22,91 @@ class SparseMatrixSearch(object):
     def __init__(self, connection):
         self.connection = connection
 
+    @staticmethod
+    def paramify(search_params):
+        """Make JSONizable parameters for SparseMatrixSearch
+
+        To ensure consistent storage of parameters of this search type, Search
+        entities will store the search parameters returned by this method.
+
+        Parameters
+        ----------
+        search_params : dict
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'source': {
+                'object_id': str(search_params['source'].text.id),
+                'units': search_params['source'].unit_type
+            },
+            'target': {
+                'object_id': str(search_params['target'].text.id),
+                'units': search_params['target'].unit_type
+            },
+            'method': {
+                'name': SparseMatrixSearch.matcher_type,
+                'feature': search_params['feature'],
+                'stopwords': search_params['stopwords'],
+                'freq_basis': search_params['freq_basis'],
+                'max_distance': search_params['max_distance'],
+                'distance_basis': search_params['distance_basis'],
+                'min_score': search_params['min_score']
+            }
+        }
+
+    @staticmethod
+    def get_agg_query(source, target, method):
+        """Make aggregation pipeline query parameters
+
+        Running an aggregation pipeline with the returned dictionary should
+        identify any cached results in the database for a search that used the
+        specified search parameters.
+
+        Parameters
+        ----------
+        source
+        target
+        method
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'parameters.source.object_id':
+            str(source['object_id']),
+            'parameters.source.units':
+            source['units'],
+            'parameters.target.object_id':
+            str(target['object_id']),
+            'parameters.target.units':
+            target['units'],
+            'parameters.method.name':
+            method['name'],
+            'parameters.method.feature':
+            method['feature'],
+            '$and': [{
+                'parameters.method.stopwords': {
+                    '$all': method['stopwords']
+                }
+            }, {
+                'parameters.method.stopwords': {
+                    '$size': len(method['stopwords'])
+                }
+            }],
+            'parameters.method.freq_basis':
+            method['freq_basis'],
+            'parameters.method.max_distance':
+            method['max_distance'],
+            'parameters.method.distance_basis':
+            method['distance_basis'],
+            'parameters.method.min_score':
+            method['min_score']
+        }
+
     def match(self,
               search,
               source,

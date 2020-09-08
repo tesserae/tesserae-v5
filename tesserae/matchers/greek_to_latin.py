@@ -23,10 +23,108 @@ class GreekToLatinSearch:
         self.connection = connection
         self.greek_to_latin = load_greek_to_latin()
 
+    @staticmethod
+    def paramify(search_params):
+        """Make JSONizable parameters for SparseMatrixSearch
+
+        To ensure consistent storage of parameters of this search type, Search
+        entities will store the search parameters returned by this method.
+
+        Parameters
+        ----------
+        search_params : dict
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'source': {
+                'object_id': str(search_params['source'].text.id),
+                'units': search_params['source'].unit_type
+            },
+            'target': {
+                'object_id': str(search_params['target'].text.id),
+                'units': search_params['target'].unit_type
+            },
+            'method': {
+                'name': GreekToLatinSearch.matcher_type,
+                'greek_stopwords': search_params['greek_stopwords'],
+                'latin_stopwords': search_params['latin_stopwords'],
+                'freq_basis': search_params['freq_basis'],
+                'max_distance': search_params['max_distance'],
+                'distance_basis': search_params['distance_basis'],
+                'min_score': search_params['min_score']
+            }
+        }
+
+    @staticmethod
+    def get_agg_query(source, target, method):
+        """Make aggregation pipeline query parameters
+
+        Running an aggregation pipeline with the returned dictionary should
+        identify any cached results in the database for a search that used the
+        specified search parameters.
+
+        Parameters
+        ----------
+        source
+        target
+        method
+
+        Returns
+        -------
+        dict
+        """
+        and_clause = []
+        # Mongo doesn't like matching on empty arrays
+        greek_stopwords = method['greek_stopwords']
+        greek_stopwords_length = len(greek_stopwords)
+        if greek_stopwords_length > 0:
+            and_clause.extend([
+                {
+                    'parameters.method.greek_stopwords': {
+                        '$all': greek_stopwords
+                    }
+                },
+                {
+                    'parameters.method.greek_stopwords': {
+                        '$size': greek_stopwords_length
+                    }
+                },
+            ])
+        latin_stopwords = method['latin_stopwords']
+        latin_stopwords_length = len(latin_stopwords)
+        if latin_stopwords_length > 0:
+            and_clause.extend([
+                {
+                    'parameters.method.latin_stopwords': {
+                        '$all': latin_stopwords
+                    }
+                },
+                {
+                    'parameters.method.latin_stopwords': {
+                        '$size': latin_stopwords_length
+                    }
+                },
+            ])
+        return {
+            'parameters.source.object_id': str(source['object_id']),
+            'parameters.source.units': source['units'],
+            'parameters.target.object_id': str(target['object_id']),
+            'parameters.target.units': target['units'],
+            'parameters.method.name': method['name'],
+            '$and': and_clause,
+            'parameters.method.freq_basis': method['freq_basis'],
+            'parameters.method.max_distance': method['max_distance'],
+            'parameters.method.distance_basis': method['distance_basis'],
+            'parameters.method.min_score': method['min_score']
+        }
+
     def match(self,
               search,
-              greek_text_options,
-              latin_text_options,
+              source,
+              target,
               greek_stopwords,
               latin_stopwords,
               freq_basis='texts',
@@ -42,9 +140,9 @@ class GreekToLatinSearch:
         ----------
         search : tesserae.db.entities.Search
             The search job associated with this matching job.
-        greek_text_options : tesserae.matchers.text_options.TextOptions
+        source : tesserae.matchers.text_options.TextOptions
             The Greek text to compare against, specifying by which units.
-        latin_text_options : tesserae.matchers.text_options.TextOptions
+        target : tesserae.matchers.text_options.TextOptions
             The Latin text to compare against, specifying by which units.
         greek_stopwords : list of str
             A list of Greek words to ignore in the Greek text.
@@ -68,8 +166,8 @@ class GreekToLatinSearch:
         ValueError
             Raised when a parameter was poorly specified
         """
-        assert greek_text_options.text.language == 'greek'
-        assert latin_text_options.text.language == 'latin'
+        assert source.text.language == 'greek'
+        assert target.text.language == 'latin'
         greek_stoplist_set = set(
             get_feature_indices(self.connection, 'greek', 'lemmata',
                                 greek_stopwords))
@@ -91,20 +189,16 @@ class GreekToLatinSearch:
             for f in latin_features if f.index not in latin_stoplist_set
         }
 
-        greek_units = _get_units(self.connection, greek_text_options,
-                                 'lemmata')
-        latin_units = _get_units(self.connection, latin_text_options,
-                                 'lemmata')
+        greek_units = _get_units(self.connection, source, 'lemmata')
+        latin_units = _get_units(self.connection, target, 'lemmata')
 
-        tag_helper = TagHelper(
-            self.connection,
-            [greek_text_options.text, latin_text_options.text])
+        tag_helper = TagHelper(self.connection, [source.text, target.text])
 
         greek_inv_frequencies_getter = _get_inv_greek_to_latin_freq_getter(
-            self.connection, freq_basis, greek_text_options, greek_units,
+            self.connection, freq_basis, source, greek_units,
             greek_ind_to_other_greek_inds)
         latin_inv_frequencies_getter = _get_inv_lemmata_freq_getter(
-            self.connection, freq_basis, latin_text_options, latin_units)
+            self.connection, freq_basis, target, latin_units)
 
         search_id = search.id
 

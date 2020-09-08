@@ -1,5 +1,3 @@
-from .default import DefaultMatcher
-# from .aggregator import AggregationMatcher
 from .sparse_encoding import SparseMatrixSearch
 from .greek_to_latin import GreekToLatinSearch
 
