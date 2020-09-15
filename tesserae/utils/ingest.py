@@ -10,7 +10,7 @@ from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
-from tesserae.utils.multitext import register_bigrams
+from tesserae.utils.multitext import register_bigrams, MULTITEXT_SEARCH
 from tesserae.utils.search import NORMAL_SEARCH
 from tesserae.utils.tessfile import TessFile
 
@@ -66,11 +66,6 @@ def _run_ingest(connection, text, file_location, enable_multitext=False):
         connection.update(text)
         return
     if already_ingested(connection, text):
-        text.ingestion_status = (
-            TextStatus.FAILED,
-            f'Text already in database (author: {text.author}, '
-            f'title: {text.title})')
-        connection.update(text)
         return
 
     text.path = file_location
@@ -249,8 +244,57 @@ def add_feature(connection, text, feature, enable_multitext=False):
     enable_multitext : bool (default: False)
         Whether to enable multitext search with this text
     """
-    # TODO add check to make sure feature hasn't already been computed for this
-    # text
+    _add_feature_for(connection, text, feature, NORMAL_SEARCH)
+    if enable_multitext:
+        _add_feature_for(connection, text, feature, MULTITEXT_SEARCH)
+
+
+def _add_feature_for(connection, text, feature, search_type):
+    """Add feature information for a text
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text to update with a new feature
+    feature : str
+        The type of feature to extract and account for from the text
+    """
+    status, _ = text.check_ingestion_details(feature, search_type)
+    if status == TextStatus.UNINIT or status == TextStatus.FAILED:
+        text.update_ingestion_details(feature, search_type, TextStatus.RUN, '')
+        connection.update(text)
+        try:
+            if search_type == NORMAL_SEARCH:
+                _add_feature_for_normal_search(connection, text, feature)
+            elif search_type == MULTITEXT_SEARCH:
+                _add_feature_for_multitext_search(connection, text, feature)
+            else:
+                raise ValueError(f'Unknown search type: {search_type}')
+            text.update_ingestion_details(feature, search_type,
+                                          TextStatus.DONE, '')
+            connection.update(text)
+        # we want to catch all errors and log them into the Text entity
+        except:  # noqa: E722
+            text.update_ingestion_details(feature, search_type,
+                                          TextStatus.FAILED,
+                                          traceback.format_exc())
+            connection.update(text)
+
+
+def _add_feature_for_normal_search(connection, text, feature):
+    """Add feature information for a text for normal search
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        A connection to the database
+    text : tesserae.db.entities.Text
+        The text to update with a new feature
+    feature : str
+        The type of feature to extract and account for from the text
+    """
     language = text.language
     # use lines to compute new features and frequencies
     lines = connection.find(Unit.collection, text=text.id, unit_type='line')
@@ -277,8 +321,6 @@ def add_feature(connection, text, feature, enable_multitext=False):
                   form_index_to_raw_features)
     _update_tokens(connection, text, feature, db_feature_cache,
                    form_index_to_raw_features)
-    # TODO update multitext if necessary
-    # TODO indicate that feature has been computed
 
 
 def _get_form_index_to_raw_features(connection, units, language, feature):
@@ -444,3 +486,9 @@ def _update_tokens(connection, text, feature, db_feature_cache,
             for raw_feature in form_index_to_raw_features[cur_form_index]
         ]
     connection.update(tokens)
+
+
+def _add_feature_for_multitext_search(connection, text, feature):
+    # TODO implement
+    raise NotImplementedError(
+        'Feature addition for multitext not yet implemented')
