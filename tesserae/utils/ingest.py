@@ -6,7 +6,7 @@ from natsort import natsorted
 from tesserae.db.entities import Feature, Token, Unit
 from tesserae.db.entities.text import Text, TextStatus
 from tesserae.features import get_featurizer
-from tesserae.tokenizers import GreekTokenizer, LatinTokenizer
+from tesserae.tokenizers import tokenizer_map
 from tesserae.unitizer import Unitizer
 from tesserae.utils.coordinate import JobQueue
 from tesserae.utils.delete import remove_text
@@ -60,7 +60,7 @@ def _run_ingest(connection, text, file_location, enable_multitext=False):
 
     """
     start_time = time.time()
-    if text.language not in _tokenizers:
+    if text.language not in tokenizer_map:
         text.ingestion_status = (TextStatus.FAILED,
                                  'Unknown language: {}'.format(text.language))
         connection.update(text)
@@ -81,12 +81,6 @@ def _run_ingest(connection, text, file_location, enable_multitext=False):
     except:  # noqa: E722
         text.ingestion_status = (TextStatus.FAILED, traceback.format_exc())
         connection.update(text)
-
-
-_tokenizers = {
-    'greek': GreekTokenizer,
-    'latin': LatinTokenizer,
-}
 
 
 def already_ingested(connection, text):
@@ -160,7 +154,7 @@ def _ingest_tessfile(connection, text, tessfile, enable_multitext=False):
         Whether to enable multitext search with this text
     """
     tokens, tags, features = \
-        _tokenizers[tessfile.metadata.language](connection).tokenize(
+        tokenizer_map[tessfile.metadata.language](connection).tokenize(
             tessfile.read(), text=tessfile.metadata)
 
     text.divisions = _extract_divisions(tags)
