@@ -13,6 +13,7 @@ def test_add_feature(minipop):
             for f in minipop.find(
                 Feature.collection, language=text.language, feature=feature)
         }
+        # test feature is equivalent to sound feature
         db_sound_features = {
             f.token: f.frequencies[text_id_str]
             for f in minipop.find(

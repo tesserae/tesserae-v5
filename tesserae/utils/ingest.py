@@ -489,6 +489,6 @@ def _update_tokens(connection, text, feature, db_feature_cache,
 
 
 def _add_feature_for_multitext_search(connection, text, feature):
-    # TODO implement
+    # what this will do remains uncertain
     raise NotImplementedError(
         'Feature addition for multitext not yet implemented')
