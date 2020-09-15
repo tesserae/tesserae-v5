@@ -5,6 +5,7 @@ from cltk.stem.latin.j_v import JVReplacer
 
 from tesserae.tokenizers.base import BaseTokenizer
 from tesserae.features.trigrams import trigrammify
+from tesserae.features import get_featurizer
 
 
 class LatinTokenizer(BaseTokenizer):
@@ -78,5 +79,12 @@ class LatinTokenizer(BaseTokenizer):
             fixed_lemmata.append(lem_lemmata)
 
         grams = trigrammify(tokens)
-        features = {'lemmata': fixed_lemmata, 'sound': grams}
+        synonymify = get_featurizer('latin', 'semantic')
+        synonymilemmafy = get_featurizer('latin', 'semantic + lemma')
+        features = {
+            'lemmata': fixed_lemmata,
+            'sound': grams,
+            'semantic': synonymify(tokens),
+            'semantic + lemma': synonymilemmafy(tokens)
+        }
         return features

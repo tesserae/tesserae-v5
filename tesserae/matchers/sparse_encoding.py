@@ -133,7 +133,7 @@ class SparseMatrixSearch(object):
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
             The target text to compare against, specifying by which units.
-        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
+        feature : {'form','lemmata','semantic','semantic + lemma','sound'}
             The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
@@ -173,17 +173,16 @@ class SparseMatrixSearch(object):
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
-            stoplist = create_stoplist(
-                self.connection,
-                stopwords,
-                'form' if feature == 'form' else 'lemmata',
-                source.text.language,
-                basis=stopword_basis)
+            stoplist = create_stoplist(self.connection,
+                                       stopwords,
+                                       feature,
+                                       source.text.language,
+                                       basis=stopword_basis)
         else:
             stoplist = get_stoplist_indices(
                 self.connection,
                 stopwords,
-                'form' if feature == 'form' else 'lemmata',
+                feature,
                 source.text.language,
             )
 

@@ -25,7 +25,7 @@ class GreekToLatinSearch:
 
     @staticmethod
     def paramify(search_params):
-        """Make JSONizable parameters for SparseMatrixSearch
+        """Make JSONizable parameters for GreekToLatinSearch
 
         To ensure consistent storage of parameters of this search type, Search
         entities will store the search parameters returned by this method.
