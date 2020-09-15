@@ -6,7 +6,6 @@ Token
     Text token data model with matching-related features.
 """
 import collections
-import copy
 import typing
 
 from bson.objectid import ObjectId
@@ -75,9 +74,9 @@ class Token(Entity):
         for key, val in self.features.items():
             if isinstance(val, Entity):
                 self.features[key] = val.id
-            elif isinstance(val, collections.Sequence):
+            elif isinstance(val, collections.abc.Sequence):
                 self.features[key] = [v.id if isinstance(v, Entity) else v
-                        for v in val]
+                                      for v in val]
 
         obj = super(Token, self).json_encode(exclude=exclude)
 
@@ -87,9 +86,9 @@ class Token(Entity):
         return obj
 
     def unique_values(self):
+        text_id = self.text.id if isinstance(self.text, Entity) else self.text
         uniques = {
-            'text': self.text.id if isinstance(self.text, Entity) else \
-                    self.text,
+            'text': text_id,
             'index': self.index
         }
         return uniques

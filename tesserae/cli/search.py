@@ -106,6 +106,11 @@ def parse_args(args=None):
                         default=0,
                         help='lowest scoring match to keep')
 
+    search.add_argument('--output', type=str, default=None,
+                        help='path to write results to file')
+    search.add_argument('--output-format', choices=['csv', 'json', 'tab', 'xml'],
+                        help='format to write the results in')
+    
     return p.parse_args(args)
 
 
@@ -113,7 +118,7 @@ def main():
     """Perform Tesserae search and display the top 10 results"""
     args = parse_args()
     if args.password:
-        password = getpass(prompt='Tesserae MongoDB Password: ')
+        password = getpass.getpass(prompt='Tesserae MongoDB Password: ')
     else:
         password = None
 
@@ -188,7 +193,15 @@ def main():
         }
         _run_search(connection, search, SparseMatrixSearch.matcher_type,
                     search_params)
-    matches = get_results(connection, search.id, PageOptions())
+    matches = get_results(
+        connection,
+        search.id,
+        PageOptions(
+            sort_by='score',
+            sort_order='descending',
+            per_page=10,
+            page_number=0
+    ))
     end = time.time() - start
     matches.sort(key=lambda x: x['score'], reverse=True)
     print(f'Search found {len(matches)} matches in {end}s.')
