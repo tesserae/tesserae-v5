@@ -200,16 +200,20 @@ class SparseMatrixSearch(object):
 
         tag_helper = TagHelper(self.connection, texts)
 
+        score_basis_mapping = {'word': 'form', 'stem': 'lemmata'}
+        true_score_basis = score_basis_mapping[score_basis] \
+            if score_basis in score_basis_mapping else score_basis
+
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(search, self.connection,
-                                                      feature, texts,
+                                                      true_score_basis, texts,
                                                       target_units,
                                                       source_units, features,
                                                       stoplist, distance_basis,
                                                       max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(search, self.connection,
-                                                    feature, texts,
+                                                    true_score_basis, texts,
                                                     target_units, source_units,
                                                     features, stoplist,
                                                     distance_basis,
@@ -255,20 +259,20 @@ def _get_units(connection, textoptions, feature):
     ]
 
 
-def _score_by_corpus_frequencies(search, connection, feature, texts,
+def _score_by_corpus_frequencies(search, connection, score_basis, texts,
                                  target_units, source_units, features,
                                  stoplist, distance_basis, max_distance,
                                  tag_helper):
     if texts[0].language != texts[1].language:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             source_units)
         target_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[1].language),
+            get_corpus_frequencies(connection, score_basis, texts[1].language),
             target_units)
     else:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_inv_frequencies_getter = source_inv_frequencies_getter
     return _score(search, connection, target_units, source_units, features,
@@ -277,13 +281,13 @@ def _score_by_corpus_frequencies(search, connection, feature, texts,
                   tag_helper)
 
 
-def _score_by_text_frequencies(search, connection, feature, texts,
+def _score_by_text_frequencies(search, connection, score_basis, texts,
                                target_units, source_units, features, stoplist,
                                distance_basis, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[0].id))
+        get_inverse_text_frequencies(connection, score_basis, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[1].id))
+        get_inverse_text_frequencies(connection, score_basis, texts[1].id))
     return _score(search, connection, target_units, source_units, features,
                   stoplist, distance_basis, max_distance,
                   source_frequencies_getter, target_frequencies_getter,
