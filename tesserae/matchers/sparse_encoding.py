@@ -50,6 +50,7 @@ class SparseMatrixSearch(object):
                 'name': SparseMatrixSearch.matcher_type,
                 'feature': search_params['feature'],
                 'stopwords': search_params['stopwords'],
+                'score_basis': search_params['score_basis'],
                 'freq_basis': search_params['freq_basis'],
                 'max_distance': search_params['max_distance'],
                 'distance_basis': search_params['distance_basis'],
@@ -133,7 +134,7 @@ class SparseMatrixSearch(object):
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
             The target text to compare against, specifying by which units.
-        feature : {'form','lemmata','semantic','semantic + lemma','sound'}
+        feature : {'form','lemmata','semantic','semantic + lemmata','sound'}
             The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
@@ -144,9 +145,8 @@ class SparseMatrixSearch(object):
             - 'texts': use the combined frequencies of all texts in the match
             - slice: use the texts returned from `texts` by the slice
             - Text: use a single text
-        score_basis : {'word','stem'}
-            Whether to score based on the words (normalized text) or stems
-            (lemmata).
+        score_basis : {'form','lemmata','sound'}
+            Token feature to score by.
         freq_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
@@ -191,7 +191,17 @@ class SparseMatrixSearch(object):
                                                feature=feature),
                           key=lambda x: x.index)
         if len(features) <= 0:
-            raise ValueError(f'Feature type "{feature}" for language '
+            raise ValueError(f'Chosen feature was invalid: '
+                             f'Feature type "{feature}" for language '
+                             f'"{source.text.language}" '
+                             f'was not found in the database.')
+        score_feature_found = \
+            self.connection.connection[Feature.collection].find_one(
+                filter={'language': source.text.language,
+                        'feature': score_basis})
+        if score_feature_found is None:
+            raise ValueError(f'Chosen score basis was invalid: '
+                             f'Feature type "{score_basis}" for language '
                              f'"{source.text.language}" '
                              f'was not found in the database.')
 
@@ -200,20 +210,16 @@ class SparseMatrixSearch(object):
 
         tag_helper = TagHelper(self.connection, texts)
 
-        score_basis_mapping = {'word': 'form', 'stem': 'lemmata'}
-        true_score_basis = score_basis_mapping[score_basis] \
-            if score_basis in score_basis_mapping else score_basis
-
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(search, self.connection,
-                                                      true_score_basis, texts,
+                                                      score_basis, texts,
                                                       target_units,
                                                       source_units, features,
                                                       stoplist, distance_basis,
                                                       max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(search, self.connection,
-                                                    true_score_basis, texts,
+                                                    score_basis, texts,
                                                     target_units, source_units,
                                                     features, stoplist,
                                                     distance_basis,

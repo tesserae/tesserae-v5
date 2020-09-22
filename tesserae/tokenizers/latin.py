@@ -80,11 +80,11 @@ class LatinTokenizer(BaseTokenizer):
 
         grams = trigrammify(tokens)
         synonymify = get_featurizer('latin', 'semantic')
-        synonymilemmafy = get_featurizer('latin', 'semantic + lemma')
+        synonymilemmafy = get_featurizer('latin', 'semantic + lemmata')
         features = {
             'lemmata': fixed_lemmata,
             'sound': grams,
             'semantic': synonymify(tokens),
-            'semantic + lemma': synonymilemmafy(tokens)
+            'semantic + lemmata': synonymilemmafy(tokens)
         }
         return features

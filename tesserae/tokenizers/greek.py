@@ -115,11 +115,11 @@ class GreekTokenizer(BaseTokenizer):
 
         grams = trigrammify(tokens)
         synonymify = get_featurizer('greek', 'semantic')
-        synonymilemmafy = get_featurizer('greek', 'semantic + lemma')
+        synonymilemmafy = get_featurizer('greek', 'semantic + lemmata')
         features = {
             'lemmata': fixed_lemmata,
             'sound': grams,
             'semantic': synonymify(tokens),
-            'semantic + lemma': synonymilemmafy(tokens)
+            'semantic + lemmata': synonymilemmafy(tokens)
         }
         return features

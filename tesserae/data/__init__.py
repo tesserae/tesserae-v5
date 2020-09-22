@@ -29,6 +29,6 @@ def load_synonym_dictionary(language, synonym_type):
         Maps a Greek lemma to a list of Greek synonyms; these Greek synonyms
         are Greek lemmata
     """
-    syn_type_to_code = {'semantic': 'syn', 'semantic + lemma': 'syn_lem'}
+    syn_type_to_code = {'semantic': 'syn', 'semantic + lemmata': 'syn_lem'}
     code = syn_type_to_code[synonym_type]
     return _load_data_dictionary(f'fixed_{language}_{code}.pickle.gz')
