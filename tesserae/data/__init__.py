@@ -1,8 +1,10 @@
+from functools import lru_cache
 import gzip
 import pickle
 import pkg_resources
 
 
+@lru_cache(maxsize=10)
 def _load_data_dictionary(filename):
     return pickle.loads(
         gzip.decompress(pkg_resources.resource_string(__name__, filename)))
