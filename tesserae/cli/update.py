@@ -48,7 +48,7 @@ def parse_args(args=None):
 def main():
     args = parse_args()
     if args.password:
-        password = getpass(prompt='Tesserae MongoDB Password: ')
+        password = getpass.getpass(prompt='Tesserae MongoDB Password: ')
     else:
         password = None
 
