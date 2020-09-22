@@ -50,6 +50,7 @@ class SparseMatrixSearch(object):
                 'name': SparseMatrixSearch.matcher_type,
                 'feature': search_params['feature'],
                 'stopwords': search_params['stopwords'],
+                'score_basis': search_params['score_basis'],
                 'freq_basis': search_params['freq_basis'],
                 'max_distance': search_params['max_distance'],
                 'distance_basis': search_params['distance_basis'],
@@ -133,7 +134,7 @@ class SparseMatrixSearch(object):
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
             The target text to compare against, specifying by which units.
-        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
+        feature : {'form','lemmata','semantic','semantic + lemmata','sound'}
             The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
@@ -144,9 +145,8 @@ class SparseMatrixSearch(object):
             - 'texts': use the combined frequencies of all texts in the match
             - slice: use the texts returned from `texts` by the slice
             - Text: use a single text
-        score_basis : {'word','stem'}
-            Whether to score based on the words (normalized text) or stems
-            (lemmata).
+        score_basis : {'form','lemmata','sound'}
+            Token feature to score by.
         freq_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
@@ -173,17 +173,16 @@ class SparseMatrixSearch(object):
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
-            stoplist = create_stoplist(
-                self.connection,
-                stopwords,
-                'form' if feature == 'form' else 'lemmata',
-                source.text.language,
-                basis=stopword_basis)
+            stoplist = create_stoplist(self.connection,
+                                       stopwords,
+                                       feature,
+                                       source.text.language,
+                                       basis=stopword_basis)
         else:
             stoplist = get_stoplist_indices(
                 self.connection,
                 stopwords,
-                'form' if feature == 'form' else 'lemmata',
+                feature,
                 source.text.language,
             )
 
@@ -192,7 +191,17 @@ class SparseMatrixSearch(object):
                                                feature=feature),
                           key=lambda x: x.index)
         if len(features) <= 0:
-            raise ValueError(f'Feature type "{feature}" for language '
+            raise ValueError(f'Chosen feature was invalid: '
+                             f'Feature type "{feature}" for language '
+                             f'"{source.text.language}" '
+                             f'was not found in the database.')
+        score_feature_found = \
+            self.connection.connection[Feature.collection].find_one(
+                filter={'language': source.text.language,
+                        'feature': score_basis})
+        if score_feature_found is None:
+            raise ValueError(f'Chosen score basis was invalid: '
+                             f'Feature type "{score_basis}" for language '
                              f'"{source.text.language}" '
                              f'was not found in the database.')
 
@@ -203,14 +212,14 @@ class SparseMatrixSearch(object):
 
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(search, self.connection,
-                                                      feature, texts,
+                                                      score_basis, texts,
                                                       target_units,
                                                       source_units, features,
                                                       stoplist, distance_basis,
                                                       max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(search, self.connection,
-                                                    feature, texts,
+                                                    score_basis, texts,
                                                     target_units, source_units,
                                                     features, stoplist,
                                                     distance_basis,
@@ -256,20 +265,20 @@ def _get_units(connection, textoptions, feature):
     ]
 
 
-def _score_by_corpus_frequencies(search, connection, feature, texts,
+def _score_by_corpus_frequencies(search, connection, score_basis, texts,
                                  target_units, source_units, features,
                                  stoplist, distance_basis, max_distance,
                                  tag_helper):
     if texts[0].language != texts[1].language:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             source_units)
         target_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[1].language),
+            get_corpus_frequencies(connection, score_basis, texts[1].language),
             target_units)
     else:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_inv_frequencies_getter = source_inv_frequencies_getter
     return _score(search, connection, target_units, source_units, features,
@@ -278,13 +287,13 @@ def _score_by_corpus_frequencies(search, connection, feature, texts,
                   tag_helper)
 
 
-def _score_by_text_frequencies(search, connection, feature, texts,
+def _score_by_text_frequencies(search, connection, score_basis, texts,
                                target_units, source_units, features, stoplist,
                                distance_basis, max_distance, tag_helper):
     source_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[0].id))
+        get_inverse_text_frequencies(connection, score_basis, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[1].id))
+        get_inverse_text_frequencies(connection, score_basis, texts[1].id))
     return _score(search, connection, target_units, source_units, features,
                   stoplist, distance_basis, max_distance,
                   source_frequencies_getter, target_frequencies_getter,

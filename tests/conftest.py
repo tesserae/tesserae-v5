@@ -308,9 +308,13 @@ class V3Checker:
                         source_loc not in v3_relations[target_loc]:
                     in_v5_not_in_v3.append(
                         v5_relations[target_loc][source_loc])
+        print('# Score discrepancies')
         pprint.pprint(score_discrepancies)
+        print('# Match discrepancies')
         pprint.pprint(match_discrepancies)
+        print('# In v5 but not in v3')
         pprint.pprint(in_v5_not_in_v3)
+        print('# In v3 but not in v5')
         pprint.pprint(in_v3_not_in_v5)
         assert not score_discrepancies
         assert not match_discrepancies

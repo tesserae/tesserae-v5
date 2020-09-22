@@ -1,4 +1,5 @@
 from . import trigrams
+from . import synonyms
 
 
 def get_featurizer(language, feature):
@@ -10,6 +11,8 @@ def get_featurizer(language, feature):
     """
     if feature == 'sound':
         return trigrams.trigrammify
+    elif feature.startswith('sem'):
+        return synonyms.get_synonymifier(language, feature)
     elif feature == 'test':
         return trigrams.trigrammify
     raise ValueError(
