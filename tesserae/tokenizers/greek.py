@@ -1,10 +1,9 @@
 import re
 
-from cltk.semantics.latin.lookup import Lemmata
-
 from tesserae.tokenizers.base import BaseTokenizer
 from tesserae.features.trigrams import trigrammify
 from tesserae.features import get_featurizer
+from tesserae.features.lemmata import get_lemmatizer
 
 
 class GreekTokenizer(BaseTokenizer):
@@ -35,7 +34,7 @@ class GreekTokenizer(BaseTokenizer):
             r"])"
         ])
 
-        self.lemmatizer = Lemmata('lemmata', 'grc')
+        self.lemmatizer = get_lemmatizer('greek')
 
     def normalize(self, raw, split=True):
         """Normalize a single Greek word.

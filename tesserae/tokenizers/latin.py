@@ -1,11 +1,11 @@
 import re
 
-from cltk.semantics.latin.lookup import Lemmata
 from cltk.stem.latin.j_v import JVReplacer
 
 from tesserae.tokenizers.base import BaseTokenizer
 from tesserae.features.trigrams import trigrammify
 from tesserae.features import get_featurizer
+from tesserae.features.lemmata import get_lemmatizer
 
 
 class LatinTokenizer(BaseTokenizer):
@@ -14,7 +14,7 @@ class LatinTokenizer(BaseTokenizer):
 
         # Set up patterns that will be reused
         self.jv_replacer = JVReplacer()
-        self.lemmatizer = Lemmata('lemmata', 'lat')
+        self.lemmatizer = get_lemmatizer('latin')
 
         self.split_pattern = \
             '( / )|([\\s]+)|([^\\w' + self.diacriticals + ']+)'

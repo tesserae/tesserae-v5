@@ -1,6 +1,5 @@
-from cltk.semantics.latin.lookup import Lemmata
-
 from tesserae.data import load_synonym_dictionary
+from tesserae.features.lemmata import get_lemmatizer
 
 
 def get_synonymifier(language, feature):
@@ -12,8 +11,7 @@ def get_synonymifier(language, feature):
         a function that takes a list of tokens and returns extracted synonym
         features for each token
     """
-    lang_to_code = {'greek': 'grc', 'latin': 'lat'}
-    lemmatizer = Lemmata('lemmata', lang_to_code[language])
+    lemmatizer = get_lemmatizer(language)
     syn_dict = load_synonym_dictionary(language, feature)
 
     def synonymify(tokens):
