@@ -37,6 +37,7 @@ def parse_args(args=None):
                     type=str,
                     default='tesserae',
                     help='the name of the database to access')
+    return p.parse_args()
 
 
 def build_logger(logfilename, loglevel):
@@ -67,7 +68,7 @@ def main():
     else:
         password = None
 
-    logger = build_logger('mass_add_feature.log')
+    logger = build_logger('mass_add_feature.log', 'DEBUG')
     connection = TessMongoConnection(args.host,
                                      args.port,
                                      args.user,
