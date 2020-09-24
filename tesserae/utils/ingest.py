@@ -344,14 +344,14 @@ def _get_form_index_to_raw_features(connection, units, language, feature):
     }
     form_indices_encountered = list(
         set(token['features']['form'][0] for unit in units
-            for token in unit.tokens))
+            for token in unit.tokens
+            if token['features']['form'][0] in index_to_form))
     return {
         form_index: raw_features
         for form_index, raw_features in zip(
             form_indices_encountered,
             get_featurizer(language, feature)([
-                index_to_form[form_index] if form_index in
-                index_to_form else set()
+                index_to_form[form_index]
                 for form_index in form_indices_encountered
             ]))
     }
@@ -389,6 +389,20 @@ def _update_features(connection, text, feature, units,
             form_index_to_raw_features)
     connection.insert([f for f in token_to_features_for_insert.values()])
     connection.update([f for f in token_to_features_for_update.values()])
+    expected_size = len(token_to_features_for_insert) + \
+        len(db_feature_cache)
+    wait_limit = 20
+    for i in range(wait_limit):
+        found = connection.find(Feature.collection,
+                                language=text.language,
+                                feature=feature)
+        if len(found) != expected_size:
+            time.sleep(i)
+        else:
+            return
+    raise Exception('Features in database took too long to update; '
+                    'aborting feature addition for: '
+                    f'{text.author}\t{text.title}')
 
 
 def _calculate_new_and_for_update_features(text, feature, db_feature_cache,
@@ -419,6 +433,8 @@ def _calculate_new_and_for_update_features(text, feature, db_feature_cache,
     for unit in units:
         for unit_token in unit.tokens:
             form_index = unit_token['features']['form'][0]
+            if form_index not in form_index_to_raw_features:
+                continue
             f_tokens = form_index_to_raw_features[form_index]
             for f_token in f_tokens:
                 if f_token:
@@ -452,14 +468,20 @@ def _calculate_new_and_for_update_features(text, feature, db_feature_cache,
 def _update_units(connection, units, feature, feature_token_to_index,
                   form_index_to_raw_features):
     form_index_to_feature_indices = {
-        form_index:
-        [feature_token_to_index[raw_feature] for raw_feature in raw_features]
+        form_index: [
+            feature_token_to_index[raw_feature] for raw_feature in raw_features
+            if raw_feature in feature_token_to_index
+        ]
         for form_index, raw_features in form_index_to_raw_features.items()
     }
     for unit in units:
         for token in unit.tokens:
-            token[feature] = form_index_to_feature_indices[token['features']
-                                                           ['form'][0]]
+            form_index = token['features']['form'][0]
+            if form_index in form_index_to_feature_indices:
+                token['features'][feature] = form_index_to_feature_indices[
+                    form_index]
+            else:
+                token['features'][feature] = []
     connection.update(units)
 
 
@@ -475,11 +497,17 @@ def _update_tokens(connection, text, feature, db_feature_cache,
         if 'form' not in token.features:
             continue
         cur_form_id = token.features['form']
+        if cur_form_id is None:
+            continue
         cur_form_index = form_id_to_index[cur_form_id]
-        token.features[feature] = [
-            db_feature_cache[raw_feature].id
-            for raw_feature in form_index_to_raw_features[cur_form_index]
-        ]
+        if cur_form_index in form_index_to_raw_features:
+            token.features[feature] = [
+                db_feature_cache[raw_feature].id
+                for raw_feature in form_index_to_raw_features[cur_form_index]
+                if raw_feature in db_feature_cache
+            ]
+        else:
+            token.features[feature] = []
     connection.update(tokens)
 
 
