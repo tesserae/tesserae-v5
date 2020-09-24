@@ -78,6 +78,7 @@ setup(name='tesserae',
       author='Jeff Kinnison',
       author_email='jkinniso@nd.edu',
       packages=find_packages(),
+      include_package_data=True,
       classifiers=[
           'Development Status :: 3 - Alpha',
           'Intended Audience :: Research',

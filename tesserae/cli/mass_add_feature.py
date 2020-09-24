@@ -41,7 +41,7 @@ def parse_args(args=None):
 
 
 def build_logger(logfilename, loglevel):
-    logger = logging.getLogger('cleancache')
+    logger = logging.getLogger('mass_add_feature')
     # https://docs.python.org/3/howto/logging.html#logging-to-a-file
     numeric_level = getattr(logging, loglevel.upper(), None)
     if not isinstance(numeric_level, int):

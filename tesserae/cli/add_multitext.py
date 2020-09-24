@@ -29,7 +29,6 @@ from tqdm import tqdm
 
 from tesserae.db import TessMongoConnection, Text
 from tesserae.db.entities.text import TextStatus
-from tesserae.utils.multitext import register_bigrams, MULTITEXT_SEARCH
 
 
 def parse_args(args=None):
@@ -42,6 +41,10 @@ def parse_args(args=None):
         type=str,
         help=('path to database credentials file (see index_db.py for '
               'details)'))
+    p.add_argument('--home', default=os.path.expanduser('~'),
+       help=('path to consider as home path (important to change when'
+             'using this script on system where multitext data is stored'
+             'somewhere other than the calling user\'s home directory)'))
 
     default_lfn = 'add_multitext.log'
     p.add_argument(
@@ -88,6 +91,8 @@ def main():
                                db_cred['password'],
                                db=db_cred['database'])
 
+    os.environ['HOME'] = args.home
+    from tesserae.utils.multitext import register_bigrams, MULTITEXT_SEARCH
     texts = conn.find(Text.collection)
     for text in tqdm(texts):
         if needs_multitext_enabled(text):
