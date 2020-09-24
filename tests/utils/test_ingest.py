@@ -34,7 +34,7 @@ def test_add_feature(minipop):
                 continue
             freq = f.frequencies[text_id_str]
             other_f = db_sound_features[token]
-            if text_id_str in other_f:
+            if text_id_str in other_f.frequencies:
                 other_freq = other_f.frequencies[text_id_str]
                 if freq != other_freq:
                     discrepancies.append((token, freq, other_freq))
@@ -50,7 +50,7 @@ def test_add_feature(minipop):
         discrepancies = []
         units = minipop.find(Unit.collection, text=text.id)
         for unit in units:
-            for token in units.tokens:
+            for token in unit.tokens:
                 for index in token['features'][feature]:
                     if test_to_sound[index] not in token['features']['sound']:
                         discrepancies.append((unit, token, index))
@@ -64,7 +64,8 @@ def test_add_feature(minipop):
         discrepancies = []
         tokens = minipop.find(Token.collection, text=text.id)
         for token in tokens:
-            for oid in token.features[feature]:
-                if test_to_sound[oid] not in token.features['sound']:
-                    discrepancies.append((token, oid))
+            if 'form' in token.features:
+                for oid in token.features[feature]:
+                    if test_to_sound[oid] not in token.features['sound']:
+                        discrepancies.append((token, oid))
         assert not discrepancies
