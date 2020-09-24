@@ -269,12 +269,14 @@ def _add_feature_for(connection, text, feature, search_type):
             text.update_ingestion_details(feature, search_type,
                                           TextStatus.DONE, '')
             connection.update(text)
-        # we want to catch all errors and log them into the Text entity
-        except:  # noqa: E722
+        # we want to catch all errors and log them into the Text entity before
+        # passing them up
+        except Exception as err:
             text.update_ingestion_details(feature, search_type,
                                           TextStatus.FAILED,
                                           traceback.format_exc())
             connection.update(text)
+            raise err
 
 
 def _add_feature_for_normal_search(connection, text, feature):
@@ -348,7 +350,8 @@ def _get_form_index_to_raw_features(connection, units, language, feature):
         for form_index, raw_features in zip(
             form_indices_encountered,
             get_featurizer(language, feature)([
-                index_to_form[form_index]
+                index_to_form[form_index] if form_index in
+                index_to_form else set()
                 for form_index in form_indices_encountered
             ]))
     }
@@ -379,15 +382,10 @@ def _update_features(connection, text, feature, units,
         for f in connection.find(
             Feature.collection, language=text.language, feature=feature)
     }
-    index_to_form = {
-        f.index: f.token
-        for f in connection.find(
-            Feature.collection, language=text.language, feature='form')
-    }
     token_to_features_for_insert, token_to_features_for_update = \
         _calculate_new_and_for_update_features(
             text, feature, db_feature_cache,
-            units, index_to_form,
+            units,
             form_index_to_raw_features)
     connection.insert([f for f in token_to_features_for_insert.values()])
     connection.update([f for f in token_to_features_for_update.values()])
@@ -420,7 +418,7 @@ def _calculate_new_and_for_update_features(text, feature, db_feature_cache,
     language = text.language
     for unit in units:
         for unit_token in unit.tokens:
-            form_index = unit_token['form'][0]
+            form_index = unit_token['features']['form'][0]
             f_tokens = form_index_to_raw_features[form_index]
             for f_token in f_tokens:
                 if f_token:
@@ -460,7 +458,8 @@ def _update_units(connection, units, feature, feature_token_to_index,
     }
     for unit in units:
         for token in unit.tokens:
-            token[feature] = form_index_to_feature_indices[token['form'][0]]
+            token[feature] = form_index_to_feature_indices[token['features']
+                                                           ['form'][0]]
     connection.update(units)
 
 
@@ -473,6 +472,8 @@ def _update_tokens(connection, text, feature, db_feature_cache,
             Feature.collection, language=text.language, feature='form')
     }
     for token in tokens:
+        if 'form' not in token.features:
+            continue
         cur_form_id = token.features['form']
         cur_form_index = form_id_to_index[cur_form_id]
         token.features[feature] = [
