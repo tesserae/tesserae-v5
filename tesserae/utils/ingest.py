@@ -498,8 +498,9 @@ def _update_units(connection, text, feature, db_feature_cache,
     for unit in units:
         for token in unit.tokens:
             form_index = token['features']['form'][0]
-            token['features'][feature] = form_index_to_feature_indices[
-                form_index]
+            if form_index >= 0:
+                token['features'][feature] = form_index_to_feature_indices[
+                    form_index]
     connection.update(units)
 
 
