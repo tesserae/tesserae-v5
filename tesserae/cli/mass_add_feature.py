@@ -57,11 +57,6 @@ def build_logger(logfilename, loglevel):
 
 
 def main():
-    """Ingest a text into Tesserae.
-
-    Takes a .tess files and computes tokens, features, frequencies, and units.
-    All computed components are inserted into the database.
-    """
     args = parse_args()
     if args.password:
         password = getpass.getpass(prompt='Tesserae MongoDB Password: ')
