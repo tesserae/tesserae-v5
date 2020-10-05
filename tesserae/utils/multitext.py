@@ -574,6 +574,7 @@ def get_results(connection, search_id):
 
     Parameters
     ----------
+    connection : TessMongoConnection
     search_id : ObjectId
         ObjectId of Search whose results you are trying to retrieve
 
@@ -597,12 +598,7 @@ def get_results(connection, search_id):
         }],
                                           encode=False)
     ]
-    needed_units = {
-        unit.id: unit
-        for unit in connection.find(
-            Unit.collection,
-            _id=[uid for mr in db_multiresults for uid in mr['units']])
-    }
+    needed_units = _retrieve_needed_units(connection, db_multiresults)
     return [
         {
             'match_id':
@@ -622,3 +618,34 @@ def get_results(connection, search_id):
             ]
         } for mr in db_multiresults
     ]
+
+
+def _retrieve_needed_units(connection, db_multiresults):
+    """Grab units needed for constructing multitext results
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    db_multiresults : List[Dict[str, Any]]
+        list of dictionaries containing basic information about a multitext
+        search result; in particular, the key 'units' should have a value of a
+        list of ObjectIds corresponding to Units in the database
+
+    Returns
+    -------
+    Dict[ObjectId, tesserae.db.entities.Unit]
+        mapping between an ObjectId and its corresponding Unit entity in the
+        database
+    """
+    result = {}
+    needed_ids = list(set(uid for mr in db_multiresults
+                          for uid in mr['units']))
+    increment = 1000
+    start = 0
+    while start < len(needed_ids):
+        end = start + increment
+        result.update((unit.id, unit)
+                      for unit in connection.find(Unit.collection,
+                                                  _id=needed_ids[start:end]))
+        start = end
+    return result
