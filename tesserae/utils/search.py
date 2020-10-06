@@ -319,3 +319,22 @@ def get_results_count(connection, search_id):
     """
     return connection.connection[Match.collection].count_documents(
         {'search_id': search_id})
+
+
+def get_id_by_uuid(connection, uuid):
+    """Retrieve database identifier for a regular Tesserae search
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    UUID : str
+
+    Returns
+    -------
+    ObjectId
+        database identifier for the regular Tesserae search associated with the
+        provided UUID
+    """
+    return connection.find(Search.collection,
+                           results_id=uuid,
+                           search_type=NORMAL_SEARCH)[0].id

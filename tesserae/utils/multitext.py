@@ -591,23 +591,21 @@ def get_results(connection, search_id, page_options):
     multisearch = connection.find(Search.collection,
                                   _id=search_id,
                                   search_type=MULTITEXT_SEARCH)[0]
-    original_match_ids = [
-        ObjectId(m['object_id'])
-        for m in tesserae.utils.search.retrieve_matches_by_page(
+    original_matches = [
+        m for m in tesserae.utils.search.retrieve_matches_by_page(
             connection,
-            connection.find(
-                Search.collection,
-                results_id=multisearch.parameters['parallels_uuid'],
-                search_type=tesserae.utils.search.NORMAL_SEARCH)[0].id,
+            tesserae.utils.search.get_id_by_uuid(
+                connection, multisearch.parameters['parallels_uuid']),
             page_options)
     ]
+    str_id_to_match = {m['object_id']: m for m in original_matches}
     db_multiresults = _retrieve_raw_multiresults(connection, search_id,
-                                                 original_match_ids)
+                                                 original_matches)
     needed_units = _retrieve_needed_units(connection, db_multiresults)
     return [
         {
-            'match_id':
-            str(mr['match_id']),
+            'match':
+            str_id_to_match[str(mr['match_id'])],
             'bigram':
             mr['bigram'],
             'units': [
@@ -625,7 +623,7 @@ def get_results(connection, search_id, page_options):
     ]
 
 
-def _retrieve_raw_multiresults(connection, search_id, original_match_ids):
+def _retrieve_raw_multiresults(connection, search_id, original_matches):
     """Retrieve search results with associated id
 
     Parameters
@@ -633,9 +631,9 @@ def _retrieve_raw_multiresults(connection, search_id, original_match_ids):
     connection : TessMongoConnection
     search_id : ObjectId
         ObjectId of Search whose results you are trying to retrieve
-    original_match_ids : list of ObjectId
-        ObjectIds of Match entities from original Tesserae search on which this
-        multitext search was based
+    original_matches : list of Dict[str, Any]
+        mappings representing Match entities from original Tesserae search on
+        which this multitext search was based
 
     Returns
     -------
@@ -656,10 +654,11 @@ def _retrieve_raw_multiresults(connection, search_id, original_match_ids):
     """
     results = []
     match_params = {'search_id': search_id}
+    original_match_ids = [ObjectId(m['object_id']) for m in original_matches]
 
     increment = 1000
     start = 0
-    while start < len(original_match_ids):
+    while start < len(original_matches):
         end = start + increment
         match_params['match_id'] = {'$in': original_match_ids[start:end]}
         results.extend([
