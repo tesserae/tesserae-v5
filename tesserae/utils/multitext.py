@@ -11,6 +11,7 @@ import traceback
 from bson.objectid import ObjectId
 import numpy as np
 
+import tesserae
 from tesserae.db.entities import \
     Feature, Match, MultiResult, Search, Text, Unit
 from tesserae.db.entities.text import TextStatus
@@ -19,7 +20,7 @@ from tesserae.utils.calculations import get_inverse_text_frequencies
 MULTITEXT_SEARCH = 'multitext'
 
 
-def submit_multitext(jobqueue, results_id, search_uuid, texts_ids_strs,
+def submit_multitext(jobqueue, results_id, parallels_uuid, texts_ids_strs,
                      unit_type):
     """Submit a job for multitext search
 
@@ -31,7 +32,7 @@ def submit_multitext(jobqueue, results_id, search_uuid, texts_ids_strs,
     jobqueue : tesserae.utils.coordinate.JobQueue
     results_id : str
         UUID to associate with the multitext search to be performed
-    search_uuid : str
+    parallels_uuid : str
         UUID associated with the Search results on which to run multitext
         search
     texts_ids_str : list of str
@@ -44,14 +45,14 @@ def submit_multitext(jobqueue, results_id, search_uuid, texts_ids_strs,
     """
     kwargs = {
         'results_id': results_id,
-        'search_uuid': search_uuid,
+        'parallels_uuid': parallels_uuid,
         'texts_ids_strs': texts_ids_strs,
         'unit_type': unit_type,
     }
     jobqueue.queue_job(_run_multitext, kwargs)
 
 
-def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
+def _run_multitext(connection, results_id, parallels_uuid, texts_ids_strs,
                    unit_type):
     """Runs multitext search
 
@@ -60,7 +61,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
     connection : tesserae.db.TessMongoConnection
     results_id : str
         UUID to associate with the multitext search to be performed
-    search_uuid : str
+    parallels_uuid : str
         UUID associated with the Search results on which to run multitext
         search
     texts_ids_strs : list of str
@@ -73,7 +74,7 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
     """
     start_time = time.time()
     parameters = {
-        'search_uuid': search_uuid,
+        'parallels_uuid': parallels_uuid,
         'text_ids': texts_ids_strs,
         'unit_type': unit_type,
     }
@@ -83,15 +84,16 @@ def _run_multitext(connection, results_id, search_uuid, texts_ids_strs,
                             msg='',
                             parameters=parameters)
     connection.insert(results_status)
-    search = connection.find(Search.collection, results_id=search_uuid)[0]
-    results_status.update_current_stage_value(0.33)
-    connection.update(results_status)
-    matches = connection.find(Match.collection, search_id=search.id)
-    results_status.update_current_stage_value(0.66)
-    connection.update(results_status)
-    texts = connection.find(Text.collection,
-                            _id=[ObjectId(tid) for tid in texts_ids_strs])
     try:
+        search = connection.find(Search.collection,
+                                 results_id=parallels_uuid)[0]
+        results_status.update_current_stage_value(0.33)
+        connection.update(results_status)
+        matches = connection.find(Match.collection, search_id=search.id)
+        results_status.update_current_stage_value(0.66)
+        connection.update(results_status)
+        texts = connection.find(Text.collection,
+                                _id=[ObjectId(tid) for tid in texts_ids_strs])
         results_status.update_current_stage_value(1.0)
 
         results_status.add_new_stage('get multitext data')
@@ -514,13 +516,13 @@ def multitext_search(results_status, connection, matches, feature_type,
     } for m in matches]
 
 
-def check_cache(connection, search_uuid, text_ids_str, unit_type):
+def check_cache(connection, parallels_uuid, text_ids_str, unit_type):
     """Check whether multitext results are already in the database
 
     Parameters
     ----------
     connection : TessMongoConnection
-    search_uuid : str
+    parallels_uuid : str
         UUID associated with the Search results on which to run multitext
         search
     texts_ids_str : list of str
@@ -548,8 +550,8 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
         for f in connection.connection[Search.collection].find({
             'search_type':
             MULTITEXT_SEARCH,
-            'parameters.search_uuid':
-            search_uuid,
+            'parameters.parallels_uuid':
+            parallels_uuid,
             '$and': [{
                 'parameters.text_ids': {
                     '$all': text_ids_str
@@ -569,35 +571,38 @@ def check_cache(connection, search_uuid, text_ids_str, unit_type):
     return None
 
 
-def get_results(connection, search_id):
-    """Retrive search results with associated id
+def get_results(connection, search_id, page_options):
+    """Retrieve search results with associated id
 
     Parameters
     ----------
     connection : TessMongoConnection
     search_id : ObjectId
         ObjectId of Search whose results you are trying to retrieve
+    page_options : PageOptions
+        specification of which search results to retrieve; these paging options
+        are applied to the original Tesserae search results, after which the
+        corresponding multitext results are then retrieved
 
     Returns
     -------
     list of MatchResult
     """
-    db_multiresults = [
-        mr for mr in connection.aggregate(MultiResult.collection, [{
-            '$match': {
-                'search_id': search_id
-            }
-        }, {
-            '$project': {
-                '_id': False,
-                'match_id': True,
-                'bigram': True,
-                'units': True,
-                'scores': True,
-            }
-        }],
-                                          encode=False)
+    multisearch = connection.find(Search.collection,
+                                  _id=search_id,
+                                  search_type=MULTITEXT_SEARCH)[0]
+    original_match_ids = [
+        ObjectId(m['object_id'])
+        for m in tesserae.utils.search.retrieve_matches_by_page(
+            connection,
+            connection.find(
+                Search.collection,
+                results_id=multisearch.parameters['parallels_uuid'],
+                search_type=tesserae.utils.search.NORMAL_SEARCH)[0].id,
+            page_options)
     ]
+    db_multiresults = _retrieve_raw_multiresults(connection, search_id,
+                                                 original_match_ids)
     needed_units = _retrieve_needed_units(connection, db_multiresults)
     return [
         {
@@ -618,6 +623,62 @@ def get_results(connection, search_id):
             ]
         } for mr in db_multiresults
     ]
+
+
+def _retrieve_raw_multiresults(connection, search_id, original_match_ids):
+    """Retrieve search results with associated id
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
+    original_match_ids : list of ObjectId
+        ObjectIds of Match entities from original Tesserae search on which this
+        multitext search was based
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        Each mapping within the list represents multitext result information as
+        follows:
+            * 'match_id' : ObjectId
+                the Match entity with which a particular multitext result is
+                associated
+            * 'bigram' : Tuple[str, str]
+            * 'units' : List[ObjectId]
+                Unit entities found by the multitext search to contain the
+                bigram indicated
+            * 'scores' : List[float]
+                Tesserae scores for each Unit found; items in this list
+                correspond with items in the list associated with 'units',
+                according to their index position
+    """
+    results = []
+    match_params = {'search_id': search_id}
+
+    increment = 1000
+    start = 0
+    while start < len(original_match_ids):
+        end = start + increment
+        match_params['match_id'] = {'$in': original_match_ids[start:end]}
+        results.extend([
+            mr for mr in connection.aggregate(MultiResult.collection,
+                                              [{
+                                                  '$match': match_params
+                                              }, {
+                                                  '$project': {
+                                                      '_id': False,
+                                                      'match_id': True,
+                                                      'bigram': True,
+                                                      'units': True,
+                                                      'scores': True,
+                                                  }
+                                              }],
+                                              encode=False)
+        ])
+        start = end
+    return results
 
 
 def _retrieve_needed_units(connection, db_multiresults):
