@@ -20,8 +20,8 @@ from tesserae.utils.calculations import get_inverse_text_frequencies
 MULTITEXT_SEARCH = 'multitext'
 
 
-def submit_multitext(jobqueue, results_id, parallels_uuid, texts_ids_strs,
-                     unit_type):
+def submit_multitext(jobqueue, connection, results_id, parallels_uuid,
+                     texts_ids_strs, unit_type):
     """Submit a job for multitext search
 
     Multitext search submitted by this function will always return results
@@ -30,6 +30,7 @@ def submit_multitext(jobqueue, results_id, parallels_uuid, texts_ids_strs,
     Parameters
     ----------
     jobqueue : tesserae.utils.coordinate.JobQueue
+    connection : TessMongoConnection
     results_id : str
         UUID to associate with the multitext search to be performed
     parallels_uuid : str
@@ -43,8 +44,19 @@ def submit_multitext(jobqueue, results_id, parallels_uuid, texts_ids_strs,
         this option is ignored and the text will be examined by phrase
 
     """
+    parameters = {
+        'parallels_uuid': parallels_uuid,
+        'text_ids': texts_ids_strs,
+        'unit_type': unit_type,
+    }
+    results_status = Search(results_id=results_id,
+                            search_type=MULTITEXT_SEARCH,
+                            status=Search.INIT,
+                            msg='',
+                            parameters=parameters)
+    connection.insert(results_status)
     kwargs = {
-        'results_id': results_id,
+        'results_status': results_status,
         'parallels_uuid': parallels_uuid,
         'texts_ids_strs': texts_ids_strs,
         'unit_type': unit_type,
@@ -52,15 +64,13 @@ def submit_multitext(jobqueue, results_id, parallels_uuid, texts_ids_strs,
     jobqueue.queue_job(_run_multitext, kwargs)
 
 
-def _run_multitext(connection, results_id, parallels_uuid, texts_ids_strs,
+def _run_multitext(connection, results_status, parallels_uuid, texts_ids_strs,
                    unit_type):
     """Runs multitext search
 
     Parameters
     ----------
     connection : tesserae.db.TessMongoConnection
-    results_id : str
-        UUID to associate with the multitext search to be performed
     parallels_uuid : str
         UUID associated with the Search results on which to run multitext
         search
@@ -73,17 +83,6 @@ def _run_multitext(connection, results_id, parallels_uuid, texts_ids_strs,
 
     """
     start_time = time.time()
-    parameters = {
-        'parallels_uuid': parallels_uuid,
-        'text_ids': texts_ids_strs,
-        'unit_type': unit_type,
-    }
-    results_status = Search(results_id=results_id,
-                            search_type=MULTITEXT_SEARCH,
-                            status=Search.INIT,
-                            msg='',
-                            parameters=parameters)
-    connection.insert(results_status)
     try:
         search = connection.find(Search.collection,
                                  results_id=parallels_uuid)[0]
@@ -599,27 +598,33 @@ def get_results(connection, search_id, page_options):
             page_options)
     ]
     str_id_to_match = {m['object_id']: m for m in original_matches}
-    db_multiresults = _retrieve_raw_multiresults(connection, search_id,
-                                                 original_matches)
-    needed_units = _retrieve_needed_units(connection, db_multiresults)
+    raw_multiresults = _retrieve_raw_multiresults(connection, search_id,
+                                                  original_matches)
+    needed_units = _retrieve_needed_units(connection, raw_multiresults)
+    match_id_to_multiresults = _get_match_id_to_multiresults(raw_multiresults)
     return [
         {
             'match':
-            str_id_to_match[str(mr['match_id'])],
-            'bigram':
-            mr['bigram'],
-            'units': [
+            str_id_to_match[str(match_id)],
+            'cross-ref': [
                 {
-                    'unit_id': str(u.id),
-                    'tag': u.tags[0],
-                    'snippet': u.snippet,
-                    # TODO implement
-                    'highlight': [],
-                    'score': score
-                } for u, score in zip((needed_units[uid]
-                                       for uid in mr['units']), mr['scores'])
+                    'bigram':
+                    mr['bigram'],
+                    'units': [
+                        {
+                            'unit_id': str(u.id),
+                            'tag': u.tags[0],
+                            'snippet': u.snippet,
+                            # TODO implement
+                            'highlight': [],
+                            'score': score
+                        } for u, score in zip((
+                            needed_units[uid]
+                            for uid in mr['units']), mr['scores'])
+                    ]
+                } for mr in mrs
             ]
-        } for mr in db_multiresults
+        } for match_id, mrs in match_id_to_multiresults.items()
     ]
 
 
@@ -680,13 +685,13 @@ def _retrieve_raw_multiresults(connection, search_id, original_matches):
     return results
 
 
-def _retrieve_needed_units(connection, db_multiresults):
+def _retrieve_needed_units(connection, raw_multiresults):
     """Grab units needed for constructing multitext results
 
     Parameters
     ----------
     connection : TessMongoConnection
-    db_multiresults : List[Dict[str, Any]]
+    raw_multiresults : List[Dict[str, Any]]
         list of dictionaries containing basic information about a multitext
         search result; in particular, the key 'units' should have a value of a
         list of ObjectIds corresponding to Units in the database
@@ -698,8 +703,8 @@ def _retrieve_needed_units(connection, db_multiresults):
         database
     """
     result = {}
-    needed_ids = list(set(uid for mr in db_multiresults
-                          for uid in mr['units']))
+    needed_ids = list(
+        set(uid for mr in raw_multiresults for uid in mr['units']))
     increment = 1000
     start = 0
     while start < len(needed_ids):
@@ -708,4 +713,15 @@ def _retrieve_needed_units(connection, db_multiresults):
                       for unit in connection.find(Unit.collection,
                                                   _id=needed_ids[start:end]))
         start = end
+    return result
+
+
+def _get_match_id_to_multiresults(raw_multiresults):
+    result = {}
+    for mr in raw_multiresults:
+        match_id = mr['match_id']
+        if match_id in result:
+            result[match_id].append(mr)
+        else:
+            result[match_id] = [mr]
     return result
