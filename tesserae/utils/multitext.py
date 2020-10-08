@@ -119,7 +119,7 @@ def _run_multitext(connection, results_status, parallels_uuid, texts_ids_strs,
                             scores=[v[1] for v in values])
                 for m, result in zip(matches[start:start + stepsize],
                                      raw_results[start:start + stepsize])
-                for bigram, values in result.items()
+                for bigram, values in result.items() if values
             ]
             connection.insert_nocheck(multiresults)
 
@@ -601,12 +601,14 @@ def get_results(connection, search_id, page_options):
     raw_multiresults = _retrieve_raw_multiresults(connection, search_id,
                                                   original_matches)
     needed_units = _retrieve_needed_units(connection, raw_multiresults)
-    match_id_to_multiresults = _get_match_id_to_multiresults(raw_multiresults)
+    str_match_id_to_multiresults = _get_str_match_id_to_multiresults(
+        raw_multiresults)
     return [
         {
             'match':
-            str_id_to_match[str(match_id)],
-            'cross-ref': [
+            str_id_to_match[match['object_id']],
+            'cross-ref':
+            [] if match['object_id'] not in str_match_id_to_multiresults else [
                 {
                     'bigram':
                     mr['bigram'],
@@ -622,9 +624,9 @@ def get_results(connection, search_id, page_options):
                             needed_units[uid]
                             for uid in mr['units']), mr['scores'])
                     ]
-                } for mr in mrs
+                } for mr in str_match_id_to_multiresults[match['object_id']]
             ]
-        } for match_id, mrs in match_id_to_multiresults.items()
+        } for match in original_matches
     ]
 
 
@@ -716,10 +718,10 @@ def _retrieve_needed_units(connection, raw_multiresults):
     return result
 
 
-def _get_match_id_to_multiresults(raw_multiresults):
+def _get_str_match_id_to_multiresults(raw_multiresults):
     result = {}
     for mr in raw_multiresults:
-        match_id = mr['match_id']
+        match_id = str(mr['match_id'])
         if match_id in result:
             result[match_id].append(mr)
         else:
