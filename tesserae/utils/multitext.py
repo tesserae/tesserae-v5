@@ -16,6 +16,7 @@ from tesserae.db.entities import \
     Feature, Match, MultiResult, Search, Text, Unit
 from tesserae.db.entities.text import TextStatus
 from tesserae.utils.calculations import get_inverse_text_frequencies
+from tesserae.utils.retrieve import TagHelper
 
 MULTITEXT_SEARCH = 'multitext'
 
@@ -600,7 +601,10 @@ def get_results(connection, search_id, page_options):
     str_id_to_match = {m['object_id']: m for m in original_matches}
     raw_multiresults = _retrieve_raw_multiresults(connection, search_id,
                                                   original_matches)
-    needed_units = _retrieve_needed_units(connection, raw_multiresults)
+    id_to_needed_units = _retrieve_id_to_needed_units(connection,
+                                                      raw_multiresults)
+    tag_helper = _make_tag_helper_from_units(connection,
+                                             id_to_needed_units.values())
     str_match_id_to_multiresults = _get_str_match_id_to_multiresults(
         raw_multiresults)
     return [
@@ -615,13 +619,13 @@ def get_results(connection, search_id, page_options):
                     'units': [
                         {
                             'unit_id': str(u.id),
-                            'tag': u.tags[0],
+                            'tag': tag_helper.get_display_tag(u.text, u.tags),
                             'snippet': u.snippet,
                             # TODO implement
                             'highlight': [],
                             'score': score
                         } for u, score in zip((
-                            needed_units[uid]
+                            id_to_needed_units[uid]
                             for uid in mr['units']), mr['scores'])
                     ]
                 } for mr in str_match_id_to_multiresults[match['object_id']]
@@ -687,7 +691,7 @@ def _retrieve_raw_multiresults(connection, search_id, original_matches):
     return results
 
 
-def _retrieve_needed_units(connection, raw_multiresults):
+def _retrieve_id_to_needed_units(connection, raw_multiresults):
     """Grab units needed for constructing multitext results
 
     Parameters
@@ -716,6 +720,23 @@ def _retrieve_needed_units(connection, raw_multiresults):
                                                   _id=needed_ids[start:end]))
         start = end
     return result
+
+
+def _make_tag_helper_from_units(connection, units):
+    """Make TagHelper with texts referenced within ``units``
+
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    units : Iterable[tesserae.db.entities.Unit]
+
+    Returns
+    -------
+    tesserae.utils.retrieve.TagHelper
+    """
+    needed_text_ids = set(u.text for u in units)
+    needed_texts = connection.find(Text.collection, _id=list(needed_text_ids))
+    return TagHelper(connection, needed_texts)
 
 
 def _get_str_match_id_to_multiresults(raw_multiresults):
