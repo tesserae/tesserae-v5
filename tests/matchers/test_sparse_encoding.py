@@ -114,6 +114,10 @@ def _check_search_results(v5_results, v3_results):
     match_discrepancies = []
     in_v5_not_in_v3 = []
     in_v3_not_in_v5 = []
+    v3_scores = []
+    v5_scores = []
+    v3_score_set = {}
+    v5_score_set = {}
     for target_loc in v3_relations:
         for source_loc in v3_relations[target_loc]:
             if target_loc not in v5_relations or \
@@ -124,10 +128,13 @@ def _check_search_results(v5_results, v3_results):
             v5_match = v5_relations[target_loc][source_loc]
             v3_score = v3_match['score']
             v5_score = v5_match['score']
+            print(v5_match['matched_features'], v5_match['score'
+            ])
+            v3_scores.append(v3_score)
+            v5_scores.append(f'{v5_score:.3f}')
+            a = ('target:', target_loc, 'source', source_loc, 'score difference:', v5_score-v3_score)
             if f'{v5_score:.3f}' != f'{v3_score:.3f}':
-                score_discrepancies.append((
-                    target_loc, source_loc,
-                    v5_score-v3_score))
+                score_discrepancies.append(a)            
             v5_match_features = set(v5_match['matched_features'])
             v3_match_features = set()
             for match_f in v3_match['matched_features']:
@@ -137,20 +144,43 @@ def _check_search_results(v5_results, v3_results):
             only_in_v3 = v3_match_features - v5_match_features
             if only_in_v5 or only_in_v3:
                 match_discrepancies.append((
-                    target_loc, source_loc, only_in_v5,
+                    'target:', target_loc, 'source:', source_loc, 'match only in v5:', only_in_v5, 'match only in v3:',
                     only_in_v3))
     for target_loc in v5_relations:
         for source_loc in v5_relations[target_loc]:
             if target_loc not in v3_relations or \
                     source_loc not in v3_relations[target_loc]:
                 in_v5_not_in_v3.append(v5_relations[target_loc][source_loc]['matched_features'])
+    v3_scores = sorted(v3_scores)
+    v5_scores = sorted(v5_scores)
+    for score in v3_scores:
+        for target_loc in v3_relations:
+            for source_loc in v3_relations[target_loc]:
+                if score == v3_relations[target_loc][source_loc]['score']:
+                    v3_score_set[source_loc] = score
+    for score in v5_scores:
+        for target_loc in v5_relations:
+            for source_loc in v5_relations[target_loc]:
+                s = v5_relations[target_loc][source_loc]['score']
+                if score == f'{s:.3f}':
+                    v5_score_set[source_loc] = score
+    c = 1
+#    for a in v3_score_set:
+#        print(c, a)
+#        c += 1
+#    c = 1
+#    for b in v5_score_set:
+#        print(c, b)
+#        c+= 1
+    #print(score_discrepancies, match_discrepancies, file=open('discrepancies2.txt',mode='x'))
     pprint.pprint(score_discrepancies)
     pprint.pprint(match_discrepancies)
-    print('only in v5')
-    pprint.pprint(in_v5_not_in_v3)
-    print('only in v3')
-    pprint.pprint(in_v3_not_in_v5)
-    print('next')
+    print('v3', v3_scores)
+    print('v5', v5_scores)
+#    print('location only in v5')
+#    pprint.pprint(in_v5_not_in_v3)
+#    print('location only in v3')
+#    pprint.pprint(in_v3_not_in_v5)
     assert not score_discrepancies
     assert not match_discrepancies
     assert not in_v5_not_in_v3
@@ -336,6 +366,7 @@ def test_mini_punctuation(punctpop, mini_punctuation_metadata):
 
 
 def test_latin_sound(minipop, mini_latin_metadata):
+    stopwords=['que', 'tum', 'ere']
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_latin_metadata])
@@ -347,8 +378,7 @@ def test_latin_sound(minipop, mini_latin_metadata):
         search_result,
         TextOptions(texts[0], 'line'),
         TextOptions(texts[1], 'line'),
-        'sound',
-        stopwords=['que', 'tum', 'ere'],
+        'sound', stopwords,
         stopword_basis='texts', score_basis='3gr',
         freq_basis='texts', max_distance=999,
         distance_basis='frequency', min_score=0)
@@ -358,15 +388,22 @@ def test_latin_sound(minipop, mini_latin_metadata):
     v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_3gr.tab')
-    for p in v3_results:
-        print('v3 trigrams:', p['matched_features'])
-    for p in v5_results:
-        print('v5 trigrams:', p['matched_features'])
     print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
+    for a in v5_results:
+        for b in a['matched_features']:
+            for c in stopwords:
+                if b == c:
+                    print ('matched stopword:', c)
+                    assert False
+#    get_stoplist_tokens(minipop, n, 'sound', 'latin')
     _check_search_results(v5_results, v3_results)
 
 
 def test_latin_trigrams(minipop, mini_latin_metadata):
+    """
+    For the purpose of visualization.
+    Use to confirm that trigrams are being stored in the database correctly.
+    """
     texts = minipop.find(
         Text.collection, title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
@@ -386,10 +423,10 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     for a in raw_v5_results:
         print(a)
         for n in a:
-            print(n)
+#            print(n)
             n = np.asarray(n)
             print('array',n)
-            print(np.shape(n))
+            print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
             v5_results.append(b)
     print(v5_results)    
@@ -454,6 +491,8 @@ def test_latin_semlem(minipop, mini_latin_metadata):
 
 
 def test_greek_sound(minipop, mini_greek_metadata):
+    stopwords=[
+            'και', 'του', 'αλλ', 'ειν', 'μεν', 'μοι', 'αυτ', 'ους']
     texts = minipop.find(
         Text.collection,
         title=[m['title'] for m in mini_greek_metadata])
@@ -465,9 +504,7 @@ def test_greek_sound(minipop, mini_greek_metadata):
         search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
-        'sound',
-        stopwords=[
-            'και', 'του', 'αλλ', 'ειν', 'μεν', 'μοι', 'αυτ', 'ους'],
+        'sound', stopwords,
         stopword_basis='texts', score_basis='3gr',
         freq_basis='texts', max_distance=999,
         distance_basis='span', min_score=0)
@@ -477,11 +514,17 @@ def test_greek_sound(minipop, mini_greek_metadata):
     v5_results = get_results(minipop, search_result.id, PageOptions())
     v5_results = sorted(v5_results, key=lambda x: -x['score'])
     v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
-    for p in v3_results:
-        print('v3 trigrams:', p['matched_features'])
-    for p in v5_results:
-        print('v5 trigrams:', p['matched_features'])
+#    for p in v3_results:
+#        print('v3 trigrams:', p['matched_features'])
+#    for p in v5_results:
+#        print('v5 trigrams:', p['matched_features'])
     print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
+    for a in v5_results:
+        for b in a['matched_features']:
+            for c in stopwords:
+                if b == c:
+                    print ('matched stopword:', c)
+                    assert False
     _check_search_results(v5_results, v3_results)
 
 

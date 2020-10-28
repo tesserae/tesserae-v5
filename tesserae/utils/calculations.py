@@ -94,6 +94,7 @@ def get_inverse_text_frequencies(connection, feature, text_id):
         value is the inverse of the average proportion of words in the text
         sharing at least one same feature type with the key word
     """
+    units = []
     tindex2mtindex = {}
     findex2mfindex = {}
     word_counts = Counter()
@@ -115,66 +116,91 @@ def get_inverse_text_frequencies(connection, feature, text_id):
             cur_features = token['features']
             # use the form index as an identifier for this token's word
             # type
-            cur_tindex = cur_features['form'][0]
-            if cur_tindex not in tindex2mtindex:
-                tindex2mtindex[cur_tindex] = len(tindex2mtindex)
-            mtindex = tindex2mtindex[cur_tindex]
-            # we want to count word types by matrix indices for faster
-            # lookup when we get to the stage of counting up word type
-            # occurrences
-            word_counts[mtindex] += 1
-            for cur_findex in cur_features[feature]:
-                if cur_findex not in findex2mfindex:
-                    findex2mfindex[cur_findex] = len(findex2mfindex)
-                mfindex = findex2mfindex[cur_findex]
-                # record when a word type is associated with a feature type
-                word_feature_pairs.add((mtindex, mfindex))
+            if feature == 'sound':
+                for cur_tindex in cur_features['sound']:
+                    units.append(cur_tindex)
+                    if cur_tindex not in tindex2mtindex:
+                        tindex2mtindex[cur_tindex] = len(tindex2mtindex)
+                    mtindex = tindex2mtindex[cur_tindex]
+                    word_counts[mtindex] += 1
+            else:
+                cur_tindex = cur_features['form'][0]
+                units.append(cur_tindex)
+                if cur_tindex not in tindex2mtindex:
+                    tindex2mtindex[cur_tindex] = len(tindex2mtindex)
+                # mtindex is esseentially a counter
+                # for the number of unique forms seen
+                mtindex = tindex2mtindex[cur_tindex]
+                # we want to count word types by matrix indices for faster
+                # lookup when we get to the stage of counting up word type
+                # occurrences
+                word_counts[mtindex] += 1
+            if feature != 'sound':
+                for cur_findex in cur_features[feature]:
+                    if cur_findex not in findex2mfindex:
+                        findex2mfindex[cur_findex] = len(findex2mfindex)
+                    mfindex = findex2mfindex[cur_findex]
+                    # record when a word type is associated with a feature type
+                    word_feature_pairs.add((mtindex, mfindex))
+    units_count = Counter(units)
     csr_rows = []
     csr_cols = []
-    for mtindex, mfindex in word_feature_pairs:
-        csr_rows.append(mtindex)
-        csr_cols.append(mfindex)
-    word_feature_matrix = csr_matrix(
-        (
-            np.ones(len(csr_rows), dtype=np.bool),
-            (np.array(csr_rows), np.array(csr_cols))
-        ),
-        shape=(len(tindex2mtindex), len(findex2mfindex))
-    )
-    # if matching_words_matrix[i, j] == True, then the word represented by
-    # position i shared at least one feature type with the word represented
-    # by position j
-    matching_words_matrix = word_feature_matrix.dot(
-        word_feature_matrix.transpose())
-    # since only matching tokens remain, the column indices indicate
-    # which tokens match the token represented by row i; we need to
-    # count up how many times each word appeared; first, we change match
-    # indicators into the number of times the token indicated by the column was
-    # found
-    mtindices = []
-    mtcounts = []
-    for mtindex, count in word_counts.items():
-        mtindices.append(mtindex)
-        mtcounts.append(count)
-    count_matrix = matching_words_matrix.dot(
-        csr_matrix(
+    if feature == 'sound':
+        positions = {}
+        inv_positions = {}
+        for token in units:
+            position = len(positions)
+            positions[position] = token
+            if token not in inv_positions:
+                inv_positions[token] = [position]
+            else:
+                inv_positions[token].append(position)
+        return units_count
+    else:
+        for mtindex, mfindex in word_feature_pairs:
+            csr_rows.append(mtindex)
+            csr_cols.append(mfindex)
+        word_feature_matrix = csr_matrix(
             (
-                np.array(mtcounts),
-                (np.array(mtindices), np.zeros(len(mtindices)))
+                np.ones(len(csr_rows), dtype=np.bool),
+                (np.array(csr_rows), np.array(csr_cols))
             ),
-            shape=(matching_words_matrix.shape[0], 1)
+            shape=(len(tindex2mtindex), len(findex2mfindex))
         )
-    )
-    # now, we can sum up each row to find the total number of times all
-    # associated tokens appeared with the token represented by the row
-    summed_rows = count_matrix.sum(axis=-1)
-    # dividing total number of tokens by the sums gives us the inverse
-    # frequencies
-    sparse_freqs = text_token_count / summed_rows
-    # finally, we re-map matrix indices to feature indices
-    mtindex2tindex = {
-        mtindex: tindex for tindex, mtindex in tindex2mtindex.items()
-    }
-    return {
-        mtindex2tindex[i]: freq for i, freq in enumerate(sparse_freqs.A1)
-    }
+        # if matching_words_matrix[i, j] == True, then the word represented by
+        # position i shared at least one feature type with the word represented
+        # by position j
+        matching_words_matrix = word_feature_matrix.dot(
+            word_feature_matrix.transpose())
+        # since only matching tokens remain, the column indices indicate
+        # which tokens match the token represented by row i; we need to
+        # count up how many times each word appeared; first, we change match
+        # indicators into the number of times the token indicated by the column was
+        # found
+        mtindices = []
+        mtcounts = []
+        for mtindex, count in word_counts.items():
+            mtindices.append(mtindex)
+            mtcounts.append(count)
+        count_matrix = matching_words_matrix.dot(
+            csr_matrix(
+                (
+                    np.array(mtcounts),
+                    (np.array(mtindices), np.zeros(len(mtindices)))
+                ),
+                shape=(matching_words_matrix.shape[0], 1)
+            )
+        )
+        # now, we can sum up each row to find the total number of times all
+        # associated tokens appeared with the token represented by the row
+        summed_rows = count_matrix.sum(axis=-1)
+        # dividing total number of tokens by the sums gives us the inverse
+        # frequencies
+        sparse_freqs = text_token_count / summed_rows
+        # finally, we re-map matrix indices to feature indices
+        mtindex2tindex = {
+            mtindex: tindex for tindex, mtindex in tindex2mtindex.items()
+        }
+        return {
+            mtindex2tindex[i]: freq for i, freq in enumerate(sparse_freqs.A1)
+        }

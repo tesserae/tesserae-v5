@@ -19,5 +19,10 @@ def trigrammify(tokens):
             for a in range(final - 1):
                 grams.append(characters[a] + characters[a + 1] +
                              characters[a + 2])
+        grams_set = set(grams)
+#        if len(grams) != len(grams_set):
+#            print(grams)
+#            print(grams_set)
+        grams = list(grams_set)
         token_grams.append(grams)
     return token_grams
