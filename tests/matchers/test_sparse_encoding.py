@@ -172,7 +172,7 @@ def _check_search_results(v5_results, v3_results):
 #    for b in v5_score_set:
 #        print(c, b)
 #        c+= 1
-    #print(score_discrepancies, match_discrepancies, file=open('discrepancies2.txt',mode='x'))
+#    print(score_discrepancies, match_discrepancies, file=open('discrepancies2.txt',mode='x'))
     pprint.pprint(score_discrepancies)
     pprint.pprint(match_discrepancies)
     print('v3', v3_scores)

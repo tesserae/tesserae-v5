@@ -184,10 +184,16 @@ def _score_by_corpus_frequencies(search, connection, feature, texts,
             get_corpus_frequencies(connection, feature, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_inv_frequencies_getter = source_inv_frequencies_getter
-    return _score(search, connection, target_units, source_units, feature, features,
-                  stoplist, distance_basis, max_distance,
-                  source_inv_frequencies_getter, target_inv_frequencies_getter,
-                  tag_helper)
+    if feature == 'sound':
+        return _score_sound(search, connection, target_units, source_units, features,
+                    stoplist, distance_basis, max_distance,
+                    source_inv_frequencies_getter, target_inv_frequencies_getter,
+                    tag_helper)
+    else:
+        return _score(search, connection, target_units, source_units, features,
+                    stoplist, distance_basis, max_distance,
+                    source_inv_frequencies_getter, target_inv_frequencies_getter,
+                    tag_helper)
 
 
 def _score_by_text_frequencies(search, connection, feature, texts,
@@ -197,10 +203,16 @@ def _score_by_text_frequencies(search, connection, feature, texts,
         get_inverse_text_frequencies(connection, feature, texts[0].id))
     target_frequencies_getter = _lookup_wrapper(
         get_inverse_text_frequencies(connection, feature, texts[1].id))
-    return _score(search, connection, target_units, source_units, feature, features,
-                  stoplist, distance_basis, max_distance,
-                  source_frequencies_getter, target_frequencies_getter,
-                  tag_helper)
+    if feature == 'sound':
+        return _score_sound(search, connection, target_units, source_units, features,
+                    stoplist, distance_basis, max_distance,
+                    source_frequencies_getter, target_frequencies_getter,
+                    tag_helper)
+    else:
+        return _score(search, connection, target_units, source_units, features,
+                    stoplist, distance_basis, max_distance,
+                    source_inv_frequencies_getter, target_inv_frequencies_getter,
+                    tag_helper)
 
 
 def _get_trivial_distance(p0, p1):
@@ -227,15 +239,14 @@ def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
 
     Parameters
     ----------
-    get_freq : (int) -> float
+    get_inv_freq : (int) -> float
         a function that takes a word form index as input and returns its
-        frequency as output
+        inverse frequency as output
     positions : 1d np.array of ints
         token positions in the unit where matches were found
     forms : 1d np.array of ints
         the token forms of the unit
     """
-#    print('_get_distance_by_least_frequency')
     if len(set(forms[positions])) < 2:
         return 0
     if len(positions) == 2:
@@ -268,21 +279,29 @@ def _get_sound_distance_by_least_frequency(get_inv_freq, positions, forms):
     forms : 1d np.array of ints
         the sound units
     """
-#    print('_get_distance_by_least_frequency')
+    # if this is < 2, that implies that the sound units
+    # are the same or none, so distance is obsolete
     if len(set(forms[positions])) < 2:
         return 0
+    # if there are only 2 sound units, 
+    # there is no need to find out which are least frequent
     if len(positions) == 2:
         return _get_trivial_distance(positions[0], positions[1])
     sorted_positions = np.array(list(set(sorted(positions))))
+    # expect get_inv_freq to be get_inverse_text_frequencies from calculations.py
     freqs = np.array([get_inv_freq(f) for f in forms[sorted_positions]])
     freq_sort = np.sort(freqs)
     distances = []
     for form1 in positions:
         for form2 in positions:
+            # select lowest frequency sound unit
             if get_inv_freq(forms[form1]) == freq_sort[0]:
+                # select second-lowest frequency sound unit
                 if get_inv_freq(forms[form2]) == freq_sort[1]:
                     if form1 != form2:
                         distances.append(_get_trivial_distance(form1, form2))
+    # distances may include more than one distance because multiple sound units
+    # may share the lowest frequency and second-lowest frequency
     return min(distances)
 
 
@@ -654,7 +673,7 @@ def _gen_matches(search, conn, target_units, source_units, stoplist_set,
             yield (t_ind, s_ind, positions)
 
 
-def _score(search, conn, target_units, source_units, feature, features, stoplist,
+def _score(search, conn, target_units, source_units, features, stoplist,
            distance_basis, max_distance, source_inv_frequencies_getter,
            target_inv_frequencies_getter, tag_helper):
     match_ents = []
@@ -665,164 +684,70 @@ def _score(search, conn, target_units, source_units, feature, features, stoplist
     stoplist_set = set(stoplist)
     features_size = len(features)
     search_id = search.id
-    if feature == 'sound':
-        for target_ind, source_ind, positions in _gen_matches(
-                search, conn, target_units, source_units, stoplist_set,
-                features_size):
-            target_unit = target_units[target_ind]
-            source_unit = source_units[source_ind]
-            target_sounds = []
-            source_sounds = []
- #           print('target features', target_unit['features'])
- #           print('source features', source_unit['features'])
-            for a in target_unit['features']:
-                for b in a:
-                    target_sounds.append(b)
-            for a in source_unit['features']:
-                for b in a:
-                    source_sounds.append(b)
-            t_positions = []
-            s_positions = []
-            for target in target_sounds:
-                for source in source_sounds:
-                    if target == source:
-                        t_positions.append(target_sounds.index(target))
-                        s_positions.append(source_sounds.index(source))
-#            print('_score target unit: ', target_unit)
-            t_positions = np.array(t_positions)
-            s_positions = np.array(s_positions)
-#            print('t positions', t_positions)
-#            print('s positions', s_positions)
-            target_sounds = np.array(target_sounds)
-            source_sounds = np.array(source_sounds)
-            target_distance = _get_sound_distance_by_least_frequency(
-                    target_inv_frequencies_getter, t_positions, target_sounds)
-    #       print(target_sounds, target_distance)
-            source_distance = _get_sound_distance_by_least_frequency(
-                    source_inv_frequencies_getter, s_positions, source_sounds)
-    #       print(source_sounds, source_distance)
-            if source_distance <= 0 or target_distance <= 0:
-            # less than two matching tokens in one of the units
-                continue
-            distance = source_distance + target_distance
-            if distance <= max_distance:
-                target_features = target_unit['features']
-                source_features = source_unit['features']
-#                print(len(source_features), len(s_positions))
-#                print ('s positions', s_positions)
-#                print('source features', source_features)
-#                source_features_set = set(itertools.chain.from_iterable([source_features[s_pos] for s_pos in s_positions]))
-#                print('source set', source_features_set)
-#                target_features_set = set(itertools.chain.from_iterable([target_features[t_pos] for t_pos in t_positions]))
-#                print('target set', target_features_set)
-#                interset = target_features_set.intersection(source_features_set)
-#                print('interset', interset)
-#                match_features = set(itertools.chain.from_iterable(interset))
-                match_features = set(
-                    itertools.chain.from_iterable([
-                        set(target_sounds).intersection(
-                            set(source_sounds))
-                    ]))
-                match_features -= stoplist_set
-                if match_features:
-                    match_inv_frequencies = [
-                        target_inv_frequencies_getter(target_sounds[pos])
-                        for pos in t_positions
-                    ]
-                    match_inv_frequencies.extend([
-                        source_inv_frequencies_getter(source_sounds[pos])
-                        for pos in s_positions
-                    ])
-                    numerator_sparse_rows.extend([len(match_ents)] *
-                                                len(match_inv_frequencies))
-                    numerator_sparse_cols.extend(
-                        [i for i in range(len(match_inv_frequencies))])
-                    numerator_sparse_data.extend(match_inv_frequencies)
-                    denominators.append(distance)
-                    match_ents.append(
-                        Match(search_id=search_id,
-                            source_unit=source_unit['_id'],
-                            target_unit=target_unit['_id'],
-                            source_tag=tag_helper.get_display_tag(
-                                source_unit['text'], source_unit['tags']),
-                            target_tag=tag_helper.get_display_tag(
-                                target_unit['text'], target_unit['tags']),
-                            matched_features=[
-                                features[int(mf)].token for mf in match_features
-                            ],
-                            source_snippet=source_unit['snippet'],
-                            target_snippet=target_unit['snippet'],
-                            highlight=[
-                                (int(s_pos), int(t_pos))
-                                for s_pos, t_pos in zip(s_positions, t_positions)
-                            ]))
-#                    print('rows', numerator_sparse_rows)
-#                    print('columns', numerator_sparse_cols)
-    else:
-        for target_ind, source_ind, positions in _gen_matches(
-                search, conn, target_units, source_units, stoplist_set,
-                features_size):
-            target_unit = target_units[target_ind]
-            source_unit = source_units[source_ind]
-            target_forms = np.array(target_unit['forms'])
-            source_forms = np.array(source_unit['forms'])
-            t_positions = positions[:, 0]
-            s_positions = positions[:, 1]
-            if distance_basis == 'span':
-                # adjacent matched words have a distance of 2, etc.
-                target_distance = _get_distance_by_span(t_positions, target_forms)
-                source_distance = _get_distance_by_span(s_positions, source_forms)
-            else:
-                target_distance = _get_distance_by_least_frequency(
-                    target_inv_frequencies_getter, t_positions, target_forms)
-                source_distance = _get_distance_by_least_frequency(
-                    source_inv_frequencies_getter, s_positions, source_forms)
-            if source_distance <= 0 or target_distance <= 0:
-            # less than two matching tokens in one of the units
-                continue
-            distance = source_distance + target_distance
-            if distance <= max_distance:
-                target_features = target_unit['features']
-                source_features = source_unit['features']
-                match_features = set(
-                    itertools.chain.from_iterable([
-                        set(target_features[t_pos]).intersection(
-                            set(source_features[s_pos]))
-                        for t_pos, s_pos in zip(t_positions, s_positions)
-                    ]))
-                match_features -= stoplist_set
-                if match_features:
-                    match_inv_frequencies = [
-                        target_inv_frequencies_getter(target_forms[pos])
-                        for pos in set(t_positions)
-                    ]
-                    match_inv_frequencies.extend([
-                        source_inv_frequencies_getter(source_forms[pos])
-                        for pos in set(s_positions)
-                    ])
-                    numerator_sparse_rows.extend([len(match_ents)] *
-                                                len(match_inv_frequencies))
-                    numerator_sparse_cols.extend(
-                        [i for i in range(len(match_inv_frequencies))])
-                    numerator_sparse_data.extend(match_inv_frequencies)
-                    denominators.append(distance)
-                    match_ents.append(
-                        Match(search_id=search_id,
-                            source_unit=source_unit['_id'],
-                            target_unit=target_unit['_id'],
-                            source_tag=tag_helper.get_display_tag(
-                                source_unit['text'], source_unit['tags']),
-                            target_tag=tag_helper.get_display_tag(
-                                target_unit['text'], target_unit['tags']),
-                            matched_features=[
-                                features[int(mf)].token for mf in match_features
-                            ],
-                            source_snippet=source_unit['snippet'],
-                            target_snippet=target_unit['snippet'],
-                            highlight=[
-                                (int(s_pos), int(t_pos))
-                                for s_pos, t_pos in zip(s_positions, t_positions)
-                            ]))
+    for target_ind, source_ind, positions in _gen_matches(
+            search, conn, target_units, source_units, stoplist_set,
+            features_size):
+        target_unit = target_units[target_ind]
+        source_unit = source_units[source_ind]
+        target_forms = np.array(target_unit['forms'])
+        source_forms = np.array(source_unit['forms'])
+        t_positions = positions[:, 0]
+        s_positions = positions[:, 1]
+        if distance_basis == 'span':
+            # adjacent matched words have a distance of 2, etc.
+            target_distance = _get_distance_by_span(t_positions, target_forms)
+            source_distance = _get_distance_by_span(s_positions, source_forms)
+        else:
+            target_distance = _get_distance_by_least_frequency(
+                target_inv_frequencies_getter, t_positions, target_forms)
+            source_distance = _get_distance_by_least_frequency(
+                source_inv_frequencies_getter, s_positions, source_forms)
+        if source_distance <= 0 or target_distance <= 0:
+        # less than two matching tokens in one of the units
+            continue
+        distance = source_distance + target_distance
+        if distance <= max_distance:
+            target_features = target_unit['features']
+            source_features = source_unit['features']
+            match_features = set(
+                itertools.chain.from_iterable([
+                    set(target_features[t_pos]).intersection(
+                        set(source_features[s_pos]))
+                    for t_pos, s_pos in zip(t_positions, s_positions)
+                ]))
+            match_features -= stoplist_set
+            if match_features:
+                match_inv_frequencies = [
+                    target_inv_frequencies_getter(target_forms[pos])
+                    for pos in set(t_positions)
+                ]
+                match_inv_frequencies.extend([
+                    source_inv_frequencies_getter(source_forms[pos])
+                    for pos in set(s_positions)
+                ])
+                numerator_sparse_rows.extend([len(match_ents)] *
+                                            len(match_inv_frequencies))
+                numerator_sparse_cols.extend(
+                    [i for i in range(len(match_inv_frequencies))])
+                numerator_sparse_data.extend(match_inv_frequencies)
+                denominators.append(distance)
+                match_ents.append(
+                    Match(search_id=search_id,
+                        source_unit=source_unit['_id'],
+                        target_unit=target_unit['_id'],
+                        source_tag=tag_helper.get_display_tag(
+                            source_unit['text'], source_unit['tags']),
+                        target_tag=tag_helper.get_display_tag(
+                            target_unit['text'], target_unit['tags']),
+                        matched_features=[
+                            features[int(mf)].token for mf in match_features
+                        ],
+                        source_snippet=source_unit['snippet'],
+                        target_snippet=target_unit['snippet'],
+                        highlight=[
+                            (int(s_pos), int(t_pos))
+                            for s_pos, t_pos in zip(s_positions, t_positions)
+                        ]))
     if match_ents:
         numerators = csr_matrix(
             (numerator_sparse_data, (numerator_sparse_rows,
@@ -831,6 +756,121 @@ def _score(search, conn, target_units, source_units, feature, features, stoplist
         for match, score in zip(match_ents, scores):
             match.score = score
     print('score matrix', scores)
-    print(match_ents)
+#    print(match_ents)
+    return match_ents
+    
+
+def _score_sound(search, conn, target_units, source_units, features, stoplist,
+           distance_basis, max_distance, source_inv_frequencies_getter,
+           target_inv_frequencies_getter, tag_helper):
+    match_ents = []
+    numerator_sparse_rows = []
+    numerator_sparse_cols = []
+    numerator_sparse_data = []
+    denominators = []
+    stoplist_set = set(stoplist)
+    features_size = len(features)
+    search_id = search.id
+    for target_ind, source_ind, positions in _gen_matches(
+            search, conn, target_units, source_units, stoplist_set,
+            features_size):
+        target_unit = target_units[target_ind]
+        source_unit = source_units[source_ind]
+        target_sounds = []
+        source_sounds = []
+        # append indices of sound features to target_sounds and source_sounds 
+        # in order of appearance in the text
+        for a in target_unit['features']:
+            for b in a:
+                target_sounds.append(b)
+        for a in source_unit['features']:
+            for b in a:
+                source_sounds.append(b)
+        t_positions = []
+        s_positions = []
+        # append to t_positions and s_positions 
+        # the positions in the text of the matching sound features
+        for target in target_sounds:
+            for source in source_sounds:
+                if target == source:
+                    t_positions.append(target_sounds.index(target))
+                    s_positions.append(source_sounds.index(source))
+        # _get_sound_distance_by_least_frequency expects these as 1d arrays
+        t_positions = np.array(t_positions)
+        s_positions = np.array(s_positions)
+        target_sounds = np.array(target_sounds)
+        source_sounds = np.array(source_sounds)
+        # get the shortest distance of a pair of the least frequent sound features
+        target_distance = _get_distance_by_least_frequency(
+                target_inv_frequencies_getter, t_positions, target_sounds)
+        source_distance = _get_distance_by_least_frequency(
+                source_inv_frequencies_getter, s_positions, source_sounds)
+#            target_distance = _get_sound_distance_by_least_frequency(
+#                    target_inv_frequencies_getter, t_positions, target_sounds)
+#        print('target', target_sounds, target_distance)
+#            source_distance = _get_sound_distance_by_least_frequency(
+#                    source_inv_frequencies_getter, s_positions, source_sounds)
+#        print('source', source_sounds, source_distance)
+        if source_distance <= 0 or target_distance <= 0:
+        # less than two matching tokens in one of the units
+            continue
+        # distance is both used to compare to max_distance below 
+        # and will become the denominator in the scoring formula
+        distance = source_distance + target_distance
+        # if distance > max_distance, then the matched sound features 
+        # are too far apart to make the lines 'sound alike'
+        if distance <= max_distance:
+            # now we are once again interested in 
+            # not just the least frequent sound features, 
+            # but in all the matching sound features
+            target_features = target_unit['features']
+            source_features = source_unit['features']
+            match_features = set(
+                itertools.chain.from_iterable([
+                    set(target_sounds).intersection(
+                        set(source_sounds))
+                ]))
+            match_features -= stoplist_set
+            if match_features:
+                match_inv_frequencies = [
+                    target_inv_frequencies_getter(target_sounds[pos])
+                    for pos in t_positions
+                ]
+                match_inv_frequencies.extend([
+                    source_inv_frequencies_getter(source_sounds[pos])
+                    for pos in s_positions
+                ])
+                numerator_sparse_rows.extend([len(match_ents)] *
+                                            len(match_inv_frequencies))
+                numerator_sparse_cols.extend(
+                    [i for i in range(len(match_inv_frequencies))])
+                numerator_sparse_data.extend(match_inv_frequencies)
+                denominators.append(distance)
+                match_ents.append(
+                    Match(search_id=search_id,
+                        source_unit=source_unit['_id'],
+                        target_unit=target_unit['_id'],
+                        source_tag=tag_helper.get_display_tag(
+                            source_unit['text'], source_unit['tags']),
+                        target_tag=tag_helper.get_display_tag(
+                            target_unit['text'], target_unit['tags']),
+                        matched_features=[
+                            features[int(mf)].token for mf in match_features
+                        ],
+                        source_snippet=source_unit['snippet'],
+                        target_snippet=target_unit['snippet'],
+                        highlight=[
+                            (int(s_pos), int(t_pos))
+                            for s_pos, t_pos in zip(s_positions, t_positions)
+                        ]))
+    if match_ents:
+        numerators = csr_matrix(
+            (numerator_sparse_data, (numerator_sparse_rows,
+                                     numerator_sparse_cols))).sum(axis=-1).A1
+        scores = np.log(numerators) - np.log(denominators)
+        for match, score in zip(match_ents, scores):
+            match.score = score
+    print('score matrix', scores)
+#    print(match_ents)
     return match_ents
     

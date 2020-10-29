@@ -114,15 +114,13 @@ def get_inverse_text_frequencies(connection, feature, text_id):
         text_token_count += len(unit['tokens'])
         for token in unit['tokens']:
             cur_features = token['features']
-            # use the form index as an identifier for this token's word
-            # type
+            # use the form index as an identifier 
+            # for this token's word type
             if feature == 'sound':
+                # sound feature does not need to stay connected to its word
                 for cur_tindex in cur_features['sound']:
+                    # continually append units as each line is processed
                     units.append(cur_tindex)
-                    if cur_tindex not in tindex2mtindex:
-                        tindex2mtindex[cur_tindex] = len(tindex2mtindex)
-                    mtindex = tindex2mtindex[cur_tindex]
-                    word_counts[mtindex] += 1
             else:
                 cur_tindex = cur_features['form'][0]
                 units.append(cur_tindex)
@@ -135,27 +133,26 @@ def get_inverse_text_frequencies(connection, feature, text_id):
                 # lookup when we get to the stage of counting up word type
                 # occurrences
                 word_counts[mtindex] += 1
-            if feature != 'sound':
                 for cur_findex in cur_features[feature]:
                     if cur_findex not in findex2mfindex:
                         findex2mfindex[cur_findex] = len(findex2mfindex)
                     mfindex = findex2mfindex[cur_findex]
                     # record when a word type is associated with a feature type
                     word_feature_pairs.add((mtindex, mfindex))
+    # count number of times each feature member appears in text
     units_count = Counter(units)
     csr_rows = []
     csr_cols = []
     if feature == 'sound':
-        positions = {}
-        inv_positions = {}
-        for token in units:
-            position = len(positions)
-            positions[position] = token
-            if token not in inv_positions:
-                inv_positions[token] = [position]
-            else:
-                inv_positions[token].append(position)
-        return units_count
+        # Frequency is the number of times a word occurs in a text 
+        # divided by the total number of words in that text
+        frequencies = {}
+        inv_frequencies = {}
+        N_text = len(units)
+        for sound in units_count:
+            frequencies[sound] = units_count[sound]/N_text
+            inv_frequencies[sound] = 1/frequencies[sound]
+        return inv_frequencies
     else:
         for mtindex, mfindex in word_feature_pairs:
             csr_rows.append(mtindex)
