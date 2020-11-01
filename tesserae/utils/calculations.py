@@ -182,6 +182,7 @@ def get_inverse_text_frequencies(connection, feature, text_id):
         mtindex2tindex[i]: freq for i, freq in enumerate(sparse_freqs.A1)
     }
     
+    
 def get_sound_inverse_text_freq(connection, text_id):
     """Get the inverse frequencies of all the trigrams AKA sound features
     in a particular text.
@@ -230,4 +231,5 @@ def get_sound_inverse_text_freq(connection, text_id):
         frequencies[sound] = units_count[sound]/N_text
         inv_frequencies[sound] = 1/frequencies[sound]
     return inv_frequencies
-    }
+
+
