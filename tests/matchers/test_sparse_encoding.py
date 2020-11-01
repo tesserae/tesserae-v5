@@ -1,9 +1,5 @@
-import itertools
-from pathlib import Path
-import pprint
 import uuid
 
-import math
 import pytest
 import numpy as np
 
@@ -32,286 +28,89 @@ def punctpop(request, mini_punctuation_metadata):
     obliterate(conn)
 
 
-def _load_v3_mini_text_stem_freqs(conn, metadata):
-    db_cursor = conn.connection[Feature.collection].find(
-            {'feature': 'form', 'language': metadata['language']},
-            {'_id': False, 'index': True, 'token': True})
-    token2index = {e['token']: e['index'] for e in db_cursor}
-    # the .freq_score_stem file is named the same as its corresponding .tess
-    # file
-    freqs_path = metadata['path'][:-4] + 'freq_score_stem'
-    freqs = {}
-    with open(freqs_path, 'r', encoding='utf-8') as ifh:
-        for line in ifh:
-            if line.startswith('# count:'):
-                denom = int(line.split()[-1])
-                break
-        for line in ifh:
-            line = line.strip()
-            if line:
-                word, count = line.split()
-                freqs[token2index[word]] = float(count) / denom
-    return freqs
-
-
-def test_mini_text_frequencies(
-        minipop, mini_latin_metadata,
-        mini_greek_metadata):
-    all_text_metadata = [m for m in itertools.chain.from_iterable(
-        [mini_latin_metadata, mini_greek_metadata])]
-    title2id = {t.title: t.id for t in minipop.find(
-        Text.collection, title=[m['title'] for m in all_text_metadata])}
-    for metadata in all_text_metadata:
-        v3freqs = _load_v3_mini_text_stem_freqs(minipop, metadata)
-        text_id = title2id[metadata['title']]
-        v5freqs = get_inverse_text_frequencies(minipop, 'lemmata', text_id)
-        for form_index, freq in v5freqs.items():
-            assert form_index in v3freqs
-            assert math.isclose(v3freqs[form_index], 1.0 / freq)
-
-
-def _load_v3_results(minitext_path, tab_filename):
-    tab_filepath = Path(minitext_path).resolve().parent.joinpath(tab_filename)
-    v3_results = []
-    with open(tab_filepath, 'r', encoding='utf-8') as ifh:
-        for line in ifh:
-            if not line.startswith('#'):
-                break
-        for line in ifh:
-            # ignore headers
-            # headers = line.strip().split('\t')
-            break
-        for line in ifh:
-            data = line.strip().split('\t')
-            v3_results.append({
-                'source_tag': data[3][1:-1],
-                'target_tag': data[1][1:-1],
-                'matched_features': data[5][1:-1].split('; '),
-                'score': float(data[6]),
-                'source_snippet': data[4][1:-1],
-                'target_snippet': data[2][1:-1],
-                'highlight': ''
-            })
-    return v3_results
-
-
-def _build_relations(results):
-    relations = {}
-    for match in results:
-        target_loc = match['target_tag'].split()[-1]
-        source_loc = match['source_tag'].split()[-1]
-        if target_loc not in relations:
-            relations[target_loc] = {source_loc: match}
-        elif source_loc not in relations[target_loc]:
-            relations[target_loc][source_loc] = match
-    return relations
-
-
-def _check_search_results(v5_results, v3_results):
-    v3_relations = _build_relations(v3_results)
-    v5_relations = _build_relations(v5_results)
-    score_discrepancies = []
-    match_discrepancies = []
-    in_v5_not_in_v3 = []
-    in_v3_not_in_v5 = []
-    v3_scores = []
-    v5_scores = []
-    v3_score_set = {}
-    v5_score_set = {}
-    for target_loc in v3_relations:
-        for source_loc in v3_relations[target_loc]:
-            if target_loc not in v5_relations or \
-                    source_loc not in v5_relations[target_loc]:
-                in_v3_not_in_v5.append(v3_relations[target_loc][source_loc])
-                continue
-            v3_match = v3_relations[target_loc][source_loc]
-            v5_match = v5_relations[target_loc][source_loc]
-            v3_score = v3_match['score']
-            v5_score = v5_match['score']
-            print(v5_match['matched_features'], v5_match['score'
-            ])
-            v3_scores.append(v3_score)
-            v5_scores.append(f'{v5_score:.3f}')
-            a = ('target:', target_loc, 'source', source_loc, 'score difference:', v5_score-v3_score)
-            if f'{v5_score:.3f}' != f'{v3_score:.3f}':
-                score_discrepancies.append(a)            
-            v5_match_features = set(v5_match['matched_features'])
-            v3_match_features = set()
-            for match_f in v3_match['matched_features']:
-                for f in match_f.split('-'):
-                    v3_match_features.add(f)
-            only_in_v5 = v5_match_features - v3_match_features
-            only_in_v3 = v3_match_features - v5_match_features
-            if only_in_v5 or only_in_v3:
-                match_discrepancies.append((
-                    'target:', target_loc, 'source:', source_loc, 'match only in v5:', only_in_v5, 'match only in v3:',
-                    only_in_v3))
-    for target_loc in v5_relations:
-        for source_loc in v5_relations[target_loc]:
-            if target_loc not in v3_relations or \
-                    source_loc not in v3_relations[target_loc]:
-                in_v5_not_in_v3.append(v5_relations[target_loc][source_loc]['matched_features'])
-    v3_scores = sorted(v3_scores)
-    v5_scores = sorted(v5_scores)
-    for score in v3_scores:
-        for target_loc in v3_relations:
-            for source_loc in v3_relations[target_loc]:
-                if score == v3_relations[target_loc][source_loc]['score']:
-                    v3_score_set[source_loc] = score
-    for score in v5_scores:
-        for target_loc in v5_relations:
-            for source_loc in v5_relations[target_loc]:
-                s = v5_relations[target_loc][source_loc]['score']
-                if score == f'{s:.3f}':
-                    v5_score_set[source_loc] = score
-    c = 1
-#    for a in v3_score_set:
-#        print(c, a)
-#        c += 1
-#    c = 1
-#    for b in v5_score_set:
-#        print(c, b)
-#        c+= 1
-#    print(score_discrepancies, match_discrepancies, file=open('discrepancies2.txt',mode='x'))
-    pprint.pprint(score_discrepancies)
-    pprint.pprint(match_discrepancies)
-    print('v3', v3_scores)
-    print('v5', v5_scores)
-#    print('location only in v5')
-#    pprint.pprint(in_v5_not_in_v3)
-#    print('location only in v3')
-#    pprint.pprint(in_v3_not_in_v5)
-    assert not score_discrepancies
-    assert not match_discrepancies
-    assert not in_v5_not_in_v3
-    assert not in_v3_not_in_v5
-
-
-def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_latin_metadata])
+def test_mini_latin_search_text_freqs(minipop, mini_latin_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'lemmata',
-        stopwords=['et', 'neque', 'qui'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=10,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'lemmata',
+                               stopwords=['et', 'neque', 'qui'],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=10,
+                               distance_basis='frequency',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_latin_results.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_latin_results.tab')
 
 
-def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_greek_metadata])
+def test_mini_greek_search_text_freqs(minipop, mini_greek_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'phrase'),
-        TextOptions(texts[1], 'phrase'),
-        'lemmata',
-        stopwords=[
-            'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=10,
-        distance_basis='span', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'phrase'),
+                               TextOptions(texts[1], 'phrase'),
+                               'lemmata',
+                               stopwords=[
+                                   'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ',
+                                   'οὗτος', 'ἐμός'
+                               ],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=10,
+                               distance_basis='span',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results.tab')
-    print(len(v5_results), len(v3_results))
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_greek_results.tab')
 
 
-def _load_v3_mini_corpus_stem_freqs(conn, language, lang_path):
-    lang_lookup = {'latin': 'la.mini', 'greek': 'grc.mini'}
-    freqs_path = lang_path.joinpath(
-            lang_lookup[language]+'.stem.freq')
-    db_cursor = conn.connection[Feature.collection].find(
-            {'feature': 'lemmata', 'language': language},
-            {'_id': False, 'index': True, 'token': True})
-    token2index = {e['token']: e['index'] for e in db_cursor}
-    freqs = {}
-    with open(freqs_path, 'r', encoding='utf-8') as ifh:
-        for line in ifh:
-            if line.startswith('# count:'):
-                denom = int(line.split()[-1])
-                break
-        for line in ifh:
-            line = line.strip()
-            if line:
-                word, count = line.split()
-                freqs[token2index[word]] = float(count) / denom
-    return freqs
-
-
-def test_mini_corpus_frequencies(
-        minipop, tessfiles_greek_path,
-        tessfiles_latin_path):
-    for lang, lang_path in zip(
-            ['greek', 'latin'],
-            [tessfiles_greek_path, tessfiles_latin_path]):
-        v3freqs = _load_v3_mini_corpus_stem_freqs(minipop, lang, lang_path)
-        v5freqs = get_corpus_frequencies(minipop, 'lemmata', lang)
-        db_cursor = minipop.connection[Feature.collection].find(
-                {'feature': 'lemmata', 'language': lang},
-                {'_id': False, 'index': True, 'token': True})
-        index2token = {e['index']: e['token'] for e in db_cursor}
-        for form_index, freq in enumerate(v5freqs):
-            assert form_index in v3freqs
-            assert math.isclose(v3freqs[form_index], freq), \
-                f'Mismatch on {index2token[form_index]} ({form_index})'
-
-
-def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_latin_metadata])
+def test_mini_latin_search_corpus_freqs(minipop, mini_latin_metadata,
+                                        v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'lemmata',
-        stopwords=4,
-        stopword_basis='corpus', score_basis='stem',
-        freq_basis='corpus', max_distance=10,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'lemmata',
+                               stopwords=4,
+                               stopword_basis='corpus',
+                               score_basis='lemmata',
+                               freq_basis='corpus',
+                               max_distance=10,
+                               distance_basis='frequency',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(
-            texts[0].path, 'mini_latin_corpus_results.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_latin_corpus_results.tab')
 
 
-def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_greek_metadata])
+def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata,
+                                        v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
     search_result = Search(
         results_id=results_id,
@@ -321,29 +120,27 @@ def test_mini_greek_search_corpus_freqs(minipop, mini_greek_metadata):
     )
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'phrase'),
-        TextOptions(texts[1], 'phrase'),
-        'lemmata',
-        stopwords=10,
-        stopword_basis='corpus', score_basis='stem',
-        freq_basis='corpus', max_distance=10,
-        distance_basis='span', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'phrase'),
+                               TextOptions(texts[1], 'phrase'),
+                               'lemmata',
+                               stopwords=10,
+                               stopword_basis='corpus',
+                               score_basis='lemmata',
+                               freq_basis='corpus',
+                               max_distance=10,
+                               distance_basis='span',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(
-            texts[0].path, 'mini_greek_corpus_results.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_greek_corpus_results.tab')
 
 
 def test_mini_punctuation(punctpop, mini_punctuation_metadata):
     texts = punctpop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_punctuation_metadata])
+        Text.collection, title=[m['title'] for m in mini_punctuation_metadata])
     results_id = uuid.uuid4()
     search_result = Search(
         results_id=results_id,
@@ -353,50 +150,43 @@ def test_mini_punctuation(punctpop, mini_punctuation_metadata):
     )
     punctpop.insert(search_result)
     matcher = SparseMatrixSearch(punctpop)
-    matcher.match(
-        search_result,
-        TextOptions(texts[0], 'phrase'),
-        TextOptions(texts[1], 'phrase'),
-        'lemmata',
-        stopwords=10,
-        stopword_basis='corpus', score_basis='stem',
-        freq_basis='corpus', max_distance=10,
-        distance_basis='span', min_score=0)
+    matcher.match(search_result,
+                  TextOptions(texts[0], 'phrase'),
+                  TextOptions(texts[1], 'phrase'),
+                  'lemmata',
+                  stopwords=10,
+                  stopword_basis='corpus',
+                  score_basis='lemmata',
+                  freq_basis='corpus',
+                  max_distance=10,
+                  distance_basis='span',
+                  min_score=0)
     # the point of this test is to make sure no Exception is thrown
 
 
-def test_latin_sound(minipop, mini_latin_metadata):
-    stopwords=['que', 'tum', 'ere']
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_latin_metadata])
+def test_latin_sound(minipop, mini_latin_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'sound', stopwords,
-        stopword_basis='texts', score_basis='3gr',
-        freq_basis='texts', max_distance=999,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'sound',
+                               stopwords=['que', 'tum', 'ere'],
+                               stopword_basis='texts',
+                               score_basis='3gr',
+                               freq_basis='texts',
+                               max_distance=999,
+                               distance_basis='frequency',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_3gr.tab')
-    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
-    for a in v5_results:
-        for b in a['matched_features']:
-            for c in stopwords:
-                if b == c:
-                    print ('matched stopword:', c)
-                    assert False
-#    get_stoplist_tokens(minipop, n, 'sound', 'latin')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_latin_results_3gr.tab')
 
 
 def test_latin_trigrams(minipop, mini_latin_metadata):
@@ -415,8 +205,8 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     target_units = _get_units(minipop, TextOptions(texts[0], 'line'), 'sound')
     for b in target_units:
         raw_v5_results.append(b['features'])
-    raw_v3_results = _load_v3_results(texts[0].path, 
-    'mini_latin_results_3gr.tab')
+    raw_v3_results = _load_v3_results(texts[0].path,
+                                      'mini_latin_results_3gr.tab')
     for a in raw_v3_results:
         v3_results.append(a['matched_features'])
     print('v5 results:')
@@ -429,7 +219,7 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
             print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
             v5_results.append(b)
-    print(v5_results)    
+    print(v5_results)
     print('v3 results:')
     for a in v3_results:
         print(a)
@@ -437,101 +227,60 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     assert False
 
 
-def test_latin_semantic(minipop, mini_latin_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_latin_metadata])
+def test_latin_semantic(minipop, mini_latin_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'semantic',
-        stopwords=['et', 'neque', 'per'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=999,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'semantic',
+                               stopwords=['et', 'non', 'atqui'],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=999,
+                               distance_basis='frequency',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_latin_results_syn.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_latin_results_syn.tab')
 
 
-def test_latin_semlem(minipop, mini_latin_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_latin_metadata])
+def test_latin_semlem(minipop, mini_latin_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'semantic + lemma',
-        stopwords=['et', 'neque', 'per'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=999,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'semantic + lemmata',
+                               stopwords=['et', 'non', 'neque'],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=999,
+                               distance_basis='frequency',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(
-        texts[0].path, 'mini_latin_results_syn_lem.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_latin_results_syn_lem.tab')
 
 
-def test_greek_sound(minipop, mini_greek_metadata):
-    stopwords=[
-            'και', 'του', 'αλλ', 'ειν', 'μεν', 'μοι', 'αυτ', 'ους']
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_greek_metadata])
-    results_id = uuid.uuid4()
-    search_result = Search(results_id=results_id)
-    minipop.insert(search_result)
-    matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'phrase'),
-        TextOptions(texts[1], 'phrase'),
-        'sound', stopwords,
-        stopword_basis='texts', score_basis='3gr',
-        freq_basis='texts', max_distance=999,
-        distance_basis='span', min_score=0)
-    minipop.insert_nocheck(v5_matches)
-    search_result.status = Search.DONE
-    minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_3gr.tab')
-#    for p in v3_results:
-#        print('v3 trigrams:', p['matched_features'])
-#    for p in v5_results:
-#        print('v5 trigrams:', p['matched_features'])
-    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
-    for a in v5_results:
-        for b in a['matched_features']:
-            for c in stopwords:
-                if b == c:
-                    print ('matched stopword:', c)
-                    assert False
-    _check_search_results(v5_results, v3_results)
 
-
-def test_greek_semantic(minipop, mini_greek_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_greek_metadata])
+def test_greek_sound(minipop, mini_greek_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
@@ -540,54 +289,79 @@ def test_greek_semantic(minipop, mini_greek_metadata):
         search_result,
         TextOptions(texts[0], 'phrase'),
         TextOptions(texts[1], 'phrase'),
-        'semantic',
-        stopwords=[
-            'τις', 'οὗτος', 'καί', 'αβγ', 'ἐγώ', 'τηνόθι', 'τηνικαῦτα',
-            'τέκνον'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=999,
-        distance_basis='span', min_score=0)
+        'sound',
+        stopwords=['και', 'του', 'αλλ', 'ειν', 'μεν', 'μοι', 'αυτ', 'ους'],
+        stopword_basis='texts',
+        score_basis='3gr',
+        freq_basis='texts',
+        max_distance=999,
+        distance_basis='span',
+        min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'mini_greek_results_syn.tab')
-    print(len(v5_results), len(v3_results))
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_greek_results_3gr.tab')
 
 
-def test_greek_semlem(minipop, mini_greek_metadata):
-    texts = minipop.find(
-        Text.collection,
-        title=[m['title'] for m in mini_greek_metadata])
+def test_greek_semantic(minipop, mini_greek_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'phrase'),
-        TextOptions(texts[1], 'phrase'),
-        'semantic + lemma',
-        stopwords=[
-            'οὗτος', 'τις', 'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'τέκνον'],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=999,
-        distance_basis='span', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'phrase'),
+                               TextOptions(texts[1], 'phrase'),
+                               'semantic',
+                               stopwords=[
+                                   'τις', 'οὗτος', 'καί', 'αβγ', 'ἐγώ',
+                                   'τηνόθι', 'τηνικαῦτα', 'τέκνον'
+                               ],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=999,
+                               distance_basis='span',
+                               min_score=0)
     minipop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     minipop.update(search_result)
-    v5_results = get_results(minipop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(
-        texts[0].path, 'mini_greek_results_syn_lem.tab')
-    print(len(v5_results), len(v3_results))
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_greek_results_syn.tab')
+
+
+def test_greek_semlem(minipop, mini_greek_metadata, v3checker):
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
+    matcher = SparseMatrixSearch(minipop)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'phrase'),
+                               TextOptions(texts[1], 'phrase'),
+                               'semantic + lemmata',
+                               stopwords=[
+                                   'οὗτος', 'τις', 'ὁ', 'ὅς', 'καί',
+                                   'αβγ', 'ἐγώ', 'τέκνον'
+                               ],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=999,
+                               distance_basis='span',
+                               min_score=0)
+    minipop.insert_nocheck(v5_matches)
+    search_result.status = Search.DONE
+    minipop.update(search_result)
+    v3checker.check_search_results(minipop, search_result.id, texts[0].path,
+                                   'mini_greek_results_syn_lem.tab')
 
 
 @pytest.fixture(scope='session')
-def lucvergpop(request, lucverg_metadata):
+def lucvergpop(request, lucverg_metadata, v3checker):
     conn = TessMongoConnection('localhost', 27017, None, None, 'lucvergtest')
     for metadata in lucverg_metadata:
         text = Text.json_decode(metadata)
@@ -599,8 +373,10 @@ def lucvergpop(request, lucverg_metadata):
             LatinTokenizer(conn).tokenize(
                 tessfile.read(), text=tessfile.metadata)
 
-        feature_cache = {(f.feature, f.token): f for f in conn.find(
-            Feature.collection, language=text.language)}
+        feature_cache = {
+            (f.feature, f.token): f
+            for f in conn.find(Feature.collection, language=text.language)
+        }
         features_for_insert = []
         features_for_update = []
 
@@ -615,38 +391,36 @@ def lucvergpop(request, lucverg_metadata):
         conn.update(features_for_update)
 
         unitizer = Unitizer()
-        lines, _ = unitizer.unitize(
-            tokens, tags, tessfile.metadata)
+        lines, _ = unitizer.unitize(tokens, tags, tessfile.metadata)
 
         conn.insert_nocheck(lines)
     yield conn
     obliterate(conn)
 
 
-def test_lucverg(lucvergpop, lucverg_metadata):
-    texts = lucvergpop.find(
-        Text.collection,
-        title=[m['title'] for m in lucverg_metadata])
+def test_lucverg(lucvergpop, lucverg_metadata, v3checker):
+    texts = lucvergpop.find(Text.collection,
+                            title=[m['title'] for m in lucverg_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     lucvergpop.insert(search_result)
     matcher = SparseMatrixSearch(lucvergpop)
-    v5_matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'lemmata',
-        stopwords=[
-            "et", "qui", "quis", "in", "sum",
-            "hic", "non", "tu", "neque", "ego"
-        ],
-        stopword_basis='texts', score_basis='stem',
-        freq_basis='texts', max_distance=10,
-        distance_basis='frequency', min_score=0)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'lemmata',
+                               stopwords=[
+                                   "et", "qui", "quis", "in", "sum", "hic",
+                                   "non", "tu", "neque", "ego"
+                               ],
+                               stopword_basis='texts',
+                               score_basis='lemmata',
+                               freq_basis='texts',
+                               max_distance=10,
+                               distance_basis='frequency',
+                               min_score=0)
     lucvergpop.insert_nocheck(v5_matches)
     search_result.status = Search.DONE
     lucvergpop.update(search_result)
-    v5_results = get_results(lucvergpop, search_result.id, PageOptions())
-    v5_results = sorted(v5_results, key=lambda x: -x['score'])
-    v3_results = _load_v3_results(texts[0].path, 'lucverg_time.tab')
-    _check_search_results(v5_results, v3_results)
+    v3checker.check_search_results(lucvergpop, search_result.id, texts[0].path,
+                                   'lucverg_time.tab')

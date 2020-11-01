@@ -57,7 +57,8 @@ def get_size(obj, seen=None):
         size += sum([get_size(k, seen) for k in obj.keys()])
     elif hasattr(obj, '__dict__'):
         size += get_size(obj.__dict__, seen)
-    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+    elif hasattr(obj, '__iter__') and not isinstance(obj,
+                                                     (str, bytes, bytearray)):
         size += sum([get_size(i, seen) for i in obj])
     return size
 
@@ -107,10 +108,12 @@ class TessMongoConnection():
     connection : `pymongo.database.Database`
         A connection to the Tesserae database.
     """
-
     def __init__(self, host, port, user, password, db='tesserae', **kwargs):
-        conn = pymongo.MongoClient(host=host, port=port, username=user,
-                                   password=password, **kwargs)
+        conn = pymongo.MongoClient(host=host,
+                                   port=port,
+                                   username=user,
+                                   password=password,
+                                   **kwargs)
         conn = conn[db]
         self.connection = conn
 
@@ -260,7 +263,8 @@ class TessMongoConnection():
             exists = [e.unique_values() for e in exists]
             new_ents = []
             for e in entity:
-                if e.id is None or not any([e.unique_values() == ex for ex in exists]):
+                if e.id is None or not any(
+                    [e.unique_values() == ex for ex in exists]):
                     new_ents.append(e)
             entity = new_ents
 
@@ -431,8 +435,11 @@ class TessMongoConnection():
                 query_filter[key].update(query)
 
         if len(query_filter) > 1:
-            query_filter = {'$and': [
-                {key: val} for key, val in query_filter.items()]}
+            query_filter = {
+                '$and': [{
+                    key: val
+                } for key, val in query_filter.items()]
+            }
 
         return query_filter
 
@@ -490,6 +497,8 @@ class TessMongoConnection():
             ('language', pymongo.ASCENDING),
             ('feature', pymongo.ASCENDING),
         ])
+        self.connection[tesserae.db.entities.MultiResult.
+                        collection].create_index('match_id')
 
     def drop_indices(self):
         """Drops all indices
@@ -521,8 +530,11 @@ def get_connection(host, port, user, password=None, db='tesserae', **kwargs):
     connection : `pymongo.database.Database`
         A connection to the Tesserae database.
     """
-    conn = pymongo.MongoClient(host=host, port=port, username=user,
-                               password=password, **kwargs)
+    conn = pymongo.MongoClient(host=host,
+                               port=port,
+                               username=user,
+                               password=password,
+                               **kwargs)
     conn = conn[db]
     return conn
 

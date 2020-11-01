@@ -11,7 +11,7 @@ import tesserae.matchers
 NORMAL_SEARCH = 'vanilla'
 
 
-def submit_search(jobqueue, connection, results_id, search_type,
+def submit_search(jobqueue, connection, results_id, matcher_type,
                   search_params):
     """Submit a job for Tesserae search
 
@@ -21,31 +21,15 @@ def submit_search(jobqueue, connection, results_id, search_type,
     connection : TessMongoConnection
     results_id : str
         UUID to associate with search to be performed
-    search_type : str
-        the search to perform; must be a key in tesserae.matchers.matcher_map
+    matcher_type : str
+        the matcher to use for search to perform; must be a key in
+        tesserae.matchers.matcher_map
     search_params : dict
         parameter names mapped to arguments to be used for the search
 
     """
-    parameters = {
-        'source': {
-            'object_id': str(search_params['source'].text.id),
-            'units': search_params['source'].unit_type
-        },
-        'target': {
-            'object_id': str(search_params['target'].text.id),
-            'units': search_params['target'].unit_type
-        },
-        'method': {
-            'name': search_type,
-            'feature': search_params['feature'],
-            'stopwords': search_params['stopwords'],
-            'freq_basis': search_params['freq_basis'],
-            'max_distance': search_params['max_distance'],
-            'distance_basis': search_params['distance_basis'],
-            'min_score': search_params['min_score']
-        }
-    }
+    parameters = tesserae.matchers.matcher_map[matcher_type].paramify(
+        search_params)
     results_status = Search(results_id=results_id,
                             search_type=NORMAL_SEARCH,
                             status=Search.INIT,
@@ -54,13 +38,13 @@ def submit_search(jobqueue, connection, results_id, search_type,
     connection.insert(results_status)
     kwargs = {
         'results_status': results_status,
-        'search_type': search_type,
+        'matcher_type': matcher_type,
         'search_params': search_params
     }
     jobqueue.queue_job(_run_search, kwargs)
 
 
-def _run_search(connection, results_status, search_type, search_params):
+def _run_search(connection, results_status, matcher_type, search_params):
     """Instructions for running Tesserae search
 
     Parameters
@@ -68,13 +52,16 @@ def _run_search(connection, results_status, search_type, search_params):
     connection : TessMongoConnection
     results_status : tesserae.db.entities.Search
         Status keeper
+    matcher_type : str
+        the matcher to use for search to perform; must be a key in
+        tesserae.matchers.matcher_map
     search_params : dict
         parameter names mapped to arguments to be used for the search
 
     """
     start_time = time.time()
     try:
-        matcher = tesserae.matchers.matcher_map[search_type](connection)
+        matcher = tesserae.matchers.matcher_map[matcher_type](connection)
         results_status.update_current_stage_value(1.0)
 
         results_status.status = Search.RUN
@@ -123,8 +110,9 @@ def check_cache(connection, source, target, method):
     Returns
     -------
     UUID or None
-        If the search results are already in the database, return the
-        results_id associated with them; otherwise return None
+        If a Search entity with the same search parameters already exists in
+        the database, return the results_id associated with it; otherwise
+        return None
 
     Notes
     -----
@@ -134,38 +122,11 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
     search_for = {
-        'search_type':
-        NORMAL_SEARCH,
-        'parameters.source.object_id':
-        str(source['object_id']),
-        'parameters.source.units':
-        source['units'],
-        'parameters.target.object_id':
-        str(target['object_id']),
-        'parameters.target.units':
-        target['units'],
-        'parameters.method.name':
-        method['name'],
-        'parameters.method.feature':
-        method['feature'],
-        '$and': [{
-            'parameters.method.stopwords': {
-                '$all': method['stopwords']
-            }
-        }, {
-            'parameters.method.stopwords': {
-                '$size': len(method['stopwords'])
-            }
-        }],
-        'parameters.method.freq_basis':
-        method['freq_basis'],
-        'parameters.method.max_distance':
-        method['max_distance'],
-        'parameters.method.distance_basis':
-        method['distance_basis'],
-        'parameters.method.min_score':
-        method['min_score']
+        'search_type': NORMAL_SEARCH,
     }
+    search_for.update(
+        tesserae.matchers.matcher_map[method['name']].get_agg_query(
+            source, target, method))
     found = [
         Search.json_decode(f)
         for f in connection.connection[Search.collection].find(search_for)
@@ -358,3 +319,22 @@ def get_results_count(connection, search_id):
     """
     return connection.connection[Match.collection].count_documents(
         {'search_id': search_id})
+
+
+def get_id_by_uuid(connection, uuid):
+    """Retrieve database identifier for a regular Tesserae search
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    UUID : str
+
+    Returns
+    -------
+    ObjectId
+        database identifier for the regular Tesserae search associated with the
+        provided UUID
+    """
+    return connection.find(Search.collection,
+                           results_id=uuid,
+                           search_type=NORMAL_SEARCH)[0].id

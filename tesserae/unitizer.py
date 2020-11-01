@@ -137,7 +137,7 @@ class Unitizer(object):
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
-                    if isinstance(val, collections.Sequence) and \
+                    if isinstance(val, collections.abc.Sequence) and \
                             not isinstance(val, str):
                         tok['features'][key].extend([
                             v.index if isinstance(v, Feature) else ''

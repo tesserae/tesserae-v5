@@ -22,6 +22,92 @@ class SparseMatrixSearch(object):
     def __init__(self, connection):
         self.connection = connection
 
+    @staticmethod
+    def paramify(search_params):
+        """Make JSONizable parameters for SparseMatrixSearch
+
+        To ensure consistent storage of parameters of this search type, Search
+        entities will store the search parameters returned by this method.
+
+        Parameters
+        ----------
+        search_params : dict
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'source': {
+                'object_id': str(search_params['source'].text.id),
+                'units': search_params['source'].unit_type
+            },
+            'target': {
+                'object_id': str(search_params['target'].text.id),
+                'units': search_params['target'].unit_type
+            },
+            'method': {
+                'name': SparseMatrixSearch.matcher_type,
+                'feature': search_params['feature'],
+                'stopwords': search_params['stopwords'],
+                'score_basis': search_params['score_basis'],
+                'freq_basis': search_params['freq_basis'],
+                'max_distance': search_params['max_distance'],
+                'distance_basis': search_params['distance_basis'],
+                'min_score': search_params['min_score']
+            }
+        }
+
+    @staticmethod
+    def get_agg_query(source, target, method):
+        """Make aggregation pipeline query parameters
+
+        Running an aggregation pipeline with the returned dictionary should
+        identify any cached results in the database for a search that used the
+        specified search parameters.
+
+        Parameters
+        ----------
+        source
+        target
+        method
+
+        Returns
+        -------
+        dict
+        """
+        return {
+            'parameters.source.object_id':
+            str(source['object_id']),
+            'parameters.source.units':
+            source['units'],
+            'parameters.target.object_id':
+            str(target['object_id']),
+            'parameters.target.units':
+            target['units'],
+            'parameters.method.name':
+            method['name'],
+            'parameters.method.feature':
+            method['feature'],
+            '$and': [{
+                'parameters.method.stopwords': {
+                    '$all': method['stopwords']
+                }
+            }, {
+                'parameters.method.stopwords': {
+                    '$size': len(method['stopwords'])
+                }
+            }],
+            'parameters.method.freq_basis':
+            method['freq_basis'],
+            'parameters.method.max_distance':
+            method['max_distance'],
+            'parameters.method.distance_basis':
+            method['distance_basis'],
+            'parameters.method.min_score':
+            method['min_score']
+        }
+
     def match(self,
               search,
               source,
@@ -42,13 +128,13 @@ class SparseMatrixSearch(object):
 
         Parameters
         ----------
-        search : tesserae.db.entities.search
+        search : tesserae.db.entities.Search
             The search job associated with this matching job.
         source : tesserae.matchers.text_options.TextOptions
             The source text to compare against, specifying by which units.
         target : tesserae.matchers.text_options.TextOptions
             The target text to compare against, specifying by which units.
-        feature : {'form','lemmata','semantic','lemmata + semantic','sound'}
+        feature : {'form','lemmata','semantic','semantic + lemmata','sound'}
             The token feature to match on.
         stopwords : int or list of str
             The number of stopwords to use, to be retrieved from the database,
@@ -59,9 +145,8 @@ class SparseMatrixSearch(object):
             - 'texts': use the combined frequencies of all texts in the match
             - slice: use the texts returned from `texts` by the slice
             - Text: use a single text
-        score_basis : {'word','stem'}
-            Whether to score based on the words (normalized text) or stems
-            (lemmata).
+        score_basis : {'form','lemmata','sound'}
+            Token feature to score by.
         freq_basis : {'texts','corpus'}
             Take frequencies from the texts being matched or from the entire
             corpus.
@@ -88,23 +173,34 @@ class SparseMatrixSearch(object):
         if isinstance(stopwords, int):
             stopword_basis = stopword_basis if stopword_basis != 'texts' \
                     else texts
-            stoplist = create_stoplist(
+            stoplist = create_stoplist(self.connection,
+                                       stopwords,
+                                       feature,
+                                       source.text.language,
+                                       basis=stopword_basis)
+        else:
+            stoplist = get_stoplist_indices(
                 self.connection,
                 stopwords,
                 feature,
                 source.text.language,
-                basis=stopword_basis)
-        else:
-            stoplist = get_stoplist_indices(
-                self.connection, stopwords,
-                feature, source.text.language)
-
+            )
         features = sorted(self.connection.find(Feature.collection,
                                                language=source.text.language,
                                                feature=feature),
                           key=lambda x: x.index)
         if len(features) <= 0:
-            raise ValueError(f'Feature type "{feature}" for language '
+            raise ValueError(f'Chosen feature was invalid: '
+                             f'Feature type "{feature}" for language '
+                             f'"{source.text.language}" '
+                             f'was not found in the database.')
+        score_feature_found = \
+            self.connection.connection[Feature.collection].find_one(
+                filter={'language': source.text.language,
+                        'feature': score_basis})
+        if score_feature_found is None:
+            raise ValueError(f'Chosen score basis was invalid: '
+                             f'Feature type "{score_basis}" for language '
                              f'"{source.text.language}" '
                              f'was not found in the database.')
 
@@ -115,14 +211,14 @@ class SparseMatrixSearch(object):
 
         if freq_basis != 'texts':
             match_ents = _score_by_corpus_frequencies(search, self.connection,
-                                                      feature, texts,
+                                                      score_basis, texts,
                                                       target_units,
                                                       source_units, features,
                                                       stoplist, distance_basis,
                                                       max_distance, tag_helper)
         else:
             match_ents = _score_by_text_frequencies(search, self.connection,
-                                                    feature, texts,
+                                                    score_basis, texts,
                                                     target_units, source_units,
                                                     features, stoplist,
                                                     distance_basis,
@@ -168,20 +264,20 @@ def _get_units(connection, textoptions, feature):
     ]
 
 
-def _score_by_corpus_frequencies(search, connection, feature, texts,
+def _score_by_corpus_frequencies(search, connection, score_basis, texts,
                                  target_units, source_units, features,
                                  stoplist, distance_basis, max_distance,
                                  tag_helper):
     if texts[0].language != texts[1].language:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             source_units)
         target_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[1].language),
+            get_corpus_frequencies(connection, score_basis, texts[1].language),
             target_units)
     else:
         source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, feature, texts[0].language),
+            get_corpus_frequencies(connection, score_basis, texts[0].language),
             itertools.chain.from_iterable([source_units, target_units]))
         target_inv_frequencies_getter = source_inv_frequencies_getter
     if feature == 'sound':
@@ -196,7 +292,7 @@ def _score_by_corpus_frequencies(search, connection, feature, texts,
                     tag_helper)
 
 
-def _score_by_text_frequencies(search, connection, feature, texts,
+def _score_by_text_frequencies(search, connection, score_basis, texts,
                                target_units, source_units, features, stoplist,
                                distance_basis, max_distance, tag_helper):
     if feature == 'sound':
@@ -557,8 +653,8 @@ def _bin_hits_to_unit_indices(rows, cols, row2t_unit_ind, target_breaks,
     return hits2positions
 
 
-def gen_hits2positions(search, conn, target_units, source_units, stoplist_set,
-                       features_size):
+def gen_hits2positions(search, conn, target_feature_matrix, target_breaks,
+                       source_units, stoplist_set, features_size):
     """Generate matching units based on unit information
 
     Parameters
@@ -598,8 +694,6 @@ def gen_hits2positions(search, conn, target_units, source_units, stoplist_set,
         contains
 
     """
-    target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
-        target_units, stoplist_set, features_size)
     # keep track of mapping between matrix row index and target unit index
     # in ``target_units``
     row2t_unit_ind = np.array([
@@ -630,10 +724,13 @@ def _gen_matches(search, conn, target_units, source_units, stoplist_set,
 
     Parameters
     ----------
-    source_units : list of dict
-        each dictionary represents unit information from the source text
+    search : tesserae.db.entities.Search
+        The search job associated with this matching job.
+    conn : TessMongoConnection
     target_units : list of dict
         each dictionary represents unit information from the target text
+    source_units : list of dict
+        each dictionary represents unit information from the source text
     stoplist_set : set of int
         feature indices on which matches should not be permitted
     features_size : int
@@ -668,9 +765,12 @@ def _gen_matches(search, conn, target_units, source_units, stoplist_set,
         the first column contains target positions; the second column has
         corresponding source positions
     """
-    for hits2positions in gen_hits2positions(search, conn, target_units,
-                                             source_units, stoplist_set,
-                                             features_size):
+    target_feature_matrix, target_breaks = _construct_unit_feature_matrix(
+        target_units, stoplist_set, features_size)
+    for hits2positions in gen_hits2positions(search, conn,
+                                             target_feature_matrix,
+                                             target_breaks, source_units,
+                                             stoplist_set, features_size):
         overhits2positions = {
             k: np.array(v)
             for k, v in hits2positions.items() if len(v) >= 2

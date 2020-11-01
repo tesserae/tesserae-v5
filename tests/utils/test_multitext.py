@@ -10,9 +10,7 @@ from tesserae.utils.multitext import multitext_search
 def test_latin_multitext_search(minipop):
     feature = 'lemmata'
     language = 'latin'
-    texts = minipop.find(
-        Text.collection, language=language
-    )
+    texts = minipop.find(Text.collection, language=language)
 
     results_id = uuid.uuid4()
     search_result = Search(
@@ -23,15 +21,17 @@ def test_latin_multitext_search(minipop):
     )
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'lemmata',
-        stopwords=['et', 'neque', 'qui'],
-        stopword_basis='corpus', score_basis='stem',
-        freq_basis='corpus', max_distance=10,
-        distance_basis='span', min_score=0)
+    matches = matcher.match(search_result,
+                            TextOptions(texts[0], 'line'),
+                            TextOptions(texts[1], 'line'),
+                            'lemmata',
+                            stopwords=['et', 'neque', 'qui'],
+                            stopword_basis='corpus',
+                            score_basis='lemmata',
+                            freq_basis='corpus',
+                            max_distance=10,
+                            distance_basis='span',
+                            min_score=0)
 
     results = multitext_search(search_result, minipop, matches, feature,
                                'line', texts)
@@ -49,9 +49,7 @@ def test_latin_multitext_search(minipop):
 def test_greek_multitext_search(minipop):
     feature = 'lemmata'
     language = 'greek'
-    texts = minipop.find(
-        Text.collection, language=language
-    )
+    texts = minipop.find(Text.collection, language=language)
 
     results_id = uuid.uuid4()
     search_result = Search(
@@ -62,17 +60,20 @@ def test_greek_multitext_search(minipop):
     )
     minipop.insert(search_result)
     matcher = SparseMatrixSearch(minipop)
-    matches = matcher.match(
-        search_result,
-        TextOptions(texts[0], 'line'),
-        TextOptions(texts[1], 'line'),
-        'lemmata',
-        stopwords=[
-            'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ', 'οὗτος', 'ἐμός'
-        ],
-        stopword_basis='corpus', score_basis='stem',
-        freq_basis='corpus', max_distance=10,
-        distance_basis='span', min_score=0)
+    matches = matcher.match(search_result,
+                            TextOptions(texts[0], 'line'),
+                            TextOptions(texts[1], 'line'),
+                            'lemmata',
+                            stopwords=[
+                                'ὁ', 'ὅς', 'καί', 'αβγ', 'ἐγώ', 'δέ',
+                                'οὗτος', 'ἐμός'
+                            ],
+                            stopword_basis='corpus',
+                            score_basis='lemmata',
+                            freq_basis='corpus',
+                            max_distance=10,
+                            distance_basis='span',
+                            min_score=0)
 
     results = multitext_search(search_result, minipop, matches, feature,
                                'line', texts)

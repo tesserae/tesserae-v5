@@ -69,6 +69,113 @@ def get_corpus_frequencies(connection, feature, language):
     return freqs / sum(freqs)
 
 
+def get_feature_counts_by_text(connection, feature, text):
+    """Get number of times instances of given feature type occur in a
+    particular text
+
+
+    This method assumes that for a given word type, the feature types
+    extracted from any one instance of the word type will be the same as
+    all other instances of the same word type.  Thus, further work would be
+    necessary, for example, if features could be extracted based on word
+    position.
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    feature : str
+        Feature category to be used in calculating frequencies
+    text : tesserae.db.entities.Text
+        Text whose feature frequencies are to be computed
+
+    Returns
+    -------
+    dict [int, int]
+        the key should be a feature index of type "form"; the associated
+        value is the number of tokens in the text sharing at least one same
+        feature type with the key word
+    """
+    tindex2mtindex = {}
+    findex2mfindex = {}
+    word_counts = Counter()
+    word_feature_pairs = set()
+    unit_proj = {
+        '_id': False,
+        'tokens.features.form': True
+    }
+    if feature != 'form':
+        unit_proj['tokens.features.'+feature] = True
+    db_cursor = connection.connection[Unit.collection].find(
+        {'text': text.id, 'unit_type': 'line'},
+        unit_proj
+    )
+    for unit in db_cursor:
+        for token in unit['tokens']:
+            cur_features = token['features']
+            # use the form index as an identifier for this token's word
+            # type
+            cur_tindex = cur_features['form'][0]
+            if cur_tindex not in tindex2mtindex:
+                tindex2mtindex[cur_tindex] = len(tindex2mtindex)
+            mtindex = tindex2mtindex[cur_tindex]
+            # we want to count word types by matrix indices for faster
+            # lookup when we get to the stage of counting up word type
+            # occurrences
+            word_counts[mtindex] += 1
+            for cur_findex in cur_features[feature]:
+                if cur_findex not in findex2mfindex:
+                    findex2mfindex[cur_findex] = len(findex2mfindex)
+                mfindex = findex2mfindex[cur_findex]
+                # record when a word type is associated with a feature type
+                word_feature_pairs.add((mtindex, mfindex))
+    csr_rows = []
+    csr_cols = []
+    for mtindex, mfindex in word_feature_pairs:
+        csr_rows.append(mtindex)
+        csr_cols.append(mfindex)
+    word_feature_matrix = csr_matrix(
+        (
+            np.ones(len(csr_rows), dtype=np.bool),
+            (np.array(csr_rows), np.array(csr_cols))
+        ),
+        shape=(len(tindex2mtindex), len(findex2mfindex))
+    )
+    # if matching_words_matrix[i, j] == True, then the word represented by
+    # position i shared at least one feature type with the word represented
+    # by position j
+    matching_words_matrix = word_feature_matrix.dot(
+        word_feature_matrix.transpose())
+    # since only matching tokens remain, the column indices indicate
+    # which tokens match the token represented by row i; we need to
+    # count up how many times each word appeared; first, we change match
+    # indicators into the number of times the token indicated by the column was
+    # found
+    mtindices = []
+    mtcounts = []
+    for mtindex, count in word_counts.items():
+        mtindices.append(mtindex)
+        mtcounts.append(count)
+    count_matrix = matching_words_matrix.dot(
+        csr_matrix(
+            (
+                np.array(mtcounts),
+                (np.array(mtindices), np.zeros(len(mtindices)))
+            ),
+            shape=(matching_words_matrix.shape[0], 1)
+        )
+    )
+    # now, we can sum up each row to find the total number of times all
+    # associated tokens appeared with the token represented by the row
+    summed_rows = count_matrix.sum(axis=-1)
+    # finally, we re-map matrix indices to feature indices
+    mtindex2tindex = {
+        mtindex: tindex for tindex, mtindex in tindex2mtindex.items()
+    }
+    return {
+        mtindex2tindex[i]: freq for i, freq in enumerate(summed_rows.A1)
+    }
+
+
 def get_inverse_text_frequencies(connection, feature, text_id):
     """Get inverse frequency data (calculated by the given feature) for words
     in a particular text.

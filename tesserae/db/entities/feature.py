@@ -25,7 +25,7 @@ class Feature(Entity):
     ----------
     id : ObjectId, optional
         Database id of the Feature.
-    feature : {'form','lemmata','semantic','sound'}, optional
+    feature : {'form','lemmata','semantic','semantic + lemmata', 'sound'}
         The type of feature.
     token : str, optional
         The string representation of the feature.
@@ -39,8 +39,13 @@ class Feature(Entity):
 
     collection = 'features'
 
-    def __init__(self, id=None, language=None, feature=None, token=None,
-                 index=None, frequencies=None):
+    def __init__(self,
+                 id=None,
+                 language=None,
+                 feature=None,
+                 token=None,
+                 index=None,
+                 frequencies=None):
         super(Feature, self).__init__(id=id)
         self.language: typing.Optional[str] = language
         self.feature: typing.Optional[str] = feature
@@ -57,8 +62,6 @@ class Feature(Entity):
         }
 
     def __repr__(self):
-        return (
-            f'Feature(language={self.language}, feature={self.feature}, '
-            f'token={self.token}, index={self.index}, '
-            f'frequencies={self.frequencies})'
-        )
+        return (f'Feature(language={self.language}, feature={self.feature}, '
+                f'token={self.token}, index={self.index}, '
+                f'frequencies={self.frequencies})')
