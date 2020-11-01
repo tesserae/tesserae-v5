@@ -11,7 +11,7 @@ from scipy.sparse import csr_matrix
 
 from tesserae.db.entities import Feature, Match, Unit
 from tesserae.utils.calculations import \
-    get_corpus_frequencies, get_inverse_text_frequencies
+    get_corpus_frequencies, get_inverse_text_frequencies, get_sound_inverse_text_freq
 from tesserae.utils.retrieve import TagHelper
 from tesserae.utils.stopwords import create_stoplist, get_stoplist_indices, get_stoplist_tokens
 
@@ -201,9 +201,9 @@ def _score_by_text_frequencies(search, connection, feature, texts,
                                distance_basis, max_distance, tag_helper):
     if feature == 'sound':
         source_frequencies_getter = _lookup_wrapper(
-            get_sound_inverse_text_freq(connection, feature, texts[0].id))
+            get_sound_inverse_text_freq(connection, texts[0].id))
         target_frequencies_getter = _lookup_wrapper(
-            get_sound_inverse_text_freq(connection, feature, texts[1].id))
+            get_sound_inverse_text_freq(connection, texts[1].id))
         return _score_sound(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_frequencies_getter, target_frequencies_getter,
@@ -269,9 +269,11 @@ def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
 
 def _get_sound_distance_by_least_frequency(get_inv_freq, positions, forms):
     """Obtains the distance by least frequency for sound units.
-
-    Implemented because the frequency computed by get_inverse_text_frequencies
-    for sound units isn't actually inverse.
+    
+    Currently obsolete.
+    Originally implemented because the frequency computed by get_inverse_text_frequencies
+    for sound units wasn't actually inverse.  Inverse frequencies of sound units
+    is now computed by get_sound_inverse_text_freq.
 
     Parameters
     ----------
@@ -793,13 +795,15 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
         t_positions = []
         s_positions = []
         # append to t_positions and s_positions 
-        # the positions in the text of the matching sound features
+        # the positions in the text of the *matching sound features*.
+        # built differently from t_positions and s_positions in _score,
+        # where they record instead the positions in the text of *matching word forms*
         for target in target_sounds:
             for source in source_sounds:
                 if target == source:
                     t_positions.append(target_sounds.index(target))
                     s_positions.append(source_sounds.index(source))
-        # _get_sound_distance_by_least_frequency expects these as 1d arrays
+        # _get_distance_by_least_frequency expects these as 1d arrays
         t_positions = np.array(t_positions)
         s_positions = np.array(s_positions)
         target_sounds = np.array(target_sounds)
