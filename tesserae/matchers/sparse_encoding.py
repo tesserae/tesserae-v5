@@ -199,16 +199,20 @@ def _score_by_corpus_frequencies(search, connection, feature, texts,
 def _score_by_text_frequencies(search, connection, feature, texts,
                                target_units, source_units, features, stoplist,
                                distance_basis, max_distance, tag_helper):
-    source_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[0].id))
-    target_frequencies_getter = _lookup_wrapper(
-        get_inverse_text_frequencies(connection, feature, texts[1].id))
     if feature == 'sound':
+        source_frequencies_getter = _lookup_wrapper(
+            get_sound_inverse_text_freq(connection, feature, texts[0].id))
+        target_frequencies_getter = _lookup_wrapper(
+            get_sound_inverse_text_freq(connection, feature, texts[1].id))
         return _score_sound(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_frequencies_getter, target_frequencies_getter,
                     tag_helper)
     else:
+        source_frequencies_getter = _lookup_wrapper(
+            get_inverse_text_frequencies(connection, feature, texts[0].id))
+        target_frequencies_getter = _lookup_wrapper(
+            get_inverse_text_frequencies(connection, feature, texts[1].id))
         return _score(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_inv_frequencies_getter, target_inv_frequencies_getter,
@@ -873,4 +877,5 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
     print('score matrix', scores)
 #    print(match_ents)
     return match_ents
+    
     
