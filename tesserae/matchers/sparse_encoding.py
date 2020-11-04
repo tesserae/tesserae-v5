@@ -268,24 +268,36 @@ def _score_by_corpus_frequencies(search, connection, score_basis, texts,
                                  target_units, source_units, features,
                                  stoplist, distance_basis, max_distance,
                                  tag_helper):
-    if texts[0].language != texts[1].language:
-        source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, score_basis, texts[0].language),
-            source_units)
-        target_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, score_basis, texts[1].language),
-            target_units)
-    else:
-        source_inv_frequencies_getter = _inverse_averaged_freq_getter(
-            get_corpus_frequencies(connection, score_basis, texts[0].language),
-            itertools.chain.from_iterable([source_units, target_units]))
-        target_inv_frequencies_getter = source_inv_frequencies_getter
-    if feature == 'sound':
+    if score_basis == 'sound':
+        if texts[0].language != texts[1].language:
+            source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[0].language),
+                source_units)
+            target_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[1].language),
+                target_units)
+        else:
+            source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[0].language),
+                itertools.chain.from_iterable([source_units, target_units]))
+            target_inv_frequencies_getter = source_inv_frequencies_getter
         return _score_sound(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_inv_frequencies_getter, target_inv_frequencies_getter,
                     tag_helper)
     else:
+        if texts[0].language != texts[1].language:
+            source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[0].language),
+                source_units)
+            target_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[1].language),
+                target_units)
+        else:
+            source_inv_frequencies_getter = _inverse_averaged_freq_getter(
+                get_corpus_frequencies(connection, score_basis, texts[0].language),
+                itertools.chain.from_iterable([source_units, target_units]))
+            target_inv_frequencies_getter = source_inv_frequencies_getter
         return _score(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_inv_frequencies_getter, target_inv_frequencies_getter,
@@ -295,20 +307,20 @@ def _score_by_corpus_frequencies(search, connection, score_basis, texts,
 def _score_by_text_frequencies(search, connection, score_basis, texts,
                                target_units, source_units, features, stoplist,
                                distance_basis, max_distance, tag_helper):
-    if feature == 'sound':
-        source_frequencies_getter = _lookup_wrapper(
+    if score_basis == 'sound':
+        source_inv_frequencies_getter = _lookup_wrapper(
             get_sound_inverse_text_freq(connection, texts[0].id))
-        target_frequencies_getter = _lookup_wrapper(
+        target_inv_frequencies_getter = _lookup_wrapper(
             get_sound_inverse_text_freq(connection, texts[1].id))
         return _score_sound(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
-                    source_frequencies_getter, target_frequencies_getter,
+                    source_inv_frequencies_getter, target_inv_frequencies_getter,
                     tag_helper)
     else:
-        source_frequencies_getter = _lookup_wrapper(
-            get_inverse_text_frequencies(connection, feature, texts[0].id))
-        target_frequencies_getter = _lookup_wrapper(
-            get_inverse_text_frequencies(connection, feature, texts[1].id))
+        source_inv_frequencies_getter = _lookup_wrapper(
+            get_inverse_text_frequencies(connection, score_basis, texts[0].id))
+        target_inv_frequencies_getter = _lookup_wrapper(
+            get_inverse_text_frequencies(connection, score_basis, texts[1].id))
         return _score(search, connection, target_units, source_units, features,
                     stoplist, distance_basis, max_distance,
                     source_inv_frequencies_getter, target_inv_frequencies_getter,
@@ -362,49 +374,6 @@ def _get_distance_by_least_frequency(get_inv_freq, positions, forms):
             end = not_first_pos[0]
             return np.abs(end - idx[0]) + 1
     return 0
-
-def _get_sound_distance_by_least_frequency(get_inv_freq, positions, forms):
-    """Obtains the distance by least frequency for sound units.
-    
-    Currently obsolete.
-    Originally implemented because the frequency computed by get_inverse_text_frequencies
-    for sound units wasn't actually inverse.  Inverse frequencies of sound units
-    is now computed by get_sound_inverse_text_freq.
-
-    Parameters
-    ----------
-    get_inv_freq : (int) -> float
-        a function that takes a word form index as input and returns its
-        text frequency as output
-    positions : 1d np.array of ints
-        positions of the sound units in the line
-    forms : 1d np.array of ints
-        the sound units
-    """
-    # if this is < 2, that implies that the sound units
-    # are the same or none, so distance is obsolete
-    if len(set(forms[positions])) < 2:
-        return 0
-    # if there are only 2 sound units, 
-    # there is no need to find out which are least frequent
-    if len(positions) == 2:
-        return _get_trivial_distance(positions[0], positions[1])
-    sorted_positions = np.array(list(set(sorted(positions))))
-    # expect get_inv_freq to be get_inverse_text_frequencies from calculations.py
-    freqs = np.array([get_inv_freq(f) for f in forms[sorted_positions]])
-    freq_sort = np.sort(freqs)
-    distances = []
-    for form1 in positions:
-        for form2 in positions:
-            # select lowest frequency sound unit
-            if get_inv_freq(forms[form1]) == freq_sort[0]:
-                # select second-lowest frequency sound unit
-                if get_inv_freq(forms[form2]) == freq_sort[1]:
-                    if form1 != form2:
-                        distances.append(_get_trivial_distance(form1, form2))
-    # distances may include more than one distance because multiple sound units
-    # may share the lowest frequency and second-lowest frequency
-    return min(distances)
 
 
 def _get_distance_by_span(matched_positions, forms):
@@ -861,7 +830,7 @@ def _score(search, conn, target_units, source_units, features, stoplist,
         scores = np.log(numerators) - np.log(denominators)
         for match, score in zip(match_ents, scores):
             match.score = score
-    print('score matrix', scores)
+#    print('score matrix', scores)
 #    print(match_ents)
     return match_ents
     
@@ -884,7 +853,8 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
         source_unit = source_units[source_ind]
         target_sounds = []
         source_sounds = []
-        # append indices of sound features to target_sounds and source_sounds 
+        # unpack indices of sound features from target_unit['features'] and source_unit['features']
+        # and append them to target_sounds and source_sounds, respectively, 
         # in order of appearance in the text
         for a in target_unit['features']:
             for b in a:
@@ -978,7 +948,7 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
         scores = np.log(numerators) - np.log(denominators)
         for match, score in zip(match_ents, scores):
             match.score = score
-    print('score matrix', scores)
+#    print('score matrix', scores)
 #    print(match_ents)
     return match_ents
     

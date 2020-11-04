@@ -177,7 +177,7 @@ def test_latin_sound(minipop, mini_latin_metadata, v3checker):
                                'sound',
                                stopwords=['que', 'tum', 'ere'],
                                stopword_basis='texts',
-                               score_basis='3gr',
+                               score_basis='sound',
                                freq_basis='texts',
                                max_distance=999,
                                distance_basis='frequency',

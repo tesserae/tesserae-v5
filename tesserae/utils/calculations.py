@@ -223,7 +223,6 @@ def get_inverse_text_frequencies(connection, feature, text_id):
             # use the form index as an identifier 
             # for this token's word type
             cur_tindex = cur_features['form'][0]
-            units.append(cur_tindex)
             if cur_tindex not in tindex2mtindex:
                 tindex2mtindex[cur_tindex] = len(tindex2mtindex)
             # mtindex is esseentially a counter
