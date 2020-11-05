@@ -220,11 +220,13 @@ def get_inverse_text_frequencies(connection, feature, text_id):
         text_token_count += len(unit['tokens'])
         for token in unit['tokens']:
             cur_features = token['features']
-            # use the form index as an identifier for this token's word
-            # type
+            # use the form index as an identifier 
+            # for this token's word type
             cur_tindex = cur_features['form'][0]
             if cur_tindex not in tindex2mtindex:
                 tindex2mtindex[cur_tindex] = len(tindex2mtindex)
+            # mtindex is esseentially a counter
+            # for the number of unique forms seen
             mtindex = tindex2mtindex[cur_tindex]
             # we want to count word types by matrix indices for faster
             # lookup when we get to the stage of counting up word type
@@ -285,3 +287,55 @@ def get_inverse_text_frequencies(connection, feature, text_id):
     return {
         mtindex2tindex[i]: freq for i, freq in enumerate(sparse_freqs.A1)
     }
+    
+    
+def get_sound_inverse_text_freq(connection, text_id):
+    """Get the inverse frequencies of all the trigrams AKA sound features
+    in a particular text.
+    
+    Formula:
+    inv freq = 1/(occurences of trigram in text/total trigrams in text)
+
+    Parameters
+    ----------
+    connection : tesserae.db.mongodb.TessMongoConnection
+    text_id : bson.objectid.ObjectId
+        ObjectId of the text whose feature frequencies are to be computed
+
+    Returns
+    -------
+    dict [int, float]
+        the key should be a feature index of type form; the associated
+        value is the inverse frequency of the trigram
+    """
+    units = []
+    unit_proj = {
+        '_id': False,
+        'tokens.features.form': True
+    }
+    unit_proj['tokens.features.sound'] = True
+    db_cursor = connection.connection[Unit.collection].find(
+        {'text': text_id, 'unit_type': 'line'},
+        unit_proj
+    )
+    for unit in db_cursor:
+        for token in unit['tokens']:
+            cur_features = token['features']
+            # use the sound feature index as an identifier. 
+            # sound feature does not need to stay connected to its word
+            for cur_tindex in cur_features['sound']:
+                # continually append units as each line is processed
+                units.append(cur_tindex)
+    # count number of times each feature member appears in text
+    units_count = Counter(units)
+    # Frequency is the number of times a word occurs in a text 
+    # divided by the total number of words in that text
+    frequencies = {}
+    inv_frequencies = {}
+    N_text = len(units)
+    for sound in units_count:
+        frequencies[sound] = units_count[sound]/N_text
+        inv_frequencies[sound] = 1/frequencies[sound]
+    return inv_frequencies
+
+

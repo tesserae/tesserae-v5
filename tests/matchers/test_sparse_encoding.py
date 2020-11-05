@@ -177,7 +177,7 @@ def test_latin_sound(minipop, mini_latin_metadata, v3checker):
                                'sound',
                                stopwords=['que', 'tum', 'ere'],
                                stopword_basis='texts',
-                               score_basis='3gr',
+                               score_basis='sound',
                                freq_basis='texts',
                                max_distance=999,
                                distance_basis='frequency',
@@ -190,8 +190,12 @@ def test_latin_sound(minipop, mini_latin_metadata, v3checker):
 
 
 def test_latin_trigrams(minipop, mini_latin_metadata):
-    texts = minipop.find(Text.collection,
-                         title=[m['title'] for m in mini_latin_metadata])
+    """
+    For the purpose of visualization.
+    Use to confirm that trigrams are being stored in the database correctly.
+    """
+    texts = minipop.find(
+        Text.collection, title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
@@ -209,10 +213,10 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     for a in raw_v5_results:
         print(a)
         for n in a:
-            print(n)
+#            print(n)
             n = np.asarray(n)
-            print('array', n)
-            print(np.shape(n))
+            print('array',n)
+            print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
             v5_results.append(b)
     print(v5_results)
@@ -271,6 +275,7 @@ def test_latin_semlem(minipop, mini_latin_metadata, v3checker):
     minipop.update(search_result)
     v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_latin_results_syn_lem.tab')
+
 
 
 def test_greek_sound(minipop, mini_greek_metadata, v3checker):
