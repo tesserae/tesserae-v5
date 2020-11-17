@@ -16,6 +16,7 @@ from tesserae.utils.delete import obliterate
 from tesserae.utils.search import get_results, PageOptions
 from tesserae.utils.tessfile import TessFile
 from tesserae.utils.stopwords import get_stoplist_tokens
+from tests.conftest import _load_v3_results
 
 
 @pytest.fixture(scope='session')
@@ -193,6 +194,8 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     """
     For the purpose of visualization.
     Use to confirm that trigrams are being stored in the database correctly.
+    It should be noted that v5 results do not have stopwords filtered out,
+    while v3 results probably do.
     """
     texts = minipop.find(
         Text.collection, title=[m['title'] for m in mini_latin_metadata])
@@ -215,8 +218,8 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
         for n in a:
 #            print(n)
             n = np.asarray(n)
-            print('array',n)
-            print('shape', np.shape(n))
+#            print('array',n)
+#            print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
             v5_results.append(b)
     print(v5_results)
@@ -292,7 +295,7 @@ def test_greek_sound(minipop, mini_greek_metadata, v3checker):
         'sound',
         stopwords=['και', 'του', 'αλλ', 'ειν', 'μεν', 'μοι', 'αυτ', 'ους'],
         stopword_basis='texts',
-        score_basis='3gr',
+        score_basis='sound',
         freq_basis='texts',
         max_distance=999,
         distance_basis='span',
@@ -302,6 +305,46 @@ def test_greek_sound(minipop, mini_greek_metadata, v3checker):
     minipop.update(search_result)
     v3checker.check_search_results(minipop, search_result.id, texts[0].path,
                                    'mini_greek_results_3gr.tab')
+
+
+def test_greek_trigrams(minipop, mini_greek_metadata):
+    """
+    For the purpose of visualization.
+    Use to confirm that trigrams are being stored in the database correctly.
+    It should be noted that v5 results do not have stopwords filtered out,
+    while v3 results probably do.
+    """
+    texts = minipop.find(
+        Text.collection, title=[m['title'] for m in mini_greek_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    minipop.insert(search_result)
+    v5_results = []
+    v3_results = []
+    raw_v5_results = []
+    target_units = _get_units(minipop, TextOptions(texts[0], 'line'), 'sound')
+    for b in target_units:
+        raw_v5_results.append(b['features'])
+    raw_v3_results = _load_v3_results(texts[0].path,
+                                      'mini_greek_results_3gr.tab')
+    for a in raw_v3_results:
+        v3_results.append(a['matched_features'])
+    print('v5 results:')
+    for a in raw_v5_results:
+        print(a)
+        for n in a:
+#            print(n)
+            n = np.asarray(n)
+#            print('array',n)
+#            print('shape', np.shape(n))
+            b = get_stoplist_tokens(minipop, n, 'sound', 'greek')
+            v5_results.append(b)
+    print(v5_results)
+    print('v3 results:')
+    for a in v3_results:
+        print(a)
+    print('v5 length:', len(v5_results), 'v3 length:', len(v3_results))
+    assert False
 
 
 def test_greek_semantic(minipop, mini_greek_metadata, v3checker):

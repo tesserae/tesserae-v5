@@ -851,6 +851,10 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
             features_size):
         target_unit = target_units[target_ind]
         source_unit = source_units[source_ind]
+        # the positions of the words in the sentence
+        # (needed for highlighting in the front end)
+        t_word_pos = positions[:, 0]
+        s_word_pos = positions[:, 1]       
         target_sounds = []
         source_sounds = []
         # unpack indices of sound features from target_unit['features'] and source_unit['features']
@@ -924,6 +928,8 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
                     [i for i in range(len(match_inv_frequencies))])
                 numerator_sparse_data.extend(match_inv_frequencies)
                 denominators.append(distance)
+                # match_ents.highlight is not the positions of sound features
+                # in a line, but the positions of the words to which they belong
                 match_ents.append(
                     Match(search_id=search_id,
                         source_unit=source_unit['_id'],
@@ -939,8 +945,24 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
                         target_snippet=target_unit['snippet'],
                         highlight=[
                             (int(s_pos), int(t_pos))
-                            for s_pos, t_pos in zip(s_positions, t_positions)
+                            for s_pos, t_pos in zip(s_word_pos, t_word_pos)
                         ]))
+                #in this version match_ents.highlight is an *array* of positions
+#               match_ents.append(
+#                    Match(search_id=search_id,
+#                        source_unit=source_unit['_id'],
+#                        target_unit=target_unit['_id'],
+#                        source_tag=tag_helper.get_display_tag(
+#                            source_unit['text'], source_unit['tags']),
+#                        target_tag=tag_helper.get_display_tag(
+#                            target_unit['text'], target_unit['tags']),
+#                        matched_features=[
+#                            features[int(mf)].token for mf in match_features
+#                        ],
+#                        source_snippet=source_unit['snippet'],
+#                        target_snippet=target_unit['snippet'],
+#                        highlight=positions
+#                    ))
     if match_ents:
         numerators = csr_matrix(
             (numerator_sparse_data, (numerator_sparse_rows,
