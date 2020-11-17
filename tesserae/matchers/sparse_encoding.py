@@ -928,7 +928,7 @@ def _score_sound(search, conn, target_units, source_units, features, stoplist,
                     [i for i in range(len(match_inv_frequencies))])
                 numerator_sparse_data.extend(match_inv_frequencies)
                 denominators.append(distance)
-                # match_ents.highlights is not the positions of sound features
+                # match_ents.highlight is not the positions of sound features
                 # in a line, but the positions of the words to which they belong
                 match_ents.append(
                     Match(search_id=search_id,
