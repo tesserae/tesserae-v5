@@ -85,8 +85,8 @@ def parse_args(args=None):
                         default='corpus',
                         help='data to use in computing a stopwords list')
     search.add_argument('--score-basis',
-                        choices=['word', 'stem'],
-                        default='word',
+                        choices=['form', 'lemmata'],
+                        default='form',
                         help='atom to consider in computing scores')
     search.add_argument('--freq-basis',
                         choices=['corpus', 'texts'],
@@ -167,9 +167,11 @@ def main():
             'name': SparseMatrixSearch.matcher_type,
             'feature': args.feature,
             'stopwords': stopword_tokens,
+            'score_basis': args.score_basis,
             'freq_basis': args.freq_basis,
             'max_distance': args.max_distance,
-            'distance_basis': args.distance_basis
+            'distance_basis': args.distance_basis,
+            'min_score': args.min_score
         }
     }
     results_id = check_cache(connection, parameters['source'],
@@ -189,10 +191,11 @@ def main():
             'target': target,
             'feature': parameters['method']['feature'],
             'stopwords': parameters['method']['stopwords'],
+            'score_basis': parameters['method']['score_basis'],
             'freq_basis': parameters['method']['freq_basis'],
             'max_distance': parameters['method']['max_distance'],
             'distance_basis': parameters['method']['distance_basis'],
-            'min_score': 0
+            'min_score': parameters['method']['min_score']
         }
         _run_search(connection, search, SparseMatrixSearch.matcher_type,
                     search_params)
