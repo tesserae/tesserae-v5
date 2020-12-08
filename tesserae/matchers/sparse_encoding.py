@@ -98,6 +98,8 @@ class SparseMatrixSearch(object):
                     '$size': len(method['stopwords'])
                 }
             }],
+            'parameters.method.score_basis':
+            method['score_basis'],
             'parameters.method.freq_basis':
             method['freq_basis'],
             'parameters.method.max_distance':
