@@ -92,7 +92,7 @@ def main():
         db=db_cred['database']
     )
 
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=365)
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=28)
     for_deletion = [
         Search.json_decode(s)
         for s in conn.connection[Search.collection].find(
