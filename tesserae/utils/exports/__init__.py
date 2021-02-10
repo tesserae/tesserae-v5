@@ -167,7 +167,7 @@ def dumps(connection, search_id, file_format, delimiter=','):
     return exporter.dumps(*args, **kwargs)
 
 
-def export(connection, search_id, file_format, filename=None, delimiter=','):
+def export(connection, search_id, file_format, filepath=None, delimiter=','):
     """Dump a Tesserae search to stdout.
 
     Parameters
@@ -178,20 +178,25 @@ def export(connection, search_id, file_format, filename=None, delimiter=','):
         The database id of the search to serialize.
     file_format : {'csv','json','xml'}
         The format to export.
-    filename : str, optional
-        Path to the output file. If not provided, the export is written to
-        `sys.stdout`.
+    filepath : str, optional
+        Path to the output file. If not provided, the export is returned as
+        a string.
     delimiter : str, optional
         The row iterm separator. Only used when ``file_format`` is 'csv'.
         Default: ','.
+
+    Returns
+    -------
+    results : str
+        The string with the results formatted by ``file_format`` and
+        ``delimiter`` if applicable. Only returned if ``filepath`` is not
+        provided.
     """
     if file_format:
-        dump(connection, search_id, file_format, filename,
+        dump(connection, search_id, file_format, filepath,
              delimiter=delimiter)
     else:
-        print(dumps(connection, search_id, file_format, delimiter=delimiter))
-
-
+        return dumps(connection, search_id, file_format, delimiter=delimiter)
 
 
 __all__ = ['dump', 'dumps', 'export']
