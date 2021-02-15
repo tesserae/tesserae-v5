@@ -15,6 +15,8 @@ dumps
 import importlib
 import math
 
+from bson.objectid import ObjectId
+
 from tesserae.db.entities import Search, Text
 
 
@@ -75,6 +77,9 @@ def retrieve_search(connection, search_id):
     RuntimeError
         Raised when ``search`` is not complete.
     """
+    if isinstance(search_id, str):
+        search_id = ObjectId(search_id)
+    
     # Pull the search and text data from the database.
     try:
         search = connection.find(Search.collection, id=search_id)[0]
@@ -128,6 +133,9 @@ def dump(connection, search_id, file_format, filename, delimiter=','):
         The row iterm separator. Only used when ``file_format`` is 'csv'.
         Default: ','.
     """
+    if isinstance(search_id, str):
+        search_id = ObjectId(search_id)
+    
     exporter = get_exporter(file_format)
 
     search, source, target = retrieve_search(connection, search_id)
@@ -155,6 +163,9 @@ def dumps(connection, search_id, file_format, delimiter=','):
         The row iterm separator. Only used when ``file_format`` is 'csv'.
         Default: ','.
     """
+    if isinstance(search_id, str):
+        search_id = ObjectId(search_id)
+    
     exporter = get_exporter(file_format)
 
     search, source, target = retrieve_search(connection, search_id)
@@ -192,6 +203,9 @@ def export(connection, search_id, file_format, filepath=None, delimiter=','):
         ``delimiter`` if applicable. Only returned if ``filepath`` is not
         provided.
     """
+    if isinstance(search_id, str):
+        search_id = ObjectId(search_id)
+    
     if file_format:
         dump(connection, search_id, file_format, filepath,
              delimiter=delimiter)
