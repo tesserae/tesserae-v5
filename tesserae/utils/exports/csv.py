@@ -22,7 +22,7 @@ from tesserae.utils.search import get_max_score
 
 
 def build(stream, connection, search, source, target, delimiter=','):
-  """Construct CSV from a completed Tesserae search.
+    """Construct CSV from a completed Tesserae search.
 
   Parameters
   ----------
@@ -43,56 +43,53 @@ def build(stream, connection, search, source, target, delimiter=','):
     stream : io.TextIOBase
       The same object passed to ``stream``.
   """
-  max_score = get_max_score(connection, search.id)
-  pages = Pager(connection, search.id)
+    max_score = get_max_score(connection, search.id)
+    pages = Pager(connection, search.id)
 
-  # The search parameters and metadata are written as comments to the top of
-  # the CSV stream.
-  comments = [
-    f'# Tesserae V5 Results',
-    f'#',
-    f'# session\t= {search.id}',
-    f'# source\t= {source.author}.{source.title.lower().replace(" ", "_")}',
-    f'# target\t= {target.author}.{target.title.lower().replace(" ", "_")}',
-    f'# unit\t= {search.parameters["source"]["unit"]}',
-    f'# feature\t= {search.parameters["method"]["feature"]}',
-    f'# stopsize\t= {len(search.parameters["method"]["stopwords"])}',
-    f'# stbasis\t= ',
-    f'# stopwords\t= {search.parameters["method"]["stopwords"]}',
-    f'# max_dist\t= {search.parameters["method"]["max_distance"]}',
-    f'# dibasis\t= {search.parameters["method"]["distance_basis"]}',
-    f'# cutoff\t= {0}',
-    f'# filter\t= off',
-  ]
+    # The search parameters and metadata are written as comments to the top of
+    # the CSV stream.
+    comments = [
+        f'# Tesserae V5 Results',
+        f'#',
+        f'# session\t= {search.id}',
+        f'# source\t= {source.author}.{source.title.lower().replace(" ", "_")}',
+        f'# target\t= {target.author}.{target.title.lower().replace(" ", "_")}',
+        f'# unit\t= {search.parameters["source"]["units"]}',
+        f'# feature\t= {search.parameters["method"]["feature"]}',
+        f'# stopsize\t= {len(search.parameters["method"]["stopwords"])}',
+        f'# stbasis\t= ',
+        f'# stopwords\t= {search.parameters["method"]["stopwords"]}',
+        f'# max_dist\t= {search.parameters["method"]["max_distance"]}',
+        f'# dibasis\t= {search.parameters["method"]["distance_basis"]}',
+        f'# cutoff\t= {0}',
+        f'# filter\t= off',
+    ]
 
-  stream.write('\n'.join(comments))
+    stream.write('\n'.join(comments))
 
-  # Add CSV rows to the stream from dictionary versions of the results.
-  # Row headers are passed in the second argument.
-  writer = csv.DictWriter(
-    stream,
-    ["Result", "Target_Loc", "Target_Txt",
-     "Source_Loc", "Source_Txt", "Shared",
-     "Score", "Raw_Score"],
-    delimiter=delimiter
-  )
-  writer.writeheader()
+    # Add CSV rows to the stream from dictionary versions of the results.
+    # Row headers are passed in the second argument.
+    writer = csv.DictWriter(stream, [
+        "Result", "Target_Loc", "Target_Txt", "Source_Loc", "Source_Txt",
+        "Shared", "Score", "Raw_Score"
+    ],
+                            delimiter=delimiter)
+    writer.writeheader()
 
-  for i, page in enumerate(pages):
-    # Convert each result to a dict with keys corresponding to the headers
-    # passed to ``writer``.
-    start = i * 200 + 1
-    end = start + 200
-    results = zip(page,
-                  range(start, end),
-                  itertools.repeat(max_score, len(results)))
-    writer.writerows(itertools.starmap(format_result, results))
-  
-  return stream
+    for i, page in enumerate(pages):
+        # Convert each result to a dict with keys corresponding to the headers
+        # passed to ``writer``.
+        start = i * 200 + 1
+        end = start + 200
+        results = zip(page, range(start, end),
+                      itertools.repeat(max_score))
+        writer.writerows(itertools.starmap(format_result, results))
+
+    return stream
 
 
 def dump(filename, connection, search, source, target, delimiter):
-  """Dump a Tesserae search to file as CSV.
+    """Dump a Tesserae search to file as CSV.
 
   Parameters
   ----------
@@ -108,12 +105,12 @@ def dump(filename, connection, search, source, target, delimiter):
   delimiter : str, optional
     The row iterm separator. Default: ','.
   """
-  with open(filename, 'w') as f:
-    build(f, connection, search, source, target, delimiter=delimiter)
+    with open(filename, 'w') as f:
+        build(f, connection, search, source, target, delimiter=delimiter)
 
 
 def dumps(connection, search, source, target, delimiter):
-  """Dump a Tesserae search to an CSV string.
+    """Dump a Tesserae search to an CSV string.
 
   Parameters
   ----------
@@ -132,13 +129,13 @@ def dumps(connection, search, source, target, delimiter):
     out : str
       CSV string with search metadata and results.
   """
-  output = io.StringIO()
-  build(output, connection, search, source, target, delimiter=delimiter)
-  return output.getvalue()
+    output = io.StringIO()
+    build(output, connection, search, source, target, delimiter=delimiter)
+    return output.getvalue()
 
 
 def format_result(match, idx, max_score):
-  """Convert a search result into a CSV row.
+    """Convert a search result into a CSV row.
 
   Parameters
   ----------
@@ -154,18 +151,18 @@ def format_result(match, idx, max_score):
   obj : dict
     The result converted into a CSV DictWriter compatible format.
   """
-  source_txt = highlight_matches(match.source_snippet,
-                                 [i[0] for i in match.highlight])
-  target_txt = highlight_matches(match.target_snippet,
-                                 [i[1] for i in match.highlight])
-  features = '; '.join(match.matched_features)
-  return {
-    'Result': f'{idx}',
-    'Target_Loc': f'\"{match.target_tag}\"',
-    'Target_Txt': f'\"{target_txt}\"',
-    'Source_Loc': f'\"{match.source_tag}\"',
-    'Source_Txt': f'\"{source_txt}\"',
-    'Shared': f'\"{features}\"',
-    'Score': f'{match.score * 10 / max_score}',
-    'Raw_Score': f'{match.score}'
-  }
+    source_txt = highlight_matches(match.source_snippet,
+                                   [i[0] for i in match.highlight])
+    target_txt = highlight_matches(match.target_snippet,
+                                   [i[1] for i in match.highlight])
+    features = '; '.join(match.matched_features)
+    return {
+        'Result': f'{idx}',
+        'Target_Loc': f'\"{match.target_tag}\"',
+        'Target_Txt': f'\"{target_txt}\"',
+        'Source_Loc': f'\"{match.source_tag}\"',
+        'Source_Txt': f'\"{source_txt}\"',
+        'Shared': f'\"{features}\"',
+        'Score': f'{match.score * 10 / max_score}',
+        'Raw_Score': f'{match.score}'
+    }
