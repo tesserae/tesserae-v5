@@ -22,7 +22,7 @@ from tesserae.db.entities import Search, Text
 
 def get_exporter(file_format):
     """Get the correct exporter for the file type.
-    
+
     Parameters
     ----------
     file_format : {'csv','json','xml'}
@@ -32,7 +32,7 @@ def get_exporter(file_format):
     -------
     exporter : module
         The exporter to use, with ``dump`` and ``dumps`` functions defined.
-    
+
     Raises
     ------
     ValueError
@@ -82,30 +82,30 @@ def retrieve_search(connection, search_id):
 
     # Pull the search and text data from the database.
     try:
-        search = connection.find(Search.collection, id=search_id)[0]
+        search = connection.find(Search.collection, _id=search_id)[0]
     except IndexError:
         raise ValueError(f'No search with id {search_id} found.')
 
     if search.status.lower() != 'done':
         msg = ''.join([
-            f'Search {search_id} is still in-progress.',
+            f'Search {search_id} is still in-progress. ',
             'Try again in a few minutes.'
         ])
         raise RuntimeError(msg)
 
     try:
-        source_id = search.parameters['source']['object_id']
-        source = connection.find(Text.collection, id=source_id)[0]
+        source_id = ObjectId(search.parameters['source']['object_id'])
+        source = connection.find(Text.collection, _id=source_id)[0]
     except IndexError:
         msg = ''.join([
-            f'No source text with id {source_id} found.',
+            f'No source text with id {source_id} found. ',
             'Was the text deleted?'
         ])
         raise ValueError(msg)
 
     try:
-        target_id = search.parameters['target']['object_id']
-        target = connection.find(Text.collection, id=target_id)[0]
+        target_id = ObjectId(search.parameters['target']['object_id'])
+        target = connection.find(Text.collection, _id=target_id)[0]
     except IndexError:
         msg = ''.join([
             f'No target text with id {target_id} found.',
@@ -206,7 +206,7 @@ def export(connection, search_id, file_format, filepath=None, delimiter=','):
     if isinstance(search_id, str):
         search_id = ObjectId(search_id)
 
-    if file_format:
+    if filepath:
         dump(connection, search_id, file_format, filepath, delimiter=delimiter)
     else:
         return dumps(connection, search_id, file_format, delimiter=delimiter)
