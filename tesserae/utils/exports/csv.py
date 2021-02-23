@@ -46,26 +46,29 @@ def build(stream, connection, search, source, target, delimiter=','):
     max_score = get_max_score(connection, search.id)
     pages = Pager(connection, search.id)
 
+    source_title = source.title.lower().replace(" ", "_")
+    target_title = target.title.lower().replace(" ", "_")
     # The search parameters and metadata are written as comments to the top of
     # the CSV stream.
     comments = [
-        f'# Tesserae V5 Results',
-        f'#',
-        f'# session\t= {search.id}',
-        f'# source\t= {source.author}.{source.title.lower().replace(" ", "_")}',
-        f'# target\t= {target.author}.{target.title.lower().replace(" ", "_")}',
-        f'# unit\t= {search.parameters["source"]["units"]}',
-        f'# feature\t= {search.parameters["method"]["feature"]}',
-        f'# stopsize\t= {len(search.parameters["method"]["stopwords"])}',
-        f'# stbasis\t= ',
-        f'# stopwords\t= {search.parameters["method"]["stopwords"]}',
-        f'# max_dist\t= {search.parameters["method"]["max_distance"]}',
-        f'# dibasis\t= {search.parameters["method"]["distance_basis"]}',
-        f'# cutoff\t= {0}',
-        f'# filter\t= off',
+        '# Tesserae V5 Results',
+        '#',
+        f'# session   = {search.id}',
+        f'# source    = {source.author}.{source_title}',
+        f'# target    = {target.author}.{target_title}',
+        f'# unit      = {search.parameters["source"]["units"]}',
+        f'# feature   = {search.parameters["method"]["feature"]}',
+        f'# stopsize  = {len(search.parameters["method"]["stopwords"])}',
+        f'# stbasis   = ',
+        f'# stopwords = {search.parameters["method"]["stopwords"]}',
+        f'# max_dist  = {search.parameters["method"]["max_distance"]}',
+        f'# dibasis   = {search.parameters["method"]["distance_basis"]}',
+        f'# cutoff    = {0}',
+        f'# filter    = off',
     ]
 
     stream.write('\n'.join(comments))
+    stream.write('\n')
 
     # Add CSV rows to the stream from dictionary versions of the results.
     # Row headers are passed in the second argument.
@@ -104,7 +107,7 @@ def dump(filename, connection, search, source, target, delimiter):
     delimiter : str, optional
         The row iterm separator. Default: ','.
     """
-    with open(filename, 'w') as f:
+    with open(filename, 'w', newline='', encoding='utf-8') as f:
         build(f, connection, search, source, target, delimiter=delimiter)
 
 
@@ -128,7 +131,7 @@ def dumps(connection, search, source, target, delimiter):
         out : str
             CSV string with search metadata and results.
     """
-    output = io.StringIO()
+    output = io.StringIO(newline='')
     build(output, connection, search, source, target, delimiter=delimiter)
     return output.getvalue()
 
