@@ -14,10 +14,9 @@ format_result
 import csv
 import io
 import itertools
-import math
 
 from tesserae.utils.exports.highlight import highlight_matches
-from tesserae.utils.paging import Pager
+from tesserae.utils.exports.paging import Pager
 from tesserae.utils.search import get_max_score
 
 

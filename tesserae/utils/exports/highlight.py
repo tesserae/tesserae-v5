@@ -23,9 +23,9 @@ def highlight_matches(snippet, match_indices, markup='**'):
     match_indices : sequence of int
         The indices of tokens to highlight.
     markup : str or tuple of str, optional
-        Markup to apply to wrap match tokens in. If a string, the string is placed
-        on both sides of the token. If a tuple, the 0th element is placed at the
-        start and 1st element is placed at the end.
+        Markup to apply to wrap match tokens in. If a string, the string is
+        placed on both sides of the token. If a tuple, the 0th element is
+        placed at the start and 1st element is placed at the end.
 
     Returns
     -------

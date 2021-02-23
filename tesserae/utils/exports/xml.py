@@ -15,12 +15,11 @@ Notes
 -----
 The XML tree defined here is based on the XML output of v3.
 """
-import math
 import xml.etree.ElementTree as ET
 
-from tesserae.db.entities import Match, Search, Text, Unit
+from tesserae.db.entities import Unit
 from tesserae.utils.exports.highlight import highlight_matches
-from tesserae.utils.paging import Pager
+from tesserae.utils.exports.paging import Pager
 from tesserae.utils.search import get_max_score
 
 
