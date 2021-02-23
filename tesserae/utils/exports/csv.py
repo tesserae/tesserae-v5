@@ -24,25 +24,25 @@ from tesserae.utils.search import get_max_score
 def build(stream, connection, search, source, target, delimiter=','):
     """Construct CSV from a completed Tesserae search.
 
-  Parameters
-  ----------
-  stream : io.TextIOBase
-    Text stream to write to, usually a string or file stream
-  connection : tesserae.db.TessMongoConnection
-    Connection to the MongoDB instance.
-  search : `tesserae.db.entities.Search`
-    Search metadata.
-  source : `tesserae.db.entities.Text`
-  target : `tesserae.db.entities.Text`
-    Source and target text data.
-  delimiter : str, optional
-    The row iterm separator. Default: ','.
-  
-  Returns
-  -------
+    Parameters
+    ----------
     stream : io.TextIOBase
-      The same object passed to ``stream``.
-  """
+        Text stream to write to, usually a string or file stream
+    connection : tesserae.db.TessMongoConnection
+        Connection to the MongoDB instance.
+    search : `tesserae.db.entities.Search`
+        Search metadata.
+    source : `tesserae.db.entities.Text`
+    target : `tesserae.db.entities.Text`
+        Source and target text data.
+    delimiter : str, optional
+        The row iterm separator. Default: ','.
+
+    Returns
+    -------
+        stream : io.TextIOBase
+            The same object passed to ``stream``.
+    """
     max_score = get_max_score(connection, search.id)
     pages = Pager(connection, search.id)
 
@@ -79,10 +79,9 @@ def build(stream, connection, search, source, target, delimiter=','):
     for i, page in enumerate(pages):
         # Convert each result to a dict with keys corresponding to the headers
         # passed to ``writer``.
-        start = i * 200 + 1
-        end = start + 200
-        results = zip(page, range(start, end),
-                      itertools.repeat(max_score))
+        start = i * pages.per_page + 1
+        end = start + len(page)
+        results = zip(page, range(start, end), itertools.repeat(max_score))
         writer.writerows(itertools.starmap(format_result, results))
 
     return stream
@@ -91,20 +90,20 @@ def build(stream, connection, search, source, target, delimiter=','):
 def dump(filename, connection, search, source, target, delimiter):
     """Dump a Tesserae search to file as CSV.
 
-  Parameters
-  ----------
-  filename : str
-    Path to the output CSV file.
-  connection : tesserae.db.TessMongoConnection
-    Connection to the MongoDB instance.
-  search : `tesserae.db.entities.Search`
-    Search metadata.
-  source : `tesserae.db.entities.Text`
-  target : `tesserae.db.entities.Text`
-    Source and target text data.
-  delimiter : str, optional
-    The row iterm separator. Default: ','.
-  """
+    Parameters
+    ----------
+    filename : str
+        Path to the output CSV file.
+    connection : tesserae.db.TessMongoConnection
+        Connection to the MongoDB instance.
+    search : `tesserae.db.entities.Search`
+        Search metadata.
+    source : `tesserae.db.entities.Text`
+    target : `tesserae.db.entities.Text`
+        Source and target text data.
+    delimiter : str, optional
+        The row iterm separator. Default: ','.
+    """
     with open(filename, 'w') as f:
         build(f, connection, search, source, target, delimiter=delimiter)
 
@@ -112,23 +111,23 @@ def dump(filename, connection, search, source, target, delimiter):
 def dumps(connection, search, source, target, delimiter):
     """Dump a Tesserae search to an CSV string.
 
-  Parameters
-  ----------
-  connection : tesserae.db.TessMongoConnection
-    Connection to the MongoDB instance.
-  search : `tesserae.db.entities.Search`
-    Search metadata.
-  source : `tesserae.db.entities.Text`
-  target : `tesserae.db.entities.Text`
-    Source and target text data.
-  delimiter : str, optional
-    The row iterm separator. Default: ','.
-  
-  Returns
-  -------
-    out : str
-      CSV string with search metadata and results.
-  """
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+        Connection to the MongoDB instance.
+    search : `tesserae.db.entities.Search`
+        Search metadata.
+    source : `tesserae.db.entities.Text`
+    target : `tesserae.db.entities.Text`
+        Source and target text data.
+    delimiter : str, optional
+        The row iterm separator. Default: ','.
+
+    Returns
+    -------
+        out : str
+            CSV string with search metadata and results.
+    """
     output = io.StringIO()
     build(output, connection, search, source, target, delimiter=delimiter)
     return output.getvalue()
@@ -137,32 +136,35 @@ def dumps(connection, search, source, target, delimiter):
 def format_result(match, idx, max_score):
     """Convert a search result into a CSV row.
 
-  Parameters
-  ----------
-  match : tesserae.db.entities.Match
-    The result to serialize.
-  idx : int
-    The row number of this result.
-  max_score : float
-    The max observed score in the search. Required for normalization.
-  
-  Returns
-  -------
-  obj : dict
-    The result converted into a CSV DictWriter compatible format.
-  """
-    source_txt = highlight_matches(match.source_snippet,
-                                   [i[0] for i in match.highlight])
-    target_txt = highlight_matches(match.target_snippet,
-                                   [i[1] for i in match.highlight])
-    features = '; '.join(match.matched_features)
+    Parameters
+    ----------
+    match : MatchResult
+        The result to serialize.
+    idx : int
+        The row number of this result.
+    max_score : float
+        The max observed score in the search. Required for normalization.
+
+    Returns
+    -------
+    obj : dict
+        The result converted into a CSV DictWriter compatible format.
+    """
+    source_txt = highlight_matches(match['source_snippet'],
+                                   [i[0] for i in match['highlight']])
+    target_txt = highlight_matches(match['target_snippet'],
+                                   [i[1] for i in match['highlight']])
+    features = '; '.join(match['matched_features'])
+    target_loc = match['target_tag']
+    source_loc = match['source_tag']
+    score = match['score']
     return {
         'Result': f'{idx}',
-        'Target_Loc': f'\"{match.target_tag}\"',
+        'Target_Loc': f'\"{target_loc}\"',
         'Target_Txt': f'\"{target_txt}\"',
-        'Source_Loc': f'\"{match.source_tag}\"',
+        'Source_Loc': f'\"{source_loc}\"',
         'Source_Txt': f'\"{source_txt}\"',
         'Shared': f'\"{features}\"',
-        'Score': f'{match.score * 10 / max_score}',
-        'Raw_Score': f'{match.score}'
+        'Score': f'{score * 10 / max_score}',
+        'Raw_Score': f'{score}'
     }

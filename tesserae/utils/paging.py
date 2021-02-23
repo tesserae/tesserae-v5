@@ -26,7 +26,7 @@ class Pager(PageOptions):
         Default: ``'descending'``.
     per_page : int
         The number of results to include per page. Default: ``200``.
-    
+
     Attributes
     ----------
     connection : `tesserae.db.mongodb.TessMongoConection`
@@ -39,21 +39,28 @@ class Pager(PageOptions):
         The number of pages given ``self.results_count`` and
         ``self.per_page``.
     """
-    def __init__(self, connection, search_id, sort_by='score', sort_order='descending', per_page=200):
-        super().__init__(sort_by='score', sort_order='descending', per_page=200)
+    def __init__(self,
+                 connection,
+                 search_id,
+                 sort_by='score',
+                 sort_order='descending',
+                 per_page=200):
+        super().__init__(sort_by='score',
+                         sort_order='descending',
+                         per_page=200,
+                         page_number=0)
         self.connection = connection
         self.search_id = search_id
         self.results_count = get_results_count(connection, search_id)
         self.page_count = int(math.ceil(self.results_count / per_page))
-        self.current_page = None
-        
+
         self._start_page = None
         self._end_page = None
         self._iter_step = None
 
     def __call__(self, start=0, end=None, step=1):
         """Iterate over all pages with current paging settings.
-        
+
         Parameters
         ----------
         start : int
@@ -73,12 +80,12 @@ class Pager(PageOptions):
         self._start_page = start
         self._end_page = end if end else self.page_count
         self._iter_step = step
-        
+
         return self.__iter__()
 
     def __getitem__(self, start, end=None, step=1):
         """Retrieve pages or slices by index with current paging settings.
-        
+
         Parameters
         ----------
         start : int
@@ -115,22 +122,22 @@ class Pager(PageOptions):
 
         if self._end_page is None:
             self._end_page = self.page_count
-        
+
         if self._iter_step is None:
             self._iter_step = 1
 
-        self.current_page = self._start_page
+        self.page_number = self._start_page
         return self
-    
+
     def __next__(self):
         """Get the next page or halt iteration."""
-        if self.current_page > self._end_page:
+        if self.page_number >= self._end_page:
             # Reset the defaults
             self._start_page = None
             self._end_page = None
             self._iter_step = None
             raise StopIteration
-        
-        yield get_results(self.connection, self.search_id, self)
 
+        items = get_results(self.connection, self.search_id, self)
         self.page_number += self._iter_step
+        return items
