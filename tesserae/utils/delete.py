@@ -55,7 +55,7 @@ def remove_results(connection, searches):
 
 def _remove_results_file(search):
     filename = get_results_filename(search, ResultsWriter.RESULTS_DIR)
-    if os.exists(filename):
+    if os.path.exists(filename):
         os.remove(filename)
 
 
