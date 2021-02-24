@@ -1,4 +1,5 @@
 import csv
+import gzip
 import os
 import pathlib
 
@@ -43,7 +44,7 @@ def get_results_filename(search, directory, ext='tsv'):
     str
         file path where results should be stored
     """
-    filename = f'{search.results_id}.{ext}'
+    filename = f'{search.results_id}.{ext}.gz'
     if isinstance(directory, pathlib.PurePath):
         return str(directory / filename)
     return os.path.join(directory, filename)
@@ -100,7 +101,7 @@ class ResultsWriter:
 
     def __enter__(self):
         """Open file for writing and start with commented information"""
-        self.fh = open(self.filename, 'w', encoding='utf-8')
+        self.fh = gzip.open(self.filename, 'wt', encoding='utf-8', newline='')
         search = self.search
         source = self.source
         target = self.target

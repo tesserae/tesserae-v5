@@ -75,10 +75,8 @@ def _run_search(connection, results_status, matcher_type, search_params):
         results_status.add_new_stage('save results')
         connection.update(results_status)
         stepsize = 5000
-        source = connection.find(Text.collection,
-                                 _id=search_params['source'].text.id)[0]
-        target = connection.find(Text.collection,
-                                 _id=search_params['target'].text.id)[0]
+        source = search_params['source'].text
+        target = search_params['target'].text
         max_score = matches[0].score
         with ResultsWriter(results_status, source, target,
                            max_score) as writer:
