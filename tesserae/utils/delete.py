@@ -2,10 +2,11 @@
 import os
 import shutil
 
-from tesserae.db.entities import \
-    Feature, Match, MultiResult, Search, Token, Unit
-from tesserae.utils.multitext import \
-    BigramWriter, MULTITEXT_SEARCH, unregister_bigrams
+from tesserae.db.entities import (Feature, Match, MultiResult, Search, Token,
+                                  Unit)
+from tesserae.utils.downloads import ResultsWriter, get_results_filename
+from tesserae.utils.multitext import (MULTITEXT_SEARCH, BigramWriter,
+                                      unregister_bigrams)
 from tesserae.utils.search import NORMAL_SEARCH
 
 
@@ -23,6 +24,7 @@ def remove_results(connection, searches):
     normal_searches = []
     multi_searches = []
     for search in searches:
+        _remove_results_file(search)
         if search.search_type == NORMAL_SEARCH:
             normal_searches.append(search)
         elif search.search_type == MULTITEXT_SEARCH:
@@ -49,6 +51,12 @@ def remove_results(connection, searches):
                 '$in': [m.id for m in multi_searches]
             }})
         connection.delete(multi_searches)
+
+
+def _remove_results_file(search):
+    filename = get_results_filename(search, ResultsWriter.RESULTS_DIR)
+    if os.exists(filename):
+        os.remove(filename)
 
 
 def remove_text(connection, text):
