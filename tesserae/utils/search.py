@@ -1,12 +1,12 @@
 """Helper functions for running Tesserae search"""
 import datetime
+import os
 import time
 import traceback
 
-from natsort import natsorted
-
-from tesserae.db.entities import Match, Search
 import tesserae.matchers
+from natsort import natsorted
+from tesserae.db.entities import Match, Search, Text
 
 NORMAL_SEARCH = 'vanilla'
 
@@ -75,10 +75,20 @@ def _run_search(connection, results_status, matcher_type, search_params):
         results_status.add_new_stage('save results')
         connection.update(results_status)
         stepsize = 5000
-        for start in range(0, len(matches), stepsize):
-            results_status.update_current_stage_value(start / len(matches))
-            connection.update(results_status)
-            connection.insert_nocheck(matches[start:start + stepsize])
+        source = connection.find(Text.collection,
+                                 _id=search_params['source'].text.id)[0]
+        target = connection.find(Text.collection,
+                                 _id=search_params['target'].text.id)[0]
+        max_score = matches[0].score
+        with tesserae.utils.downloads.ResultsWriter(results_status, source,
+                                                    target,
+                                                    max_score) as writer:
+            for start in range(0, len(matches), stepsize):
+                results_status.update_current_stage_value(start / len(matches))
+                cur_slice = matches[start:start + stepsize]
+                writer.record_matches(cur_slice)
+                connection.update(results_status)
+                connection.insert_nocheck(cur_slice)
 
         results_status.update_current_stage_value(1.0)
         results_status.status = Search.DONE

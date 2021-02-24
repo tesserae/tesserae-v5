@@ -1,5 +1,6 @@
-"""USER BEWARE: all code in this module remains untested; it is kept in case it
-is useful for future developers
+"""USER BEWARE: most code in this module remains untested; it is kept in case
+it is useful for future developers; however, highlight.py::highlight_matches is
+used outside of this module
 
 Utilities for exporting search results to different file formats.
 
