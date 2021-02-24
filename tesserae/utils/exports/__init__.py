@@ -1,4 +1,8 @@
-"""Utilities for exporting search results to different file formats.
+"""USER BEWARE: most code in this module remains untested; it is kept in case
+it is useful for future developers; however, highlight.py::highlight_matches is
+used outside of this module
+
+Utilities for exporting search results to different file formats.
 
 Modules
 -------
@@ -13,10 +17,8 @@ dump
 dumps
 """
 import importlib
-import math
 
 from bson.objectid import ObjectId
-
 from tesserae.db.entities import Search, Text
 
 
@@ -68,7 +70,7 @@ def retrieve_search(connection, search_id):
     source : `tesserae.db.entities.Text`
     target : `tesserae.db.entities.Text`
         Source and target text metadata.
-    
+
     Raises
     ------
     ValueError

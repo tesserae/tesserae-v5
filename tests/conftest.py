@@ -1,24 +1,26 @@
 """Utility operations for unit tests across multiple modules.
 """
-from pathlib import Path
 import getpass
 import json
 import os
 import pprint
 import tempfile
+from pathlib import Path
 
 import pymongo
 import pytest
-
 from tesserae.db import TessMongoConnection
 from tesserae.db.entities import Feature, Text
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
+from tesserae.utils.downloads import ResultsWriter
 from tesserae.utils.multitext import BigramWriter
-from tesserae.utils.search import get_results, PageOptions
+from tesserae.utils.search import PageOptions, get_results
 
 # Make sure that bigram databases are written out to a temporary location
 BigramWriter.BIGRAM_DB_DIR = tempfile.mkdtemp()
+# Make sure that results are written out to a temporary location
+ResultsWriter.RESULTS_DIR = tempfile.mkdtemp()
 
 
 def pytest_addoption(parser):
