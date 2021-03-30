@@ -1,21 +1,16 @@
 import uuid
 
-import pytest
 import numpy as np
-
-from tesserae.db import Feature, Search, Text, \
-                        TessMongoConnection
-from tesserae.matchers.sparse_encoding import \
-        SparseMatrixSearch, get_inverse_text_frequencies, \
-        get_corpus_frequencies, _get_units
+import pytest
+from tesserae.db import Feature, Search, TessMongoConnection, Text
+from tesserae.matchers.sparse_encoding import SparseMatrixSearch, _get_units
 from tesserae.matchers.text_options import TextOptions
 from tesserae.tokenizers import LatinTokenizer
 from tesserae.unitizer import Unitizer
 from tesserae.utils import ingest_text
 from tesserae.utils.delete import obliterate
-from tesserae.utils.search import get_results, PageOptions
-from tesserae.utils.tessfile import TessFile
 from tesserae.utils.stopwords import get_stoplist_tokens
+from tesserae.utils.tessfile import TessFile
 from tests.conftest import _load_v3_results
 
 
@@ -197,8 +192,8 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     It should be noted that v5 results do not have stopwords filtered out,
     while v3 results probably do.
     """
-    texts = minipop.find(
-        Text.collection, title=[m['title'] for m in mini_latin_metadata])
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_latin_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
@@ -216,10 +211,10 @@ def test_latin_trigrams(minipop, mini_latin_metadata):
     for a in raw_v5_results:
         print(a)
         for n in a:
-#            print(n)
+            #            print(n)
             n = np.asarray(n)
-#            print('array',n)
-#            print('shape', np.shape(n))
+            #            print('array',n)
+            #            print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'latin')
             v5_results.append(b)
     print(v5_results)
@@ -280,7 +275,6 @@ def test_latin_semlem(minipop, mini_latin_metadata, v3checker):
                                    'mini_latin_results_syn_lem.tab')
 
 
-
 def test_greek_sound(minipop, mini_greek_metadata, v3checker):
     texts = minipop.find(Text.collection,
                          title=[m['title'] for m in mini_greek_metadata])
@@ -314,8 +308,8 @@ def test_greek_trigrams(minipop, mini_greek_metadata):
     It should be noted that v5 results do not have stopwords filtered out,
     while v3 results probably do.
     """
-    texts = minipop.find(
-        Text.collection, title=[m['title'] for m in mini_greek_metadata])
+    texts = minipop.find(Text.collection,
+                         title=[m['title'] for m in mini_greek_metadata])
     results_id = uuid.uuid4()
     search_result = Search(results_id=results_id)
     minipop.insert(search_result)
@@ -333,10 +327,10 @@ def test_greek_trigrams(minipop, mini_greek_metadata):
     for a in raw_v5_results:
         print(a)
         for n in a:
-#            print(n)
+            #            print(n)
             n = np.asarray(n)
-#            print('array',n)
-#            print('shape', np.shape(n))
+            #            print('array',n)
+            #            print('shape', np.shape(n))
             b = get_stoplist_tokens(minipop, n, 'sound', 'greek')
             v5_results.append(b)
     print(v5_results)
@@ -467,3 +461,41 @@ def test_lucverg(lucvergpop, lucverg_metadata, v3checker):
     lucvergpop.update(search_result)
     v3checker.check_search_results(lucvergpop, search_result.id, texts[0].path,
                                    'lucverg_time.tab')
+
+
+@pytest.fixture(scope='session')
+def engpop(request, eng_metadata, v3checker):
+    conn = TessMongoConnection('localhost', 27017, None, None, 'engtest')
+    for metadata in eng_metadata:
+        text = Text.json_decode(metadata)
+        ingest_text(conn, text)
+    yield conn
+    obliterate(conn)
+
+
+def test_english(engpop, eng_metadata, v3checker):
+    texts = engpop.find(Text.collection,
+                        title=[m['title'] for m in eng_metadata])
+    results_id = uuid.uuid4()
+    search_result = Search(results_id=results_id)
+    engpop.insert(search_result)
+    matcher = SparseMatrixSearch(engpop)
+    v5_matches = matcher.match(search_result,
+                               TextOptions(texts[0], 'line'),
+                               TextOptions(texts[1], 'line'),
+                               'form',
+                               stopwords=[
+                                   "the", "and", "of", "to", "in", "that", "a",
+                                   "i", "his", "he"
+                               ],
+                               stopword_basis='texts',
+                               score_basis='form',
+                               freq_basis='texts',
+                               max_distance=10,
+                               distance_basis='frequency',
+                               min_score=6.0)
+    engpop.insert_nocheck(v5_matches)
+    search_result.status = Search.DONE
+    engpop.update(search_result)
+    v3checker.check_search_results(engpop, search_result.id, texts[0].path,
+                                   'eng_time.tab')
