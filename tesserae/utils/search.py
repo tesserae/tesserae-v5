@@ -1,139 +1,104 @@
-"""Helper class and functions for running search
-
-Originally conceived of in order to support asynchronous web API search
-"""
-import multiprocessing
-import queue
+"""Helper functions for running Tesserae search"""
+import datetime
 import time
 import traceback
 
-from bson.objectid import ObjectId
-
-from tesserae.db import TessMongoConnection
-from tesserae.db.entities import Search
 import tesserae.matchers
+from natsort import natsorted
+from tesserae.db.entities import Match, Search, Text
+from tesserae.utils.downloads import ResultsWriter
+
+NORMAL_SEARCH = 'vanilla'
 
 
-class AsynchronousSearcher:
-    """Asynchronous search resource holder
+def submit_search(jobqueue, connection, results_id, matcher_type,
+                  search_params):
+    """Submit a job for Tesserae search
 
-    Attributes
+    Parameters
     ----------
-    workers : list of SearchProcess
-        the workers this object has created
-    queue : multiprocessing.Queue
-        work queue which workers listen on
+    jobqueue : tesserae.utils.coordinate.JobQueue
+    connection : TessMongoConnection
+    results_id : str
+        UUID to associate with search to be performed
+    matcher_type : str
+        the matcher to use for search to perform; must be a key in
+        tesserae.matchers.matcher_map
+    search_params : dict
+        parameter names mapped to arguments to be used for the search
 
     """
-
-    def __init__(self, num_workers, db_cred):
-        """Store parameters to be used in intializing resources
-
-        Parameters
-        ----------
-        num_workers : int
-            number of workers to create
-        db_cred : dict
-            credentials to access the database; arguments should be given for
-            TessMongoConnection.__init__ in kwarg unpacking format
-
-        """
-        self.num_workers = num_workers
-        self.db_cred = db_cred
-        self.queue = multiprocessing.Queue()
-        self.workers = []
-        for _ in range(self.num_workers):
-            cur_proc = SearchProcess(self.db_cred, self.queue)
-            cur_proc.start()
-            self.workers.append(cur_proc)
-
-    def cleanup(self, *args):
-        """Clean up system resources being used by this object
-
-        This method should be called by exit handlers in the main script
-
-        """
-        try:
-            while True:
-                self.queue.get_nowait()
-        except queue.Empty:
-            pass
-        for _ in range(len(self.workers)):
-            self.queue.put((None, None, None))
-        for worker in self.workers:
-            worker.join()
-
-    def queue_search(self, results_id, search_type, search_params):
-        """Queues search for processing
-
-        Parameters
-        ----------
-        results_id : str
-            UUID for identifying the search request
-        search_type : str
-            identifier for type of search to perform.  Available options are
-            defined in tesserae.matchers.search_types (located in the
-            __init__.py file).
-        search_params : dict
-            search parameters 
-
-        """
-        self.queue.put_nowait((results_id, search_type, search_params))
+    parameters = tesserae.matchers.matcher_map[matcher_type].paramify(
+        search_params)
+    results_status = Search(results_id=results_id,
+                            search_type=NORMAL_SEARCH,
+                            status=Search.INIT,
+                            msg='',
+                            parameters=parameters)
+    connection.insert(results_status)
+    kwargs = {
+        'results_status': results_status,
+        'matcher_type': matcher_type,
+        'search_params': search_params
+    }
+    jobqueue.queue_job(_run_search, kwargs)
 
 
-class SearchProcess(multiprocessing.Process):
-    """Worker process waiting for search to execute
+def _run_search(connection, results_status, matcher_type, search_params):
+    """Instructions for running Tesserae search
 
-    Listens on queue for work to do
+    Parameters
+    ----------
+    connection : TessMongoConnection
+    results_status : tesserae.db.entities.Search
+        Status keeper
+    matcher_type : str
+        the matcher to use for search to perform; must be a key in
+        tesserae.matchers.matcher_map
+    search_params : dict
+        parameter names mapped to arguments to be used for the search
+
     """
+    start_time = time.time()
+    try:
+        matcher = tesserae.matchers.matcher_map[matcher_type](connection)
+        results_status.update_current_stage_value(1.0)
 
-    def __init__(self, db_cred, queue):
-        """Constructs a search worker
+        results_status.status = Search.RUN
+        results_status.last_queried = datetime.datetime.utcnow()
+        results_status.add_new_stage('match and score')
+        connection.update(results_status)
+        matches = matcher.match(results_status, **search_params)
+        matches.sort(key=lambda m: m.score, reverse=True)
+        results_status.update_current_stage_value(1.0)
 
-        Parameters
-        ----------
-        db_cred : dict
-            credentials to access the database; arguments should be given for
-            TessMongoConnection.__init__ in keyword format
-        queue : multiprocessing.Queue
-            mechanism for receiving search requests
+        results_status.add_new_stage('save results')
+        connection.update(results_status)
+        stepsize = 5000
+        source = search_params['source'].text
+        target = search_params['target'].text
+        max_score = matches[0].score
+        with ResultsWriter(results_status, source, target,
+                           max_score) as writer:
+            for start in range(0, len(matches), stepsize):
+                results_status.update_current_stage_value(start / len(matches))
+                cur_slice = matches[start:start + stepsize]
+                writer.record_matches(cur_slice)
+                connection.update(results_status)
+                connection.insert_nocheck(cur_slice)
 
-        """
-        super().__init__(target=self.await_job, args=(db_cred, queue))
-
-    def await_job(self, db_cred, queue):
-        """Waits for search job"""
-        connection = TessMongoConnection(**db_cred)
-        while True:
-            results_id, search_type, search_params = queue.get(block=True)
-            if results_id is None:
-                break
-            self.run_search(connection, results_id, search_type, search_params)
-
-    def run_search(self, connection, results_id, search_type, search_params):
-        """Executes search"""
-        start_time = time.time()
-        results_status = Search(results_id=results_id,
-                status=Search.INIT, msg='')
-        connection.insert(results_status)
-        try:
-            search_id = results_status.id
-            matcher = tesserae.matchers.matcher_map[search_type](connection)
-            results_status.status = Search.RUN
-            connection.update(results_status)
-            text_ids, params, matches = matcher.match(search_id, **search_params)
-            connection.insert_nocheck(matches)
-
-            results_status.texts = text_ids
-            results_status.parameters = params
-            results_status.matches = matches
-            results_status.status = Search.DONE
-            results_status.msg='Done in {} seconds'.format(time.time()-start_time)
-            connection.update(results_status)
-        except:
-            results_status.status = Search.FAILED
-            results_status.msg=traceback.format_exc()
-            connection.update(results_status)
+        results_status.update_current_stage_value(1.0)
+        results_status.status = Search.DONE
+        results_status.msg = 'Done in {} seconds'.format(time.time() -
+                                                         start_time)
+        results_status.last_queried = datetime.datetime.utcnow()
+        connection.update(results_status)
+    # we want to catch all errors and log them into the Search entity
+    except:  # noqa: E722
+        results_status.status = Search.FAILED
+        results_status.msg = traceback.format_exc()
+        results_status.last_queried = datetime.datetime.utcnow()
+        connection.update(results_status)
 
 
 def check_cache(connection, source, target, method):
@@ -145,15 +110,16 @@ def check_cache(connection, source, target, method):
     source
         See API documentation for form
     target
-        See API documnetation for form
+        See API documentation for form
     method
         See API documentation for form
 
     Returns
     -------
     UUID or None
-        If the search results are already in the database, return the
-        results_id associated with them; otherwise return None
+        If a Search entity with the same search parameters already exists in
+        the database, return the results_id associated with it; otherwise
+        return None
 
     Notes
     -----
@@ -162,25 +128,220 @@ def check_cache(connection, source, target, method):
         https://docs.mongodb.com/manual/tutorial/query-arrays/
         https://docs.mongodb.com/manual/reference/operator/query/and/
     """
-    found = [Search.json_decode(f)
-        for f in connection.connection[Search.collection].find({
-            'texts': [ObjectId(source['object_id']),
-                ObjectId(target['object_id'])],
-            'parameters.unit_types': [source['units'], target['units']],
-            'parameters.method.name': method['name'],
-            'parameters.method.feature': method['feature'],
-            '$and': [
-                {'parameters.method.stopwords': {'$all': method['stopwords']}},
-                {'parameters.method.stopwords': {'$size': len(method['stopwords'])}}
-            ],
-            'parameters.method.freq_basis': method['freq_basis'],
-            'parameters.method.max_distance': method['max_distance'],
-            'parameters.method.distance_basis': method['distance_basis']
-        })
+    search_for = {
+        'search_type': NORMAL_SEARCH,
+    }
+    search_for.update(
+        tesserae.matchers.matcher_map[method['name']].get_agg_query(
+            source, target, method))
+    found = [
+        Search.json_decode(f)
+        for f in connection.connection[Search.collection].find(search_for)
     ]
-    if found:
-        status_found = connection.find(Search.collection,
-                _id=found[0].id)
-        if status_found and status_found[0].status != Search.FAILED:
-            return status_found[0].results_id
+    for s in found:
+        if s.status != Search.FAILED:
+            return s.results_id
     return None
+
+
+class PageOptions:
+    """Data structure indicating paging options for results"""
+    def __init__(self,
+                 sort_by=None,
+                 sort_order=None,
+                 per_page=None,
+                 page_number=None):
+        self.sort_by = sort_by
+        if sort_order == 'ascending':
+            self.sort_order = 1
+        elif sort_order == 'descending':
+            self.sort_order = -1
+        else:
+            self.sort_order = None
+        self.per_page = int(per_page) if per_page is not None else None
+        self.page_number = int(page_number) \
+            if page_number is not None else None
+
+    def all_specified(self):
+        return self.sort_by is not None and \
+            self.sort_order is not None and \
+            self.per_page is not None and \
+            self.page_number is not None
+
+
+def retrieve_matches(connection, pipeline):
+    """Retrieve matches as specified
+
+    Projection is taken care of by this function
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    pipeline : list of aggregation pipeline commands
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    final_pipeline = pipeline + [{
+        '$project': {
+            '_id': True,
+            'source_tag': True,
+            'target_tag': True,
+            'matched_features': True,
+            'score': True,
+            'source_snippet': True,
+            'target_snippet': True,
+            'highlight': True
+        }
+    }]
+    db_matches = connection.aggregate(Match.collection,
+                                      final_pipeline,
+                                      encode=False)
+    return [{
+        'object_id': str(match['_id']),
+        'source_tag': match['source_tag'],
+        'target_tag': match['target_tag'],
+        'matched_features': match['matched_features'],
+        'score': match['score'],
+        'source_snippet': match['source_snippet'],
+        'target_snippet': match['target_snippet'],
+        'highlight': match['highlight']
+    } for match in db_matches]
+
+
+def retrieve_matches_by_search_id(connection, search_id):
+    """Obtain all matches associated with a given Search ID
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    return retrieve_matches(connection, [{'$match': {'search_id': search_id}}])
+
+
+def retrieve_matches_by_page(connection, search_id, page_options):
+    """Obtain relevant matches according to the paging options
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search whose results you are trying to retrieve
+    page_options : PageOptions
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    all_specified = page_options.all_specified()
+    if all_specified and page_options.sort_by == 'score':
+        start = page_options.page_number * page_options.per_page
+        return retrieve_matches(connection, [{
+            '$match': {
+                'search_id': search_id
+            }
+        }, {
+            '$sort': {
+                'score': page_options.sort_order
+            }
+        }, {
+            '$skip': start
+        }, {
+            '$limit': page_options.per_page
+        }])
+    all_matches = retrieve_matches_by_search_id(connection, search_id)
+    if all_specified:
+        start = page_options.page_number * page_options.per_page
+        end = start + page_options.per_page
+        if page_options.sort_by == 'source_tag':
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['source_tag'],
+                                    reverse=page_options.sort_order == -1)
+        if page_options.sort_by == 'target_tag':
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['target_tag'],
+                                    reverse=page_options.sort_order == -1)
+        if page_options.sort_by == 'matched_features':
+            all_matches = natsorted(all_matches,
+                                    key=lambda x: x['matched_features'],
+                                    reverse=page_options.sort_order == -1)
+        return all_matches[start:end]
+    return all_matches
+
+
+def get_results(connection, search_id, page_options):
+    """Retrieve search results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
+    page_options : PageOptions
+
+    Returns
+    -------
+    list of MatchResult
+    """
+    return retrieve_matches_by_page(connection, search_id, page_options)
+
+
+def get_max_score(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId of Search associated with results of interest
+
+    Returns
+    -------
+    float
+        Maximum score of results associated with ``search_id``
+    """
+    return connection.connection[Match.collection].find_one(
+        {'search_id': search_id}, sort=[('score', -1)])['score']
+
+
+def get_results_count(connection, search_id):
+    """Retrieve maximum score of results with associated id
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    search_id : ObjectId
+        ObjectId for Search whose results you are trying to retrieve
+
+    Returns
+    -------
+    float
+    """
+    return connection.connection[Match.collection].count_documents(
+        {'search_id': search_id})
+
+
+def get_id_by_uuid(connection, uuid):
+    """Retrieve database identifier for a regular Tesserae search
+
+    Parameters
+    ----------
+    connection : tesserae.db.TessMongoConnection
+    UUID : str
+
+    Returns
+    -------
+    ObjectId
+        database identifier for the regular Tesserae search associated with the
+        provided UUID
+    """
+    return connection.find(Search.collection,
+                           results_id=uuid,
+                           search_type=NORMAL_SEARCH)[0].id

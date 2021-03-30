@@ -50,14 +50,13 @@ class BaseTokenizer(object):
     functionality specific to the new language.
 
     """
-
     def __init__(self, connection):
         self.connection = connection
 
         # This pattern is used over and over again
         self.word_regex = re.compile('[a-zA-Z]+', flags=re.UNICODE)
-        self.diacriticals = \
-            '\u0313\u0314\u0301\u0342\u0300\u0301\u0308\u0345'
+        # must use within square brackets
+        self.diacriticals = '\u0300-\u036F'
 
         self.split_pattern = \
             '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
@@ -133,15 +132,19 @@ class BaseTokenizer(object):
         # Remove what appear to be Tesserae line delimiters
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
 
+        # Remove digits
+        raw = re.sub(r'\d+', '', raw, flags=re.UNICODE)
+
+        # Clean up end of line whitespace
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
+
         # Apply lowercase and NFKD normalization to the token string
         normalized = unicodedata.normalize('NFKD', raw).lower()
 
-        # Remove digits
-        normalized = re.sub(r'\d+', r'', normalized, flags=re.UNICODE)
-
         # If requested, split based on the language's split pattern.
         if split:
-            normalized = re.split(self.split_pattern, normalized,
+            normalized = re.split(self.split_pattern,
+                                  normalized,
                                   flags=re.UNICODE)
 
         return normalized, tags
@@ -175,8 +178,10 @@ class BaseTokenizer(object):
 
         """
         # eliminate any lines that don't begin with a tag
-        raw = '\n'.join([line for line in raw.split('\n')
-            if line.strip().startswith('<') and '>' in line]) + '\n'
+        raw = '\n'.join([
+            line for line in raw.split('\n')
+            if line.strip().startswith('<') and '>' in line
+        ]) + '\n'
         # Compute the normalized forms of the input tokens, splitting the
         # result based on a regex pattern and discarding None values.
         normalized, tags = self.normalize(raw)
@@ -186,6 +191,7 @@ class BaseTokenizer(object):
         # tags and converting newlines to their symbolic form.
         raw = re.sub(r'[<][^>]+[>]\s+', r'', raw, flags=re.UNICODE)
         raw = re.sub(r'/', r' ', raw, flags=re.UNICODE)
+        raw = ''.join([f'{r.strip()}\n' for r in raw.split('\n')])
         raw = re.sub(r'[\n]', r' / ', raw, flags=re.UNICODE)
 
         # Split the display form into independent strings for each token,
@@ -214,9 +220,11 @@ class BaseTokenizer(object):
 
         # Convert all computed features into entities, discarding duplicates.
         db_features = _get_db_features_by_type(self.connection, language,
-                featurized.keys())
-        results = [create_features(db_features[ft], text_id, language, ft,
-            featurized[ft]) for ft in featurized.keys()]
+                                               featurized.keys())
+        results = [
+            create_features(db_features[ft], text_id, language, ft,
+                            featurized[ft]) for ft in featurized.keys()
+        ]
 
         for feature_list, feature in results:
             featurized[feature] = feature_list
@@ -225,18 +233,34 @@ class BaseTokenizer(object):
         norm_i = 0
 
         try:
-            punctuation = self.connection.find('features', feature='punctuation')[0]
+            punctuation = \
+                self.connection.find('features', feature='punctuation')[0]
         except IndexError:
             punctuation = Feature(feature='punctuation', token='', index=-1)
 
         for i, d in enumerate(display):
-            if self.word_regex.search(d):
-                features = {key: val[norm_i]
-                            for key, val in featurized.items()}
+            # print(d, featurized['form'][norm_i].token)
+            if re.search(r'^[\d' + self.diacriticals + ']+$',
+                         d,
+                         flags=re.UNICODE):
+                # since Greek word_regex picks up digits, we need to first make
+                # sure we're not dealing with digits
+                # also ignore free floating diacritical marks
+                # as well as digits with diacritical marks
+                # print('ignore: ', d, featurized['form'][norm_i].token)
+                features = {
+                    key: punctuation if key == 'form' else [punctuation]
+                    for key in featurized.keys()
+                }
+            elif not re.search(self.split_pattern, d, flags=re.UNICODE):
+                if self.word_regex.search(d):
+                    features = {
+                        key: val[norm_i]
+                        for key, val in featurized.items()
+                    }
+                    # print('word:', d, features['form'].token)
+                # increment normalized position in every non-non-word-token
                 norm_i += 1
-            elif re.search(r'^[\d]+$', d, flags=re.UNICODE):
-                features = {key: punctuation if key == 'form' else [punctuation]
-                            for key in featurized.keys()}
             else:
                 features = None
 
@@ -263,10 +287,12 @@ def create_features(db_features, text, language, feature, feature_list):
         text = text.id
     db_features = {f.token: f for f in db_features}
 
-
     out_features = []
     for f in feature_list:
-        if isinstance(f, collections.Sequence) and not isinstance(f, str):
+        if isinstance(f, collections.abc.Sequence) and not isinstance(f, str):
+            if len(f) < 1:
+                out_features.append([])
+                continue
             if f[0][0] == '<':
                 continue
             feature_group = []
@@ -279,7 +305,8 @@ def create_features(db_features, text, language, feature, feature_list):
                         sub_f.frequencies[str(text)] = 1
                     feature_group.append(sub_f)
                 else:
-                    sub_f = Feature(feature=feature, token=sub_f,
+                    sub_f = Feature(feature=feature,
+                                    token=sub_f,
                                     language=language,
                                     index=len(db_features),
                                     frequencies={str(text): 1})
@@ -298,8 +325,11 @@ def create_features(db_features, text, language, feature, feature_list):
                     f.frequencies[str(text)] = 1
                 out_features.append(f)
             else:
-                f = Feature(feature=feature, token=f, language=language,
-                            index=len(db_features), frequencies={str(text): 1})
+                f = Feature(feature=feature,
+                            token=f,
+                            language=language,
+                            index=len(db_features),
+                            frequencies={str(text): 1})
                 db_features[f.token] = f
                 out_features.append(f)
 

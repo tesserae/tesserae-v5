@@ -1,8 +1,8 @@
 import re
-import unicodedata
 
-from cltk.semantics.latin.lookup import Lemmata
-
+from tesserae.features import get_featurizer
+from tesserae.features.lemmata import get_lemmatizer
+from tesserae.features.trigrams import trigrammify
 from tesserae.tokenizers.base import BaseTokenizer
 
 
@@ -22,20 +22,19 @@ class GreekTokenizer(BaseTokenizer):
         # tokenization of display tokens (see BaseTokenizer.tokenize);
         # also ignore the middle dot character, which is a punctuation mark
         self.word_regex = re.compile('[ΆΈ-ώ' + self.sigma_alt + ']+',
-                flags=re.UNICODE)
+                                     flags=re.UNICODE)
 
-        self.diacrit_sub1 = \
-            r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{2,})'
-        self.diacrit_sub2 = \
-            r'[\s.,;?!]([' + self.diacriticals + ']+)([' + self.vowels + ']{1})'
+        self.diacrit_sub1 = r'[\s.,;?!]([' + \
+            self.diacriticals + ']+)([' + self.vowels + ']{2,})'
+        self.diacrit_sub2 = r'[\s.,;?!]([' + \
+            self.diacriticals + ']+)([' + self.vowels + ']{1})'
 
         self.split_pattern = ''.join([
-            '( / )|([\\s]+)|([^\\w\\d',
-            self.diacriticals,
-            self.sigma_alt,
-            r"])"])
+            '( / )|([\\s]+)|([^\\w\\d', self.diacriticals, self.sigma_alt,
+            r"])"
+        ])
 
-        self.lemmatizer = Lemmata('lemmata', 'greek')
+        self.lemmatizer = get_lemmatizer('greek')
 
     def normalize(self, raw, split=True):
         """Normalize a single Greek word.
@@ -54,17 +53,25 @@ class GreekTokenizer(BaseTokenizer):
         normalized, tags = super(GreekTokenizer, self).normalize(raw)
 
         # Convert grave accent to acute
-        normalized = re.sub(self.grave, self.acute, normalized,
+        normalized = re.sub(self.grave,
+                            self.acute,
+                            normalized,
                             flags=re.UNICODE)
 
         # Remove diacriticals from vowels
-        normalized = re.sub(self.diacrit_sub1, r' \2', normalized,
+        normalized = re.sub(self.diacrit_sub1,
+                            r' \2',
+                            normalized,
                             flags=re.UNICODE)
-        normalized = re.sub(self.diacrit_sub2, r' \2\1', normalized,
+        normalized = re.sub(self.diacrit_sub2,
+                            r' \2\1',
+                            normalized,
                             flags=re.UNICODE)
 
         # Substitute sigmas
-        normalized = re.sub(self.sigma, self.sigma_alt, normalized,
+        normalized = re.sub(self.sigma,
+                            self.sigma_alt,
+                            normalized,
                             flags=re.UNICODE)
 
         # Remove digits and single-quotes from the normalized output
@@ -72,10 +79,12 @@ class GreekTokenizer(BaseTokenizer):
 
         # Split the output into a list of normalized tokens if requested
         if split:
-            normalized = re.split(self.split_pattern, normalized,
+            normalized = re.split(self.split_pattern,
+                                  normalized,
                                   flags=re.UNICODE)
-            normalized = [t for t in normalized
-                          if t and self.word_regex.search(t)]
+            normalized = [
+                t for t in normalized if t and re.search(r'[\w]+', t)
+            ]
 
         return normalized, tags
 
@@ -99,10 +108,17 @@ class GreekTokenizer(BaseTokenizer):
         """
         lemmata = self.lemmatizer.lookup(tokens)
         fixed_lemmata = []
-        for lem in lemmata:
-            lem_lemmata = [l[0] for l in lem[1]]
+        for lemma in lemmata:
+            lem_lemmata = [lem[0] for lem in lemma[1]]
             fixed_lemmata.append(lem_lemmata)
+
+        grams = trigrammify(tokens)
+        synonymify = get_featurizer('greek', 'semantic')
+        synonymilemmafy = get_featurizer('greek', 'semantic + lemmata')
         features = {
-            'lemmata': fixed_lemmata
+            'lemmata': fixed_lemmata,
+            'sound': grams,
+            'semantic': synonymify(tokens),
+            'semantic + lemmata': synonymilemmafy(tokens)
         }
         return features

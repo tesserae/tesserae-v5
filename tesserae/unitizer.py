@@ -126,33 +126,39 @@ class Unitizer(object):
 
             line = self.lines[-1]
             # Handle seeing multiple phrase delimiters in a row
-            if len(self.phrases) > 1 and not word and len(self.phrases[-1].tokens) == 0:
+            if len(self.phrases) > 1 and not word and \
+                    len(self.phrases[-1].tokens) == 0:
                 phrase = self.phrases[-2]
             else:
                 phrase = self.phrases[-1]
 
             if isinstance(t.features, dict) and len(t.features) > 0:
-                tok =  {'index': t.index, 'display': t.display, 'features': {}}
+                tok = {'index': t.index, 'display': t.display, 'features': {}}
                 for key, val in t.features.items():
                     if key not in tok['features']:
                         tok['features'][key] = []
-                    if isinstance(val, collections.Sequence) and not isinstance(val, str):
-                        tok['features'][key].extend([v.index if isinstance(v, Feature) else '' for v in val])
+                    if isinstance(val, collections.abc.Sequence) and \
+                            not isinstance(val, str):
+                        tok['features'][key].extend([
+                            v.index if isinstance(v, Feature) else ''
+                            for v in val])
                     else:
-                        tok['features'][key].append(val.index if isinstance(val, Feature) else '')
+                        tok['features'][key].append(
+                            val.index if isinstance(val, Feature) else '')
                 line.tokens.append(tok)
                 phrase.tokens.append(tok)
-
 
             # If this token contains a phrase delimiter (one of .?!;:),
             # create a new phrase unit and append it for the next iteration.
             if phrase_delim and len(self.phrases[-1].tokens) > 0:
                 first_pos = 0
-                while re.search(r'[\w]', phrase_stash[first_pos],
+                while re.search(
+                        r'[\w]', phrase_stash[first_pos],
                         flags=re.UNICODE) is None:
                     first_pos += 1
                 if first_pos < len(phrase_stash):
-                    self.phrases[-1].snippet = ''.join(phrase_stash[first_pos:])
+                    self.phrases[-1].snippet = ''.join(
+                        phrase_stash[first_pos:])
                     self.phrases.append(
                         Unit(text=metadata,
                              index=len(self.phrases),
@@ -168,16 +174,21 @@ class Unitizer(object):
             # If this token contains a newline or the Tesserae line delimiter,
             # create a new line unit and append it for the next iteration.
             if re.search(r'([\n])|( / )', t.display, flags=re.UNICODE):
-                if len(self.phrases[-1].tokens) == 0:
+                if len(self.phrases[-1].tokens) == 0 and \
+                        len(self.phrases[-1].tags) > 0:
                     self.phrases[-1].tags.pop()
                 elif len(phrase_stash) >= 2 and \
-                        re.search(r'([\n])|( / )',
+                        re.search(
+                                r'([\n])|( / )',
                                 phrase_stash[-2], flags=re.UNICODE):
                     # This happens when there was a blank line in the file;
-                    # count as the end of a phrase
+                    # count as the end of a phrase only if word tokens are in
+                    # the phrase stash
                     first_pos = 0
-                    while re.search(r'[\w]', phrase_stash[first_pos],
-                            flags=re.UNICODE) is None:
+                    while first_pos < len(phrase_stash) and \
+                            re.search(
+                                r'[\w]', phrase_stash[first_pos],
+                                flags=re.UNICODE) is None:
                         first_pos += 1
                     # keep one line delimiter to indicate that this phrase was
                     # broken by a blank line

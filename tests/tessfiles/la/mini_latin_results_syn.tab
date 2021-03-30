@@ -1,0 +1,24 @@
+# Tesserae V3 results
+#
+# session   = NA
+# source    = mini.aen
+# target    = mini.phar
+# unit      = line
+# feature   = syn
+# stopsize  = 3
+# stbasis   = both
+# stopwords = et non atqui
+# max_dist  = 999
+# dibasis   = freq
+# cutoff    = 0
+# filter    = off
+
+"RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
+1	"luc. 5.1"	"Sic alterna duces **bellorum** vulnera **passos**"	"verg. aen. 1.5"	"multa quoque et **bello** **passus**, dum conderet urbem,"	"bellum-bellus; perfero-praepando"	4.608
+2	"luc. 2.701"	"**Italiam**. Vix **fata** sinunt: nam murmure vasto"	"verg. aen. 1.2"	"**Italiam**, **fato** profugus, Laviniaque venit"	"fatum-for; ausones"	4.608
+3	"luc. 4.131"	"**Primum** **cana** salix madefacto vimine parvam"	"verg. aen. 1.1"	"Arma virumque **cano**, Troiae qui **primus** ab oris"	"primoris-prototomus; canities-incanus"	4.564
+4	"luc. 9.412"	"Pars erit Europae. Neque enim **plus** **litora** Nili,"	"verg. aen. 1.3"	"**litora**, **multum** ille et terris iactatus et alto"	"litoreus; nimius"	4.493
+5	"luc. 6.98"	"**Iam** magis atque magis praeceps **agit** omnia fatum:"	"verg. aen. 12.407"	"crebrescit propiusque malum **est**. **Iam** pulvere caelum"	"depraesentiarum-nunc; facio"	4.277
+6	"luc. 4.578"	"**Ob** ferrum, et **saevis** libertas uritur armis:"	"verg. aen. 1.4"	"vi superum **saevae** memorem Iunonis **ob** iram;"	"ob; truculentus"	4.148
+7	"luc. 1.1"	"**Bella** per Emathios **plus** **quam** civilia campos"	"verg. aen. 1.5"	"**multa** **quoque** et **bello** passus, dum conderet urbem,"	"nimius; bellum-bellus; quis-tat"	4.097
+8	"luc. 10.493"	"Nec piger ignis erat **per** stuppea vincula **perque**"	"verg. aen. 12.682"	"**perque** hostis, **per** tela ruit maestamque sororem"	"transtineo"	3.528

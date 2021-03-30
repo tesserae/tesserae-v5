@@ -32,12 +32,35 @@ try:
 except ImportError:
     # Python 2.x
     from urllib import quote_plus
+import sys
 
 import pymongo
 import six
 
 import tesserae.db.entities
-from tesserae.db.entities import Entity
+
+
+# https://goshippo.com/blog/measure-real-size-any-python-object/
+def get_size(obj, seen=None):
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # Important mark as seen *before* entering recursion to gracefully handle
+    # self-referential objects
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj,
+                                                     (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
 
 
 def _extract_embedded_docs(doc):
@@ -85,10 +108,12 @@ class TessMongoConnection():
     connection : `pymongo.database.Database`
         A connection to the Tesserae database.
     """
-
     def __init__(self, host, port, user, password, db='tesserae', **kwargs):
-        conn = pymongo.MongoClient(host=host, port=port, username=user,
-                                   password=password, **kwargs)
+        conn = pymongo.MongoClient(host=host,
+                                   port=port,
+                                   username=user,
+                                   password=password,
+                                   **kwargs)
         conn = conn[db]
         self.connection = conn
 
@@ -168,7 +193,7 @@ class TessMongoConnection():
         try:
             collection = self.connection[entity[0].__class__.collection]
             result = collection.delete_many(
-                self.create_filter(_id=[e.id for e  in entity]))
+                self.create_filter(_id=[e.id for e in entity]))
         except IndexError:
             raise ValueError("No entities provided.")
         return result
@@ -234,12 +259,12 @@ class TessMongoConnection():
         except IndexError:
             exists = []
 
-
         if len(exists) != 0:
             exists = [e.unique_values() for e in exists]
             new_ents = []
             for e in entity:
-                if e.id is None or not any([e.unique_values() == ex for ex in exists]):
+                if e.id is None or not any(
+                    [e.unique_values() == ex for ex in exists]):
                     new_ents.append(e)
             entity = new_ents
 
@@ -410,8 +435,11 @@ class TessMongoConnection():
                 query_filter[key].update(query)
 
         if len(query_filter) > 1:
-            query_filter = {'$and': [
-                {key: val} for key, val in query_filter.items()]}
+            query_filter = {
+                '$and': [{
+                    key: val
+                } for key, val in query_filter.items()]
+            }
 
         return query_filter
 
@@ -451,56 +479,34 @@ class TessMongoConnection():
         converted = sorted([lower, upper])
         return tuple(converted)
 
-    def get_search_matches(self, matchset_id):
-        """Retrieve all matches associated with a given search
-
-        Parameters
-        ----------
-        matchset_id : str, ObjectId
-            identifier for a specific MatchSet
-
-        Returns
-        -------
-        list of matches
-        """
-        matches = self.aggregate('matches', [
-            {'$match': {'match_set': ObjectId(matchset_id)}},
-            {'$sort': {'score': -1}},
-            {'$lookup': {
-                'from': 'units',
-                'let': {'m_units': '$units'},
-                'pipeline': [
-                    {'$match': {'$expr': {'$in': ['$_id', '$$m_units']}}},
-                    {'$lookup': {
-                        'from': 'tokens',
-                        'localField': '_id',
-                        # TODO fix so that correct unit is displayed
-                        'foreignField': 'phrase',
-                        'as': 'tokens'
-                    }},
-                    {'$sort': {'index': 1}}
-                ],
-                'as': 'units'
-            }},
-            {'$lookup': {
-                'from': 'tokens',
-                'localField': 'tokens',
-                'foreignField': '_id',
-                'as': 'tokens'
-            }},
-            {'$project': {
-                'units': True,
-                'score': True,
-                'tokens': '$tokens.feature_set'
-            }},
-            {'$lookup': {
-                'from': 'feature_sets',
-                'localField': 'tokens',
-                'foreignField': '_id',
-                'as': 'tokens'
-            }}
+    def create_indices(self):
+        """Creates indices for entities for faster lookup later"""
+        # index Unit entities by Text.id
+        self.connection[tesserae.db.entities.Unit.collection].create_index(
+            'text')
+        # index Match entities by Search.id for faster search results retrieval
+        self.connection[tesserae.db.entities.Match.collection].create_index([
+            ('search_id', pymongo.ASCENDING),
+            ('score', pymongo.DESCENDING),
         ])
-        return matches
+        # index Search entities by uuid
+        self.connection[tesserae.db.entities.Search.collection].create_index(
+            'results_id')
+        # index Feature entities by language and feature type
+        self.connection[tesserae.db.entities.Search.collection].create_index([
+            ('language', pymongo.ASCENDING),
+            ('feature', pymongo.ASCENDING),
+        ])
+        self.connection[tesserae.db.entities.MultiResult.
+                        collection].create_index('match_id')
+
+    def drop_indices(self):
+        """Drops all indices
+
+        Might be useful if you need to rebuild indices
+        """
+        for coll_name in self.connection.list_collection_names():
+            self.connection[coll_name].drop_indexes()
 
 
 def get_connection(host, port, user, password=None, db='tesserae', **kwargs):
@@ -524,8 +530,11 @@ def get_connection(host, port, user, password=None, db='tesserae', **kwargs):
     connection : `pymongo.database.Database`
         A connection to the Tesserae database.
     """
-    conn = pymongo.MongoClient(host=host, port=port, username=user,
-                               password=password, **kwargs)
+    conn = pymongo.MongoClient(host=host,
+                               port=port,
+                               username=user,
+                               password=password,
+                               **kwargs)
     conn = conn[db]
     return conn
 
