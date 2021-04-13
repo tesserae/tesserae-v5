@@ -1,8 +1,7 @@
 import re
 
-from nltk.corpus import wordnet
 import nltk.corpus.reader.wordnet
-
+from nltk.corpus import wordnet
 from tesserae.tokenizers.base import BaseTokenizer
 
 
@@ -10,8 +9,12 @@ class EnglishTokenizer(BaseTokenizer):
     def __init__(self, connection):
         super(EnglishTokenizer, self).__init__(connection)
 
+        self.word_regex = re.compile('\'?[a-zA-Z]+(?:[\'\\-][a-zA-Z]*)?',
+                                     flags=re.UNICODE)
+
         self.split_pattern = \
-            '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
+            '( / )|([\\s]+)|([^\\-\'\\w\\d' + self.diacriticals + '])|' + \
+            '([\']+(?![a-zA-Z]+))|((?<![a-zA-Z])-(?![a-zA-Z]+))|(--+)'
 
     def normalize(self, raw, split=True):
         """Normalize an English word.
@@ -36,9 +39,12 @@ class EnglishTokenizer(BaseTokenizer):
         normalized, tags = super(EnglishTokenizer, self).normalize(raw)
 
         if split:
-            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-            normalized = [t for t in normalized
-                    if t and self.word_regex.search(t)]
+            normalized = re.split(self.split_pattern,
+                                  normalized,
+                                  flags=re.UNICODE)
+            normalized = [
+                t for t in normalized if t and self.word_regex.search(t)
+            ]
 
         return normalized, tags
 
@@ -93,7 +99,5 @@ class EnglishTokenizer(BaseTokenizer):
                 lemmata.append(sorted([lemma for lemma in lemma_set]))
             else:
                 lemmata.append([token])
-        features = {
-            'lemmata': lemmata
-        }
+        features = {'lemmata': lemmata}
         return features
