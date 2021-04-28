@@ -485,8 +485,16 @@ def test_english(engpop, eng_metadata, v3checker):
                                TextOptions(texts[1], 'line'),
                                'form',
                                stopwords=[
-                                   "the", "and", "of", "to", "in", "that", "a",
-                                   "i", "his", "he"
+                                   "the",
+                                   "and",
+                                   "of",
+                                   "a",
+                                   "to",
+                                   "in",
+                                   "that",
+                                   "with",
+                                   "i",
+                                   "by",
                                ],
                                stopword_basis='texts',
                                score_basis='form',

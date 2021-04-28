@@ -2,6 +2,7 @@ import re
 
 import nltk.corpus.reader.wordnet
 from nltk.corpus import wordnet
+from tesserae.features.trigrams import trigrammify
 from tesserae.tokenizers.base import BaseTokenizer
 
 
@@ -42,8 +43,19 @@ class EnglishTokenizer(BaseTokenizer):
             normalized = re.split(self.split_pattern,
                                   normalized,
                                   flags=re.UNICODE)
+            # This hack of eliminating non-alphabetical characters works only
+            # because EnglishTokenizer.normalize is only ever used in this code
+            # base by BaseTokenizer.tokenize with split=True. If
+            # EnglishTokenizer.normalize gets called with split=False, the
+            # results are unlikely to be correct; furthermore, making sure that
+            # the results from split=False are correct seems too difficult to
+            # handle now. If future developers wish to have split=False to work
+            # properly, this note should be kept in mind.
+            # Additionally, this hack may be quite slow on larger English
+            # texts.
             normalized = [
-                t for t in normalized if t and self.word_regex.search(t)
+                re.sub('[^a-zA-Z]', '', t) for t in normalized
+                if t and self.word_regex.search(t)
             ]
 
         return normalized, tags
@@ -99,5 +111,10 @@ class EnglishTokenizer(BaseTokenizer):
                 lemmata.append(sorted([lemma for lemma in lemma_set]))
             else:
                 lemmata.append([token])
-        features = {'lemmata': lemmata}
+        features = {
+            'lemmata': lemmata,
+            'sound': trigrammify(tokens),
+            # English semantic and semantic + lemmata are not yet available;
+            # see latin.py for inspiration on how to add them
+        }
         return features
