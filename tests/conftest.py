@@ -163,6 +163,37 @@ def lucverg_metadata(tessfiles_latin_path):
 
 
 @pytest.fixture(scope='session')
+def eng_metadata(tessfiles_english_path):
+    return [
+        {
+            'title': 'task',
+            'author': 'cowper',
+            'language': 'english',
+            'year': 1785,
+            'path':
+            str(tessfiles_english_path.joinpath('cowper.task.part.1.tess')),
+            'is_prose': False
+        },
+        {
+            'title':
+            'prelude 1',
+            'author':
+            'wordsworth',
+            'language':
+            'english',
+            'year':
+            1799,
+            'path':
+            str(
+                tessfiles_english_path.joinpath(
+                    'wordsworth.prelude.part.1.tess')),
+            'is_prose':
+            False
+        },
+    ]
+
+
+@pytest.fixture(scope='session')
 def tessfiles_path():
     return Path(__file__).resolve().parent.joinpath('tessfiles')
 
@@ -175,6 +206,11 @@ def tessfiles_greek_path(tessfiles_path):
 @pytest.fixture(scope='session')
 def tessfiles_latin_path(tessfiles_path):
     return tessfiles_path.joinpath('la')
+
+
+@pytest.fixture(scope='session')
+def tessfiles_english_path(tessfiles_path):
+    return tessfiles_path.joinpath('en')
 
 
 @pytest.fixture(scope='session')

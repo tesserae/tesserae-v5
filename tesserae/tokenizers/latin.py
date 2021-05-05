@@ -3,12 +3,12 @@ import re
 import unicodedata
 
 from cltk.stem.latin.j_v import JVReplacer
-
-from tesserae.tokenizers.base import BaseTokenizer
 from tesserae.db.entities import Token
-from tesserae.features.trigrams import trigrammify
 from tesserae.features import get_featurizer
 from tesserae.features.lemmata import get_lemmatizer
+from tesserae.features.trigrams import trigrammify
+from tesserae.tokenizers.base import BaseTokenizer
+
 
 class LatinTokenizer(BaseTokenizer):
     def __init__(self, connection):
@@ -46,38 +46,65 @@ class LatinTokenizer(BaseTokenizer):
         normalized = self.jv_replacer.replace(normalized)
 
         if split:
-            normalized = re.split(self.split_pattern, normalized, flags=re.UNICODE)
-            normalized = [t for t in normalized
-                          if t and re.search(r'[\w]+', t)]
+            normalized = re.split(self.split_pattern,
+                                  normalized,
+                                  flags=re.UNICODE)
+            normalized = [
+                t for t in normalized if t and self.word_regex.search(t)
+            ]
 
         return normalized, tags
 
-
     def featurize(self, tokens):
-        """Lemmatize a Latin token.
+        """Lemmatize Latin tokens.
 
         Parameters
         ----------
         tokens : list of str
-            The token to featurize.
+            The tokens to featurize.
+
         Returns
         -------
-        lemmata : dict
-            The features for the token.
+        result : dict
+            The features for the tokens. Every feature type should be listed as
+            a key. For every key, the value should be a list of lists. Every
+            position in the outer list corresponds to the same position in the
+            tokens list passed in. Every inner list contains all instances of
+            the feature type associated with the corresponding token.
+
+        Example
+        -------
+        Suppose we have the following tokens to featurize:
+        >>> tokens = ['arma', 'cano']
+
+        Then the result would look something like this:
+        >>> result = {
+        >>>     'lemmata': [
+        >>>         ['arma', 'armo'],
+        >>>         ['canus', 'cano']
+        >>>     ]
+        >>> }
+
+        Note that `result['lemmata'][0]` is a list containing the lemmata for
+        `tokens[0]`; similarly, `result['lemmata'][1]` is a list containing the
+        lemmata for `tokens[1]`.
 
         Notes
         -----
         Input should be sanitized with `LatinTokenizer.normalize` prior to
         using this method.
+
         """
         if not isinstance(tokens, list):
             tokens = [tokens]
         lemmata = self.lemmatizer.lookup(tokens)
-#        print("Latin lemmata:", lemmata)
+        #        print("Latin lemmata:", lemmata)
         fixed_lemmata = []
         for lem in lemmata:
             lem_lemmata = [l[0] for l in lem[1]]
             fixed_lemmata.append(lem_lemmata)
+
+
 #        print("fixed lemmata:", fixed_lemmata)
         grams = trigrammify(tokens)
         synonymify = get_featurizer('latin', 'semantic')
@@ -89,5 +116,3 @@ class LatinTokenizer(BaseTokenizer):
             'semantic + lemmata': synonymilemmafy(tokens)
         }
         return features
-
-      

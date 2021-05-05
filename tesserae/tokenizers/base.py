@@ -62,6 +62,45 @@ class BaseTokenizer(object):
             '( / )|([\\s]+)|([^\\w\\d' + self.diacriticals + ']+)'
 
     def featurize(self, tokens):
+        """Abstract method to extract features from tokens.
+
+        Parameters
+        ----------
+        tokens : list of str
+            The tokens to featurize.
+
+        Returns
+        -------
+        result : dict
+            The features for the tokens. Every feature type should be listed as
+            a key. For every key, the value should be a list of lists. Every
+            position in the outer list corresponds to the same position in the
+            tokens list passed in. Every inner list contains all instances of
+            the feature type associated with the corresponding token.
+
+        Example
+        -------
+        Suppose we have the following tokens to featurize in Latin:
+        >>> tokens = ['arma', 'cano']
+
+        Then the result should look something like this, at least for lemmata:
+        >>> result = {
+        >>>     'lemmata': [
+        >>>         ['arma', 'armo'],
+        >>>         ['canus', 'cano']
+        >>>     ]
+        >>> }
+
+        Note that `result['lemmata'][0]` is a list containing the lemmata for
+        `tokens[0]`; similarly, `result['lemmata'][1]` is a list containing the
+        lemmata for `tokens[1]`.
+
+        Notes
+        -----
+        Input should be sanitized with the language-specific `normalize` prior
+        to using this method.
+
+        """
         raise NotImplementedError
 
     def normalize(self, raw, split=False):
@@ -136,6 +175,7 @@ class BaseTokenizer(object):
         features list of tesserae.db.Feature
             Features associated with the tokens to be inserted into the
             database.
+
         """
         # eliminate any lines that don't begin with a tag
         raw = '\n'.join([

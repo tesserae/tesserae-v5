@@ -1,11 +1,12 @@
-from pathlib import Path
 import os
-from setuptools import find_packages, setup
-from setuptools.command.install import install
-from setuptools.command.develop import develop
 import shutil
 import urllib.request
 import zipfile
+from pathlib import Path
+
+from setuptools import find_packages, setup
+from setuptools.command.develop import develop
+from setuptools.command.install import install
 
 
 def get_data():
@@ -47,6 +48,24 @@ def get_data():
             # Rename the extracted directory to match the expected name
             fname, _ = os.path.splitext(fname)
             os.rename(fname + '-master', fname)
+        except OSError:
+            pass
+
+        try:
+            # Install English models
+            english = 'https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/wordnet.zip'
+            base = os.path.join(home, 'nltk_data', 'corpora')
+            if not os.path.isdir(base):
+                os.makedirs(base, exist_ok=True)
+
+            fname = os.path.join(base, 'wordnet.zip')
+            with urllib.request.urlopen(english) as response, open(
+                    fname, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            with zipfile.ZipFile(fname, mode='r') as zf:
+                zf.extractall(base)
+
         except OSError:
             pass
 

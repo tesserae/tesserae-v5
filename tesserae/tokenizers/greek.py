@@ -1,9 +1,9 @@
 import re
 
-from tesserae.tokenizers.base import BaseTokenizer
-from tesserae.features.trigrams import trigrammify
 from tesserae.features import get_featurizer
 from tesserae.features.lemmata import get_lemmatizer
+from tesserae.features.trigrams import trigrammify
+from tesserae.tokenizers.base import BaseTokenizer
 
 
 class GreekTokenizer(BaseTokenizer):

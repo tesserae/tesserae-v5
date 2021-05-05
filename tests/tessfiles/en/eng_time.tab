@@ -1,0 +1,202 @@
+# Tesserae V3 results
+#
+# session   = NA
+# source    = cowper.task.part.1
+# target    = wordsworth.prelude.part.1
+# unit      = line
+# feature   = word
+# stopsize  = 10
+# stbasis   = both
+# stopwords = the and of a to in that with i by
+# max_dist  = 10
+# dibasis   = freq
+# cutoff    = 6
+# filter    = off
+
+"RESULT"	"TARGET_LOC"	"TARGET_TXT"	"SOURCE_LOC"	"SOURCE_TXT"	"SHARED"	"SCORE"
+1	"wordsworth prelude 1.196"	"Starved in those **narrow** **bounds**: but not the soul"	"cowper task 1.354"	"To **narrow** **bounds**.  The grove receives us next;"	"narrow; bounds"	8.280
+2	"wordsworth prelude 1.573"	"Sent welcome notice of the **rising** **moon**,"	"cowper task 1.206"	"That hails the **rising** **moon**, have charms for me."	"moon; rising"	8.202
+3	"wordsworth prelude 1.567"	"Of curling mist, or from the **level** **plain**"	"cowper task 1.163"	"Here Ouse, slow winding through a **level** **plain**"	"level; plain"	8.185
+4	"wordsworth prelude 1.628"	"To **honourable** **toil**. Yet should these hopes"	"cowper task 1.579"	"Such squalid sloth to **honourable** **toil**."	"honourable; toil"	8.128
+5	"wordsworth prelude 1.129"	"**Would** **gladly** grapple with **some** noble theme,"	"cowper task 1.132"	"**Some** youthful grace that age **would** **gladly** keep,"	"some; gladly; would"	8.102
+6	"wordsworth prelude 1.265"	"That I recoil and droop, and **seek** **repose**"	"cowper task 1.5"	"Now **seek** **repose** upon a humbler theme:"	"seek; repose"	8.079
+7	"wordsworth prelude 1.623"	"Meanwhile, my hope **has** **been**, that I might fetch"	"cowper task 1.491"	"Whom call we gay?  That honour **has** **been** long"	"been; has"	7.969
+8	"wordsworth prelude 1.147"	"For such **an** **arduous** work, I through myself"	"cowper task 1.401"	"And not soon spent, though in **an** **arduous** task;"	"an; arduous"	7.952
+9	"wordsworth prelude 1.370"	"With an unswerving line, I fixed **my** **view**"	"cowper task 1.250"	"Be still a pleasing object in **my** **view**,"	"my; view"	7.936
+10	"wordsworth prelude 1.174"	"**Or** **fountain**, listen to the grave reports"	"cowper task 1.192"	"Of neighbouring **fountain**, **or** of rills that slip"	"fountain; or"	7.903
+11	"wordsworth prelude 1.579"	"Even while mine eye hath moved o'er **many** a **league**"	"cowper task 1.521"	"Conspicuous **many** a **league**, the mariner,"	"many; league"	7.746
+12	"wordsworth prelude 1.425"	"And by the waters, **all** the **summer** **long**."	"cowper task 1.329"	"**All** **summer** **long**, which winter fills again."	"long; all; summer"	7.677
+13	"wordsworth prelude 1.348"	"Within my mind, should e'er **have** **borne** a part,"	"cowper task 1.155"	"Has slackened to a pause, and we **have** **borne**"	"have; borne"	7.653
+14	"wordsworth prelude 1.131"	"Impediments from **day** to **day** **renewed**."	"cowper task 1.434"	"'Tis free to all--'tis ev'ry **day** **renewed**,"	"day; renewed"	7.634
+15	"wordsworth prelude 1.420"	"**At** **noon**, and 'mid the calm of summer nights,"	"cowper task 1.760"	"Our groves were planted to console **at** **noon**"	"at; noon"	7.618
+16	"wordsworth prelude 1.420"	"**At** **noon**, and 'mid the calm of summer nights,"	"cowper task 1.257"	"And long-protracted bowers, enjoyed **at** **noon**"	"at; noon"	7.618
+17	"wordsworth prelude 1.334"	"**But** **ill** sustained, and almost (so it seemed)"	"cowper task 1.551"	"More tattered still; and both **but** **ill** conceal"	"but; ill"	7.600
+18	"wordsworth prelude 1.516"	"**Or** **round** the naked table, snow-white deal,"	"cowper task 1.21"	"A massy slab, in fashion square **or** **round**."	"or; round"	7.555
+19	"wordsworth prelude 1.205"	"Suffered in silence **for** Truth's **sake**: or tell,"	"cowper task 1.209"	"And only there, please highly **for** their **sake**."	"for; sake"	7.511
+20	"wordsworth prelude 1.117"	"New stores, or rescue from **decay** the **old**"	"cowper task 1.408"	"Sprightly, and **old** almost without **decay**."	"old; decay"	7.496
+21	"wordsworth prelude 1.590"	"Rememberable things; sometimes, '**tis** **true**,"	"cowper task 1.675"	"We travel far, '**tis** **true**, but not for naught;"	"true; tis"	7.491
+22	"wordsworth prelude 1.590"	"Rememberable things; sometimes, '**tis** **true**,"	"cowper task 1.107"	"The gouty limb, '**tis** **true**; but gouty limb,"	"tis; true"	7.491
+23	"wordsworth prelude 1.468"	"A vulgar hope was yours **when** ye **employed**"	"cowper task 1.73"	"Than **when** **employed** to accommodate the fair,"	"when; employed"	7.478
+24	"wordsworth prelude 1.6"	"To **none** **more** grateful than to me; escaped"	"cowper task 1.422"	"**None** **more** admires, the painter's magic skill,"	"none; more"	7.455
+25	"wordsworth prelude 1.584"	"Which, through **all** **seasons**, on a child's pursuits"	"cowper task 1.622"	"Cheer **all** their **seasons** with a grateful smile,"	"all; seasons"	7.449
+26	"wordsworth prelude 1.455"	"And all the shadowy **banks** **on** either side"	"cowper task 1.115"	"To enjoy a ramble **on** the **banks** of Thames."	"on; banks"	7.449
+27	"wordsworth prelude 1.363"	"And troubled pleasure, **nor** **without** the voice"	"cowper task 1.116"	"And still remember, **nor** **without** regret"	"nor; without"	7.438
+28	"wordsworth prelude 1.599"	"—And if the vulgar joy by **its** **own** **weight**"	"cowper task 1.59"	"Ponderous, and fixed by **its** **own** massy **weight**."	"its; own; weight"	7.418
+29	"wordsworth prelude 1.475"	"With **triumph** and delight, with **hope** and fear,"	"cowper task 1.691"	"By frequent lapse, can **hope** no **triumph** there,"	"triumph; hope"	7.403
+30	"wordsworth prelude 1.61"	"With brisk and eager steps; and came, **at** **length**,"	"cowper task 1.194"	"Upon loose pebbles, lose themselves **at** **length**"	"at; length"	7.380
+31	"wordsworth prelude 1.61"	"With brisk and eager steps; and came, **at** **length**,"	"cowper task 1.28"	"**At** **length** a generation more refined"	"at; length"	7.380
+32	"wordsworth prelude 1.548"	"Peopled the mind with forms **sublime** **or** fair,"	"cowper task 1.34"	"And woven close, **or** needlework **sublime**."	"sublime; or"	7.371
+33	"wordsworth prelude 1.271"	"That one, the **fairest** of **all** rivers, loved"	"cowper task 1.698"	"The **fairest** capital in **all** the world,"	"fairest; all"	7.357
+34	"wordsworth prelude 1.449"	"Into a silent **bay**, **or** sportively"	"cowper task 1.230"	"In village **or** in town, the **bay** of curs"	"or; bay"	7.344
+35	"wordsworth prelude 1.601"	"The scenes which were a **witness** of that **joy**"	"cowper task 1.149"	"**Witness** a **joy** that thou hast doubled long."	"witness; joy"	7.274
+36	"wordsworth prelude 1.442"	"The leafless **trees** and **every** icy crag"	"cowper task 1.301"	"Diversified with **trees** of **every** growth,"	"every; trees"	7.267
+37	"wordsworth prelude 1.353"	"**Whether** her fearless visitings, **or** those"	"cowper task 1.232"	"And infants clamorous **whether** pleased **or** pained,"	"or; whether"	7.210
+38	"wordsworth prelude 1.638"	"A visible scene, on which the **sun** is **shining**?"	"cowper task 1.314"	"Some glossy-leaved and **shining** in the **sun**,"	"shining; sun"	7.200
+39	"wordsworth prelude 1.255"	"Far **better** **never** to have heard the name"	"cowper task 1.72"	"Ingenious fancy, **never** **better** pleased"	"never; better"	7.181
+40	"wordsworth prelude 1.643"	"The road lies plain **before** me;—'**tis** a theme"	"cowper task 1.364"	"**Before** he eats it.--'**Tis** the primal curse,"	"tis; before"	7.159
+41	"wordsworth prelude 1.298"	"**Beneath** the **sky**, as if I had been born"	"cowper task 1.433"	"**Beneath** the open **sky** she spreads the feast;"	"beneath; sky"	7.149
+42	"wordsworth prelude 1.216"	"All over **his** dear **Country**; left the deeds"	"cowper task 1.658"	"A patriot's for **his** **country**.  Thou art sad"	"his; country"	7.144
+43	"wordsworth prelude 1.36"	"With quickening **virtue**, **but** is now become"	"cowper task 1.623"	"Can boast **but** little **virtue**; and inert"	"but; virtue"	7.133
+44	"wordsworth prelude 1.639"	"**One** **end** **at** least hath been attained; my mind"	"cowper task 1.75"	"The soft settee; **one** elbow **at** each **end**,"	"one; end; at"	7.132
+45	"wordsworth prelude 1.491"	"**All** the green **summer**, to forlorn cascades"	"cowper task 1.329"	"**All** **summer** long, which winter fills again."	"summer; all"	7.117
+46	"wordsworth prelude 1.403"	"**Thou** Soul that **art** the eternity of thought,"	"cowper task 1.658"	"A patriot's for his country.  **Thou** **art** sad"	"art; thou"	7.085
+47	"wordsworth prelude 1.403"	"**Thou** Soul that **art** the eternity of thought,"	"cowper task 1.649"	"Rude as **thou** **art** (for we returned thee rude"	"art; thou"	7.085
+48	"wordsworth prelude 1.5"	"Whate'er its mission, the soft breeze **can** **come**"	"cowper task 1.739"	"Nor is it well, nor **can** it **come** to good,"	"come; can"	7.067
+49	"wordsworth prelude 1.355"	"Opening the peaceful clouds; **or** she may **use**"	"cowper task 1.8"	"Time was, when clothing sumptuous **or** for **use**,"	"use; or"	7.035
+50	"wordsworth prelude 1.278"	"**Make** ceaseless **music** that composed my thoughts"	"cowper task 1.185"	"Of ancient growth, **make** **music** not unlike"	"music; make"	7.017
+51	"wordsworth prelude 1.398"	"Of **sea** **or** sky, no colours of green fields;"	"cowper task 1.13"	"Washed by the **sea**, **or** on the gravelly bank"	"or; sea"	6.996
+52	"wordsworth prelude 1.409"	"Not with the mean and vulgar **works** of **man**,"	"cowper task 1.430"	"And music of her woods--no **works** of **man**"	"man; works"	6.993
+53	"wordsworth prelude 1.639"	"One end **at** **least** hath been attained; my mind"	"cowper task 1.234"	"Here, I have said, **at** **least** I should possess"	"least; at"	6.984
+54	"wordsworth prelude 1.110"	"Rare, or **at** **least** so seeming, every day"	"cowper task 1.234"	"Here, I have said, **at** **least** I should possess"	"least; at"	6.984
+55	"wordsworth prelude 1.550"	"How other pleasures **have** been mine, and **joys**"	"cowper task 1.647"	"As dear to thee as once?  And **have** thy **joys**"	"have; joys"	6.960
+56	"wordsworth prelude 1.313"	"Along the smooth **green** turf. Through **half** the night,"	"cowper task 1.272"	"Our foot **half** sunk in hillocks **green** and soft,"	"green; half"	6.954
+57	"wordsworth prelude 1.362"	"Pushed from the **shore**. **It** was an act of stealth"	"cowper task 1.656"	"If ever **it** has washed our distant **shore**."	"shore; it"	6.916
+58	"wordsworth prelude 1.181"	"Through **ever** changing **scenes** of votive quest"	"cowper task 1.208"	"Yet heard in **scenes** where peace for **ever** reigns,"	"ever; scenes"	6.884
+59	"wordsworth prelude 1.316"	"Were shining **o'er** my **head**. I was alone,"	"cowper task 1.95"	"The tedious rector drawling **o'er** his **head**,"	"head; oer"	6.864
+60	"wordsworth prelude 1.251"	"Voluptuously **through** fields and **rural** walks,"	"cowper task 1.109"	"For I have loved the **rural** walk **through** lanes"	"rural; through"	6.855
+61	"wordsworth prelude 1.317"	"And **seemed** to **be** a trouble to the peace"	"cowper task 1.55"	"If cushion might **be** called, what harder **seemed**"	"be; seemed"	6.836
+62	"wordsworth prelude 1.517"	"Cherry **or** maple, sate in **close** array,"	"cowper task 1.34"	"And woven **close**, **or** needlework sublime."	"or; close"	6.835
+63	"wordsworth prelude 1.327"	"**Nor** **less** when spring had warmed the cultured Vale,"	"cowper task 1.300"	"**Nor** **less** attractive is the woodland scene"	"less; nor"	6.806
+64	"wordsworth prelude 1.327"	"**Nor** **less** when spring had warmed the cultured Vale,"	"cowper task 1.190"	"**Nor** **less** composure waits upon the roar"	"less; nor"	6.806
+65	"wordsworth prelude 1.319"	"In **these** **night** wanderings, that a strong desire"	"cowper task 1.201"	"The livelong **night**:  nor **these** alone whose notes"	"these; night"	6.804
+66	"wordsworth prelude 1.378"	"When, from behind that craggy steep **till** **then**"	"cowper task 1.220"	"Once went I forth, and found, **till** **then** unknown,"	"till; then"	6.792
+67	"wordsworth prelude 1.369"	"Proud of **his** skill, to **reach** a chosen point"	"cowper task 1.520"	"Above the **reach** of man:  **his** hoary head"	"reach; his"	6.788
+68	"wordsworth prelude 1.10"	"What dwelling **shall** receive **me**? in what vale"	"cowper task 1.423"	"Who shows **me** that which I **shall** never see,"	"me; shall"	6.781
+69	"wordsworth prelude 1.283"	"When **he** had **left** the mountains and received"	"cowper task 1.452"	"Fair fields appear below, such as **he** **left**"	"left; he"	6.779
+70	"wordsworth prelude 1.130"	"Vain **is** her **wish**; where'er she turns she finds"	"cowper task 1.763"	"The sleeping leaves, **is** all the light they **wish**,"	"wish; is"	6.772
+71	"wordsworth prelude 1.431"	"It **was** a **time** of rapture! Clear and loud"	"cowper task 1.8"	"**Time** **was**, when clothing sumptuous or for use,"	"was; time"	6.770
+72	"wordsworth prelude 1.73"	"Nor **rest** till they **had** reached the very door"	"cowper task 1.49"	"These for the rich:  the **rest**, whom fate **had** placed"	"rest; had"	6.765
+73	"wordsworth prelude 1.391"	"And serious mood; **but** after I had **seen**"	"cowper task 1.25"	"May still be **seen**, **but** perforated sore"	"seen; but"	6.743
+74	"wordsworth prelude 1.493"	"—Unfading recollections! **at** this **hour**"	"cowper task 1.98"	"Nor his who quits the box **at** midnight **hour**"	"at; hour"	6.717
+75	"wordsworth prelude 1.626"	"And haply meet reproaches **too**, **whose** power"	"cowper task 1.501"	"And save me, **too**, from theirs **whose** haggard eyes"	"whose; too"	6.713
+76	"wordsworth prelude 1.137"	"His fits when he **is** neither sick **nor** **well**,"	"cowper task 1.739"	"**Nor** **is** it **well**, **nor** can it come to good,"	"nor; well; is"	6.704
+77	"wordsworth prelude 1.130"	"Vain is **her** wish; where'er she turns she **finds**"	"cowper task 1.712"	"Where **finds** philosophy **her** eagle eye,"	"finds; her"	6.701
+78	"wordsworth prelude 1.138"	"Though no distress be near **him** but **his** own"	"cowper task 1.363"	"And sleep not:  see **him** sweating o'er **his** bread"	"him; his"	6.697
+79	"wordsworth prelude 1.311"	"With **store** of springes o'er **my** shoulder hung"	"cowper task 1.118"	"How oft, **my** slice of pocket **store** consumed,"	"store; my"	6.685
+80	"wordsworth prelude 1.76"	"**So** **fair**; and while upon the fancied scene"	"cowper task 1.727"	"And show this queen of cities, that **so** **fair**"	"so; fair"	6.671
+81	"wordsworth prelude 1.443"	"Tinkled like iron; while **far** **distant** hills"	"cowper task 1.453"	"**Far** **distant**, such as he would die to find--"	"far; distant"	6.669
+82	"wordsworth prelude 1.443"	"Tinkled like iron; while **far** **distant** hills"	"cowper task 1.252"	"Not **distant** **far**, a length of colonnade"	"far; distant"	6.669
+83	"wordsworth prelude 1.641"	"Desert **me** not, forthwith **shall** be brought down"	"cowper task 1.423"	"Who shows **me** that which I **shall** never see,"	"shall; me"	6.663
+84	"wordsworth prelude 1.36"	"With quickening **virtue**, **but** is now become"	"cowper task 1.678"	"**But** though true worth and **virtue**, in the mild"	"but; virtue"	6.663
+85	"wordsworth prelude 1.95"	"**Once** **more** made trial of her strength, nor lacked"	"cowper task 1.339"	"Your fate unmerited, **once** **more** rejoice"	"more; once"	6.624
+86	"wordsworth prelude 1.95"	"**Once** **more** made trial of her strength, nor lacked"	"cowper task 1.338"	"Ye fallen avenues! **once** **more** I mourn"	"more; once"	6.624
+87	"wordsworth prelude 1.147"	"For such **an** arduous work, I through **myself**"	"cowper task 1.213"	"Forth steps the man--**an** emblem of **myself**!"	"myself; an"	6.605
+88	"wordsworth prelude 1.368"	"Of sparkling light. But now, like **one** **who** rows,"	"cowper task 1.538"	"With **one** **who** left her, went to sea and died."	"who; one"	6.571
+89	"wordsworth prelude 1.587"	"And is forgotten; even **then** I **felt**"	"cowper task 1.57"	"No want of timber **then** was **felt** or feared"	"felt; then"	6.570
+90	"wordsworth prelude 1.395"	"There **hung** a darkness, call **it** solitude"	"cowper task 1.47"	"That pressed **it**, and the feet **hung** dangling down,"	"it; hung"	6.569
+91	"wordsworth prelude 1.355"	"Opening the peaceful clouds; or **she** **may** use"	"cowper task 1.742"	"And abrogate, as roundly as **she** **may**,"	"may; she"	6.568
+92	"wordsworth prelude 1.493"	"—Unfading recollections! **at** this **hour**"	"cowper task 1.91"	"Who quits the coach-box **at** the midnight **hour**"	"at; hour"	6.563
+93	"wordsworth prelude 1.457"	"The rapid line of motion, then **at** **once**"	"cowper task 1.337"	"And stepped **at** **once** into a cooler clime."	"once; at"	6.552
+94	"wordsworth prelude 1.457"	"The rapid line of motion, then **at** **once**"	"cowper task 1.189"	"And all their leaves fast fluttering, all **at** **once**."	"at; once"	6.552
+95	"wordsworth prelude 1.457"	"The rapid line of motion, then **at** **once**"	"cowper task 1.77"	"United yet divided, twain **at** **once**."	"once; at"	6.552
+96	"wordsworth prelude 1.84"	"Dislodged, through sere leaves rustled, or **at** **once**"	"cowper task 1.337"	"And stepped **at** **once** into a cooler clime."	"at; once"	6.552
+97	"wordsworth prelude 1.84"	"Dislodged, through sere leaves rustled, or **at** **once**"	"cowper task 1.77"	"United yet divided, twain **at** **once**."	"once; at"	6.552
+98	"wordsworth prelude 1.647"	"Where I **might** **be** discomfited and lost:"	"cowper task 1.508"	"And pleased with novelty, **might** **be** indulged."	"be; might"	6.543
+99	"wordsworth prelude 1.647"	"Where I **might** **be** discomfited and lost:"	"cowper task 1.55"	"If cushion **might** **be** called, what harder seemed"	"might; be"	6.543
+100	"wordsworth prelude 1.288"	"A tempting playmate **whom** **we** dearly loved."	"cowper task 1.491"	"**Whom** call **we** gay?  That honour has been long"	"we; whom"	6.542
+101	"wordsworth prelude 1.294"	"The sandy **fields**, leaping through flowery **groves**"	"cowper task 1.753"	"And least be threatened in the **fields** and **groves**?"	"groves; fields"	6.512
+102	"wordsworth prelude 1.80"	"**Perhaps** too **there** performed. Thus long I mused,"	"cowper task 1.680"	"Thrive most, and may **perhaps** thrive only **there**,"	"perhaps; there"	6.511
+103	"wordsworth prelude 1.406"	"By day or star-light **thus** from my **first** dawn"	"cowper task 1.86"	"**Thus** **first** necessity invented stools,"	"first; thus"	6.495
+104	"wordsworth prelude 1.502"	"A ministration of **your** own was **yours**;"	"cowper task 1.770"	"It plagues **your** country.  Folly such as **yours**,"	"yours; your"	6.494
+105	"wordsworth prelude 1.71"	"Encouraged and dismissed, till choice **was** **made**"	"cowper task 1.506"	"The earth **was** **made** so various, that the mind"	"was; made"	6.491
+106	"wordsworth prelude 1.295"	"Of yellow ragwort; **or** when **rock** and hill,"	"cowper task 1.518"	"Then forests, **or** the savage **rock** may please,"	"or; rock"	6.489
+107	"wordsworth prelude 1.454"	"When we **had** given **our** bodies to the wind,"	"cowper task 1.9"	"Save their own painted skins, **our** sires **had** none."	"had; our"	6.481
+108	"wordsworth prelude 1.578"	"Of quietness or **peace**; **yet** have I stood,"	"cowper task 1.208"	"**Yet** heard in scenes where **peace** for ever reigns,"	"yet; peace"	6.469
+109	"wordsworth prelude 1.66"	"With warmth, **as** **much** **as** needed, from a sun"	"cowper task 1.706"	"The powers of sculpture, but the style **as** **much**;"	"much; as"	6.461
+110	"wordsworth prelude 1.434"	"That cares not for **his** **home**. All shod with steel,"	"cowper task 1.242"	"And heavy-laden brings **his** beverage **home**,"	"home; his"	6.446
+111	"wordsworth prelude 1.215"	"Of Wallace to **be** **found**, like a wild flower,"	"cowper task 1.413"	"Is Nature's dictate.  Strange, there should **be** **found**"	"be; found"	6.446
+112	"wordsworth prelude 1.76"	"So fair; and while **upon** the fancied **scene**"	"cowper task 1.158"	"And still unsated, dwelt **upon** the **scene**!"	"scene; upon"	6.440
+113	"wordsworth prelude 1.522"	"**But** husbanded through **many** a long campaign."	"cowper task 1.597"	"His wants, indeed, are **many**; **but** supply"	"but; many"	6.423
+114	"wordsworth prelude 1.264"	"**Much** wanting, **so** **much** wanting, in myself,"	"cowper task 1.726"	"That **so** **much** beauty would do well to purge;"	"much; so"	6.415
+115	"wordsworth prelude 1.443"	"Tinkled like iron; **while** **far** distant hills"	"cowper task 1.169"	"**While** **far** beyond and overthwart the stream"	"far; while"	6.407
+116	"wordsworth prelude 1.160"	"As **may** **be** singled out with steady choice;"	"cowper task 1.509"	"Prospects however lovely **may** **be** seen"	"may; be"	6.404
+117	"wordsworth prelude 1.490"	"By rocks and pools shut **out** from **every** star,"	"cowper task 1.565"	"They pick their fuel **out** of **every** hedge,"	"out; every"	6.399
+118	"wordsworth prelude 1.617"	"By an infirmity of love **for** **days**"	"cowper task 1.83"	"Was bliss reserved **for** happier **days**; so slow"	"days; for"	6.383
+119	"wordsworth prelude 1.110"	"Rare, **or** at **least** so seeming, every day"	"cowper task 1.690"	"**Or** seen with **least** reproach; and virtue, taught"	"least; or"	6.379
+120	"wordsworth prelude 1.15"	"Joyous, nor scared **at** **its** **own** liberty,"	"cowper task 1.467"	"Recoils from **its** **own** choice--**at** the full feast"	"at; its; own"	6.375
+121	"wordsworth prelude 1.424"	"Mine was it in the fields both **day** and **night**,"	"cowper task 1.671"	"To dream all **night** of what the **day** denied."	"day; night"	6.360
+122	"wordsworth prelude 1.140"	"**While** **she** as duteous as the mother dove"	"cowper task 1.371"	"An instant's pause, and lives but **while** **she** moves."	"she; while"	6.346
+123	"wordsworth prelude 1.455"	"And all the shadowy banks **on** either **side**"	"cowper task 1.172"	"Displaying **on** its varied **side** the grace"	"side; on"	6.338
+124	"wordsworth prelude 1.365"	"Leaving behind her still, **on** either **side**,"	"cowper task 1.172"	"Displaying **on** its varied **side** the grace"	"side; on"	6.338
+125	"wordsworth prelude 1.103"	"Mild influence; nor **left** in me **one** wish"	"cowper task 1.538"	"With **one** who **left** her, went to sea and died."	"left; one"	6.329
+126	"wordsworth prelude 1.199"	"With skill and power that **might** not **be** withstood,"	"cowper task 1.508"	"And pleased with novelty, **might** **be** indulged."	"be; might"	6.320
+127	"wordsworth prelude 1.199"	"With skill and power that **might** not **be** withstood,"	"cowper task 1.55"	"If cushion **might** **be** called, what harder seemed"	"might; be"	6.320
+128	"wordsworth prelude 1.407"	"Of childhood didst **thou** intertwine **for** **me**"	"cowper task 1.249"	"Society **for** **me**!  **Thou** seeming sweet,"	"for; me; thou"	6.304
+129	"wordsworth prelude 1.137"	"His fits when **he** **is** neither sick nor well,"	"cowper task 1.443"	"**He** walks, **he** leaps, **he** runs--**is** winged with joy,"	"is; he"	6.300
+130	"wordsworth prelude 1.135"	"The Poet, gentle creature as **he** **is**,"	"cowper task 1.443"	"**He** walks, **he** leaps, **he** runs--**is** winged with joy,"	"is; he"	6.300
+131	"wordsworth prelude 1.507"	"**Ye** dealt out **your** plain comforts? Yet had **ye**"	"cowper task 1.362"	"Come hither, **ye** that press **your** beds of down"	"your; ye"	6.293
+132	"wordsworth prelude 1.146"	"When, as becomes a **man** **who** would prepare"	"cowper task 1.97"	"Of lazy nurse, **who** snores the sick **man** dead,"	"man; who"	6.287
+133	"wordsworth prelude 1.130"	"Vain **is** her wish; where'er **she** turns **she** finds"	"cowper task 1.732"	"That **she** **is** rigid in denouncing death"	"she; is"	6.272
+134	"wordsworth prelude 1.130"	"Vain **is** her wish; where'er **she** turns **she** finds"	"cowper task 1.730"	"That **she** **is** slack in discipline; more prompt"	"is; she"	6.272
+135	"wordsworth prelude 1.135"	"The Poet, gentle creature **as** **he** is,"	"cowper task 1.483"	"Themselves love life, and cling to it **as** **he**,"	"as; he"	6.260
+136	"wordsworth prelude 1.135"	"The Poet, gentle creature **as** **he** is,"	"cowper task 1.453"	"Far distant, such **as** **he** would die to find--"	"he; as"	6.260
+137	"wordsworth prelude 1.135"	"The Poet, gentle creature **as** **he** is,"	"cowper task 1.452"	"Fair fields appear below, such **as** **he** left"	"as; he"	6.260
+138	"wordsworth prelude 1.135"	"The Poet, gentle creature **as** **he** is,"	"cowper task 1.131"	"And not a year but pilfers **as** **he** goes"	"as; he"	6.260
+139	"wordsworth prelude 1.629"	"Prove vain, and thus **should** neither I **be** taught"	"cowper task 1.413"	"Is Nature's dictate.  Strange, there **should** **be** found"	"be; should"	6.259
+140	"wordsworth prelude 1.374"	"**She** **was** an elfin pinnace; lustily"	"cowper task 1.544"	"And dream of transports **she** **was** not to know."	"was; she"	6.244
+141	"wordsworth prelude 1.374"	"**She** **was** an elfin pinnace; lustily"	"cowper task 1.537"	"A serving-maid **was** **she**, and fell in love"	"she; was"	6.244
+142	"wordsworth prelude 1.389"	"There in **her** mooring-place I **left** my bark,—"	"cowper task 1.538"	"With one who **left** **her**, went to sea and died."	"left; her"	6.242
+143	"wordsworth prelude 1.34"	"**Was** blowing on my body, **felt** within"	"cowper task 1.57"	"No want of timber then **was** **felt** or feared"	"felt; was"	6.213
+144	"wordsworth prelude 1.392"	"That spectacle, **for** many **days**, my brain"	"cowper task 1.83"	"Was bliss reserved **for** happier **days**; so slow"	"days; for"	6.201
+145	"wordsworth prelude 1.550"	"How other pleasures **have** been **mine**, and joys"	"cowper task 1.140"	"**Mine** **have** not pilfered yet; nor yet impaired"	"have; mine"	6.199
+146	"wordsworth prelude 1.279"	"To **more** **than** infant softness, giving me"	"cowper task 1.703"	"Gives **more** **than** female beauty to a stone,"	"more; than"	6.189
+147	"wordsworth prelude 1.160"	"As **may** **be** singled out with steady choice;"	"cowper task 1.728"	"**May** yet **be** foul; so witty, yet not wise."	"may; be"	6.181
+148	"wordsworth prelude 1.160"	"As **may** **be** singled out with steady choice;"	"cowper task 1.25"	"**May** still **be** seen, but perforated sore"	"be; may"	6.181
+149	"wordsworth prelude 1.342"	"Like harmony in **music**; there **is** a dark"	"cowper task 1.468"	"**Is** famished--finds no **music** in the song,"	"music; is"	6.179
+150	"wordsworth prelude 1.507"	"**Ye** dealt out **your** plain comforts? Yet had **ye**"	"cowper task 1.758"	"**Your** element; there only **ye** can shine,"	"ye; your"	6.175
+151	"wordsworth prelude 1.624"	"Invigorating thoughts **from** former **years**;"	"cowper task 1.286"	"Few transient **years**, won **from** the abyss abhorred"	"from; years"	6.166
+152	"wordsworth prelude 1.352"	"Thanks to the means **which** **Nature** deigned to employ;"	"cowper task 1.701"	"A lucid mirror, in **which** **nature** sees"	"nature; which"	6.164
+153	"wordsworth prelude 1.505"	"In which **ye** stood? or **can** I here forget"	"cowper task 1.758"	"Your element; there only **ye** **can** shine,"	"ye; can"	6.151
+154	"wordsworth prelude 1.512"	"In square divisions parcelled **out** and **all**"	"cowper task 1.752"	"That life holds **out** to **all**, should most abound"	"all; out"	6.146
+155	"wordsworth prelude 1.83"	"Now **here**, now **there**, an acorn, from its cup"	"cowper task 1.53"	"With **here** and **there** a tuft of crimson yarn,"	"there; here"	6.144
+156	"wordsworth prelude 1.599"	"—And if the vulgar joy by **its** **own** weight"	"cowper task 1.467"	"Recoils from **its** **own** choice--at the full feast"	"own; its"	6.139
+157	"wordsworth prelude 1.599"	"—And if the vulgar joy by **its** **own** weight"	"cowper task 1.404"	"With clear exemption from **its** **own** defects."	"its; own"	6.139
+158	"wordsworth prelude 1.599"	"—And if the vulgar joy by **its** **own** weight"	"cowper task 1.372"	"**Its** **own** revolvency upholds the world."	"its; own"	6.139
+159	"wordsworth prelude 1.384"	"For so it seemed, with purpose of **its** **own**"	"cowper task 1.467"	"Recoils from **its** **own** choice--at the full feast"	"its; own"	6.139
+160	"wordsworth prelude 1.384"	"For so it seemed, with purpose of **its** **own**"	"cowper task 1.404"	"With clear exemption from **its** **own** defects."	"own; its"	6.139
+161	"wordsworth prelude 1.384"	"For so it seemed, with purpose of **its** **own**"	"cowper task 1.372"	"**Its** **own** revolvency upholds the world."	"its; own"	6.139
+162	"wordsworth prelude 1.384"	"For so it seemed, with purpose of **its** **own**"	"cowper task 1.59"	"Ponderous, and fixed by **its** **own** massy weight."	"own; its"	6.139
+163	"wordsworth prelude 1.38"	"Vexing **its** **own** creation. Thanks to both,"	"cowper task 1.467"	"Recoils from **its** **own** choice--at the full feast"	"its; own"	6.139
+164	"wordsworth prelude 1.38"	"Vexing **its** **own** creation. Thanks to both,"	"cowper task 1.404"	"With clear exemption from **its** **own** defects."	"its; own"	6.139
+165	"wordsworth prelude 1.38"	"Vexing **its** **own** creation. Thanks to both,"	"cowper task 1.372"	"**Its** **own** revolvency upholds the world."	"own; its"	6.139
+166	"wordsworth prelude 1.38"	"Vexing **its** **own** creation. Thanks to both,"	"cowper task 1.59"	"Ponderous, and fixed by **its** **own** massy weight."	"its; own"	6.139
+167	"wordsworth prelude 1.15"	"Joyous, nor scared at **its** **own** liberty,"	"cowper task 1.404"	"With clear exemption from **its** **own** defects."	"own; its"	6.139
+168	"wordsworth prelude 1.15"	"Joyous, nor scared at **its** **own** liberty,"	"cowper task 1.372"	"**Its** **own** revolvency upholds the world."	"its; own"	6.139
+169	"wordsworth prelude 1.15"	"Joyous, nor scared at **its** **own** liberty,"	"cowper task 1.59"	"Ponderous, and fixed by **its** **own** massy weight."	"own; its"	6.139
+170	"wordsworth prelude 1.15"	"Joyous, nor scared **at** its own **liberty**,"	"cowper task 1.440"	"Escapes **at** last to **liberty** and light;"	"at; liberty"	6.110
+171	"wordsworth prelude 1.611"	"**Though** **yet** the day was distant, did become"	"cowper task 1.6"	"The theme **though** humble, **yet** august and proud"	"yet; though"	6.106
+172	"wordsworth prelude 1.601"	"The **scenes** **which** were a witness of that joy"	"cowper task 1.177"	"**Scenes** must be beautiful **which** daily viewed"	"scenes; which"	6.104
+173	"wordsworth prelude 1.39"	"And their congenial powers, that, **while** **they** join"	"cowper task 1.187"	"And lull the spirit **while** **they** fill the mind,"	"while; they"	6.097
+174	"wordsworth prelude 1.23"	"**Not** **mine**, and such as were **not** made for me."	"cowper task 1.140"	"**Mine** have **not** pilfered yet; nor yet impaired"	"mine; not"	6.092
+175	"wordsworth prelude 1.342"	"**Like** harmony in music; **there** is a dark"	"cowper task 1.759"	"**There** only minds **like** yours can do no harm."	"like; there"	6.084
+176	"wordsworth prelude 1.130"	"Vain is **her** wish; where'er **she** turns **she** finds"	"cowper task 1.725"	"**She** has **her** praise.  Now mark a spot or two"	"her; she"	6.078
+177	"wordsworth prelude 1.460"	"Wheeled by me—even **as** **if** the earth had rolled"	"cowper task 1.381"	"Frowning **as** **if** in his unconscious arm"	"if; as"	6.045
+178	"wordsworth prelude 1.460"	"Wheeled by me—even **as** **if** the earth had rolled"	"cowper task 1.269"	"Their pendent boughs, stooping **as** **if** to drink."	"as; if"	6.045
+179	"wordsworth prelude 1.380"	"**As** **if** with voluntary power instinct"	"cowper task 1.381"	"Frowning **as** **if** in his unconscious arm"	"if; as"	6.045
+180	"wordsworth prelude 1.380"	"**As** **if** with voluntary power instinct"	"cowper task 1.269"	"Their pendent boughs, stooping **as** **if** to drink."	"if; as"	6.045
+181	"wordsworth prelude 1.298"	"Beneath the sky, **as** **if** I had been born"	"cowper task 1.381"	"Frowning **as** **if** in his unconscious arm"	"if; as"	6.045
+182	"wordsworth prelude 1.298"	"Beneath the sky, **as** **if** I had been born"	"cowper task 1.269"	"Their pendent boughs, stooping **as** **if** to drink."	"if; as"	6.045
+183	"wordsworth prelude 1.178"	"Fought, **as** **if** conscious of the blazonry"	"cowper task 1.381"	"Frowning **as** **if** in his unconscious arm"	"if; as"	6.045
+184	"wordsworth prelude 1.178"	"Fought, **as** **if** conscious of the blazonry"	"cowper task 1.269"	"Their pendent boughs, stooping **as** **if** to drink."	"as; if"	6.045
+185	"wordsworth prelude 1.135"	"The Poet, gentle creature **as** **he** is,"	"cowper task 1.90"	"Whom snoring she disturbs.  **As** sweetly **he**"	"as; he"	6.037
+186	"wordsworth prelude 1.272"	"To blend **his** murmurs with my nurse's **song**,"	"cowper task 1.497"	"The peasant too, a witness of **his** **song**,"	"song; his"	6.016
