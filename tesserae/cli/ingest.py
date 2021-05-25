@@ -10,6 +10,7 @@ import getpass
 import hashlib
 
 from tesserae.db import TessMongoConnection, Text
+from tesserae.tokenizers import tokenizer_map
 from tesserae.utils import TessFile
 from tesserae.utils.ingest import ingest_text
 
@@ -34,7 +35,7 @@ def parse_args(args=None):
                     default='127.0.0.1',
                     help='the host name or IP address of the MongoDB database')
     db.add_argument('--port',
-                    type=str,
+                    type=int,
                     default=27017,
                     help='the port that the database listens on')
     db.add_argument('--database',
@@ -46,7 +47,7 @@ def parse_args(args=None):
     text.add_argument('author', type=str, help='author of the text')
     text.add_argument('language',
                       type=str,
-                      choices=['latin', 'greek'],
+                      choices=list(tokenizer_map.keys()),
                       help='language the text was written in')
     text.add_argument('--year', type=int, help='year of authorship')
     text.add_argument('--prose',
