@@ -7,11 +7,9 @@ computed components are inserted into the database.
 
 import argparse
 import getpass
-import hashlib
 
 from tesserae.db import TessMongoConnection, Text
 from tesserae.tokenizers import tokenizer_map
-from tesserae.utils import TessFile
 from tesserae.utils.ingest import ingest_text
 
 
@@ -80,16 +78,11 @@ def main():
                                      password,
                                      db=args.database)
 
-    text_hash = hashlib.md5()
-    text_hash.update(TessFile(args.input).read().encode())
-    text_hash = text_hash.hexdigest()
-
     text = Text(language=args.language,
                 title=args.title,
                 author=args.author,
                 year=args.year,
                 path=args.input,
-                hash=text_hash,
                 is_prose=args.prose)
 
     ingest_text(connection, text, enable_multitext=args.enable_multitext)
