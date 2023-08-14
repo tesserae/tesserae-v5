@@ -109,22 +109,40 @@ class ResultsWriter:
         target_title = target.title.lower().replace(" ", "_")
         # The search parameters and metadata are written as comments to the top
         # of the CSV stream.
-        comments = [
-            '# Tesserae V5 Results',
-            '#',
-            f'# session   = {search.id}',
-            f'# source    = {source.author}.{source_title}',
-            f'# target    = {target.author}.{target_title}',
-            f'# unit      = {search.parameters["source"]["units"]}',
-            f'# feature   = {search.parameters["method"]["feature"]}',
-            f'# stopsize  = {len(search.parameters["method"]["stopwords"])}',
-            f'# stbasis   = ',
-            f'# stopwords = {search.parameters["method"]["stopwords"]}',
-            f'# max_dist  = {search.parameters["method"]["max_distance"]}',
-            f'# dibasis   = {search.parameters["method"]["distance_basis"]}',
-            f'# cutoff    = {0}',
-            f'# filter    = off',
-        ]
+        if (search.parameters["method"]["name"] == 'greek_to_latin'):
+            comments = [
+                '# Tesserae V5 Results',
+                '#',
+                f'# session         = {search.id}',
+                f'# source          = {source.author}.{source_title}',
+                f'# target          = {target.author}.{target_title}',
+                f'# unit            = {search.parameters["source"]["units"]}',
+                f'# stopsize        = {len(search.parameters["method"]["greek_stopwords"])}',
+                f'# stbasis         = ',
+                f'# greek_stopwords = {search.parameters["method"]["greek_stopwords"]}',
+                f'# latin_stopwords = {search.parameters["method"]["latin_stopwords"]}',
+                f'# max_dist        = {search.parameters["method"]["max_distance"]}',
+                f'# dibasis         = {search.parameters["method"]["distance_basis"]}',
+                f'# cutoff          = {0}',
+                f'# filter          = off',
+            ]
+        else: 
+            comments = [
+                '# Tesserae V5 Results',
+                '#',
+                f'# session   = {search.id}',
+                f'# source    = {source.author}.{source_title}',
+                f'# target    = {target.author}.{target_title}',
+                f'# unit      = {search.parameters["source"]["units"]}',
+                f'# feature   = {search.parameters["method"]["feature"]}',
+                f'# stopsize  = {len(search.parameters["method"]["stopwords"])}',
+                f'# stbasis   = ',
+                f'# stopwords = {search.parameters["method"]["stopwords"]}',
+                f'# max_dist  = {search.parameters["method"]["max_distance"]}',
+                f'# dibasis   = {search.parameters["method"]["distance_basis"]}',
+                f'# cutoff    = {0}',
+                f'# filter    = off',
+            ]
         self.fh.write('\n'.join(comments))
         self.fh.write('\n')
         self.writer = csv.DictWriter(self.fh, [
